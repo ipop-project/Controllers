@@ -51,64 +51,6 @@ class SvpnUdpServer(UdpServer):
                     self.create_connection(msg["uid"], fpr, 1, CONFIG["sec"],
                                            cas, ip4)
 
-def setup_config(config):
-    """Validate config and set default value here. Return ``True`` if config is
-    changed.
-    """
-    if not config["local_uid"]:
-        uid = binascii.b2a_hex(os.urandom(CONFIG["uid_size"] / 2))
-        config["local_uid"] = uid
-        return True # modified
-    return False
-
-def load_peer_ip_config(ip_config):
-    with open(ip_config) as f:
-        ip_cfg = json.load(f)
-
-    for peer_ip in ip_cfg:
-        uid = peer_ip["uid"]
-        ip = peer_ip["ipv4"]
-        IP_MAP[uid] = ip
-        logging.debug("MAP %s -> %s" % (ip, uid))
-
-def parse_config():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-c", help="load configuration from a file",
-                        dest="config_file", metavar="config_file")
-    parser.add_argument("-u", help="update configuration file if needed",
-                        dest="update_config", action="store_true")
-    parser.add_argument("-p", help="load remote ip configuration file",
-                        dest="ip_config", metavar="ip_config")
-
-    args = parser.parse_args()
-
-    if args.config_file:
-        # Load the config file
-        with open(args.config_file) as f:
-            loaded_config = json.load(f)
-        CONFIG.update(loaded_config)
-
-    need_save = setup_config(CONFIG)
-    if need_save and args.config_file and args.update_config:
-        with open(args.config_file, "w") as f:
-            json.dump(CONFIG, f, indent=4, sort_keys=True)
-
-    if not ("xmpp_username" in CONFIG and "xmpp_host" in CONFIG):
-        raise ValueError("At least 'xmpp_username' and 'xmpp_host' must be "
-                         "specified in config file")
-
-    if "xmpp_password" not in CONFIG:
-        prompt = "\nPassword for %s: " % CONFIG["xmpp_username"]
-        CONFIG["xmpp_password"] = getpass.getpass(prompt)
-
-    if "controller_logging" in CONFIG:
-        level = getattr(logging, CONFIG["controller_logging"])
-        logging.basicConfig(level=level)
-
-    if args.ip_config:
-        load_peer_ip_config(args.ip_config)
-
-
 def main():
     parse_config()
     server = SvpnUdpServer(CONFIG["xmpp_username"], CONFIG["xmpp_password"],

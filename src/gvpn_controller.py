@@ -16,14 +16,11 @@ class GvpnUdpServer(UdpServer):
         self.uid_ip_table = {}
         parts = CONFIG["ip4"].split(".")
         ip_prefix = parts[0] + "." + parts[1] + "."
-        #for i in range(0, 255):
-        for i in range(0, 1):
-            #for j in range(0, 255):
-            for j in range(0, 3):
+        for i in range(0, 255):
+            for j in range(0, 255):
                 ip = ip_prefix + str(i) + "." + str(j)
                 uid = gen_uid(ip)
                 self.uid_ip_table[uid] = ip
-        print self.uid_ip_table
 
     def ctrl_conn_init(self):
         do_set_logging(self.sock, CONFIG["tincan_logging"])
@@ -168,30 +165,6 @@ class GvpnUdpServer(UdpServer):
                 if len(data) < 16:
                     return
                 self.create_connection_req(data)
-
-def parse_config():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-c", help="load configuration from a file",
-                        dest="config_file", metavar="config_file")
-    args = parser.parse_args()
-
-    if args.config_file:
-        # Load the config file
-        with open(args.config_file) as f:
-            loaded_config = json.load(f)
-        CONFIG.update(loaded_config)
-
-    if not ("xmpp_username" in CONFIG and "xmpp_host" in CONFIG):
-        raise ValueError("At least 'xmpp_username' and 'xmpp_host' must be "
-                         "specified in config file")
-
-    if "xmpp_password" not in CONFIG:
-        prompt = "\nPassword for %s: " % CONFIG["xmpp_username"]
-        CONFIG["xmpp_password"] = getpass.getpass(prompt)
-
-    if "controller_logging" in CONFIG:
-        level = getattr(logging, CONFIG["controller_logging"])
-        logging.basicConfig(level=level)
 
 def main():
     parse_config()
