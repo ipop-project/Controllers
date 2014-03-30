@@ -95,9 +95,13 @@ class GvpnUdpServer(UdpServer):
         socks = select.select([self.sock], [], [], CONFIG["wait_time"])
         for sock in socks[0]:
             data, addr = sock.recvfrom(CONFIG["buf_size"])
-            if data[0] == '{':
-                msg = json.loads(data)
-                logging.debug("recv %s %s" % (addr, data))
+            if data[0] != ipop_ver:
+                logging.debug("ipop version mismatch: tincan:{0}\
+                                controller:{1}".format(data[0], ipop_ver))
+                sys.exit()
+            if data[1] == control_msg:
+                msg = json.loads(data[2:])
+                logging.debug("recv %s %s" % (addr, data[2:]))
                 msg_type = msg.get("type", None)
 
                 if msg_type == "local_state":
@@ -164,7 +168,7 @@ class GvpnUdpServer(UdpServer):
                     return
                 if len(data) < 16:
                     return
-                self.create_connection_req(data)
+                self.create_connection_req(data[2:])
 
 def main():
     parse_config()

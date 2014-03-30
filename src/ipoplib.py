@@ -41,6 +41,10 @@ CONFIG = {
 
 IP_MAP = {}
 
+ipop_ver = "\x02"
+control_msg = "\x01"
+traffic_msg = "\x02"
+
 def gen_ip4(uid, peer_map, ip4=None):
     ip4 = ip4 or CONFIG["ip4"]
     try:
@@ -71,7 +75,7 @@ def gen_uid(ip4):
 def make_call(sock, **params):
     if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
-    return sock.sendto(json.dumps(params), dest)
+    return sock.sendto(ipop_ver + control_msg + json.dumps(params), dest)
 
 def do_send_msg(sock, method, overlay_id, uid, data):
     return make_call(sock, m=method, overlay_id=overlay_id, uid=uid, data=data)
