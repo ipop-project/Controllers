@@ -36,7 +36,10 @@ CONFIG = {
     "on-demand_connection" : False,
     "on-demand_inactive_timeout" : 600,
     "tincan_logging": 1,
-    "controller_logging" : "INFO"
+    "controller_logging" : "INFO",
+    "icc" : False, # Inter-Controller Connection
+    "icc_port" : 30000,
+    "switchmode" : 0
 }
 
 IP_MAP = {}
@@ -44,6 +47,18 @@ IP_MAP = {}
 ipop_ver = "\x02"
 control_msg = "\x01"
 traffic_msg = "\x02"
+null_uid = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+null_uid += "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+bc_mac = "\xff\xff\xff\xff\xff\xff"
+
+def ip4_a2b(str_ip4):
+    bin_ip4 = chr(int(str_ip4.split('.')[0])) + chr(int(str_ip4.split('.')[1]))\
+             + chr(int(str_ip4.split('.')[2])) + chr(int(str_ip4.split('.')[3])) 
+    return bin_ip4
+
+def ip4_b2a(bin_ip4):
+    return str(ord(bin_ip4[0])) + "." + str(ord(bin_ip4[1])) + "." + \
+           str(ord(bin_ip4[2])) + "." + str(ord(bin_ip4[3]))
 
 def gen_ip4(uid, peer_map, ip4=None):
     ip4 = ip4 or CONFIG["ip4"]
@@ -76,6 +91,43 @@ def make_call(sock, **params):
     if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
     return sock.sendto(ipop_ver + control_msg + json.dumps(params), dest)
+
+def make_remote_call(sock, dest_addr, dest_port, m_type, payload, **params):
+    dest = (dest_addr, dest_port)
+    if m_type == control_msg:
+        return sock.sendto(ipop_ver + m_type + json.dumps(params), dest)
+    elif m_type == traffic_msg:
+        return sock.sendto(ipop_ver + m_type + payload, dest)
+
+def send_packet(sock, msg):
+    if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
+    else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
+    return sock.sendto(ipop_ver + control_msg + msg, dest)
+
+def make_arp(sock, op, src_ip4, target_ip4, src_uid=null_uid,dest_uid=null_uid,\
+             dest_mac=bc_mac, src_mac=bc_mac):
+          
+    arp_msg = ""
+    arp_msg += ipop_ver
+    arp_msg += traffic_msg
+    arp_msg += src_uid
+    arp_msg += dest_uid
+    arp_msg += dest_mac
+    arp_msg += src_mac
+    arp_msg += "\x08\x06" #Ether type of ARP
+    arp_msg += "\x00\x01" #Hardware Type
+    arp_msg += "\x08\x00" #Protocol Type
+    arp_msg += "\x06" #Hardware address length
+    arp_msg += "\x04" #Protocol address length
+    arp_msg += "\x00" #Operation (ARP reply)
+    arp_msg += op #Operation (ARP reply)
+    arp_msg += src_mac
+    arp_msg += src_ip4
+    arp_msg += dest_mac
+    arp_msg += target_ip4
+    if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
+    else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
+    return sock.sendto(arp_msg, dest)
 
 def do_send_msg(sock, method, overlay_id, uid, data):
     return make_call(sock, m=method, overlay_id=overlay_id, uid=uid, data=data)
@@ -120,6 +172,9 @@ def do_set_logging(sock, logging):
 def do_set_translation(sock, translate):
     return make_call(sock, m="set_translation", translate=translate)
 
+def do_set_switchmode(sock, switchmode):
+    return make_call(sock, m="set_switchmode", switchmode=switchmode)
+
 class UdpServer(object):
     def __init__(self, user, password, host, ip4):
         self.state = {}
@@ -130,6 +185,23 @@ class UdpServer(object):
         else:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("", 0))
+        self.sock_list = [ self.sock ]
+
+    def inter_controller_conn(self):
+
+        self.cc_sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+
+        while True:
+            try:
+                time.sleep(3)
+                self.cc_sock.bind((gen_ip6(self.uid), CONFIG["icc_port"]))
+            except Exception as e:
+                logging.debug("Wait till ipop tap up")
+                continue
+            else:
+                break
+
+        self.sock_list.append(self.cc_sock)
 
     def trigger_conn_request(self, peer):
         if "fpr" not in peer and peer["xmpp_time"] < CONFIG["wait_time"] * 8:
@@ -149,6 +221,96 @@ class UdpServer(object):
             return False
         else:
             return True
+
+    def arp_handle(self, data):
+        if data[63] == "\x01": #ARP Request message
+            in_peer = False
+            target_ip4 = ip4_b2a(data[80:84])
+            logging.debug("ARP request message looking for {0}, arp_table:{1}"\
+                          .format(target_ip4, self.arp_table))
+            for k, v in self.peers.iteritems():
+                if v["status"] == "online" and v["ip4"] == dest_ip4:
+                    in_peer = True
+                    break
+
+            if in_peer:
+                logging.debug("{0} is associated with ipop router peers ({1} ro"
+                              "uter:{2})".format(target_ip4, self.arp_table, \
+                              in_peer))
+                make_arp(self.sock, src_mac=data[48:54], op="\x02", 
+                         src_ip4=data[80:84], target_ip4=data[70:74])
+                return
+
+            if target_ip4 in self.arp_table:
+                if not self.arp_table == "local":
+                    make_arp(self.sock, src_mac=data[48:54], op="\x02", 
+                         src_ip4=data[80:84], target_ip4=data[70:74])
+                return
+
+            # Not found, broadcast ARP request message
+            for k, v in self.peers.iteritems():
+                if v["status"] == "online" and v["ip4"] == dest_ip4:
+                    make_remote_call(self.cc_sock, dest_addr=dest, dest_port=\
+                      CONFIG["icc_port"], m_type=control_msg, msg_type=\
+                      "arp_request", target_ip4=target_ip4)
+
+        elif data[63] == "\x02": #ARP Reply message
+            logging.debug("ARP reply message")
+            target_ip4 = ip4_b2a(data[80:84])
+            self.arp_table["target_ip4"] = "local"
+            for k, v in self.peers.iteritems():
+                if v["status"] == "online" and v["ip4"] == dest_ip4:
+                    make_remote_call(self.cc_sock, dest_addr=dest, dest_port=\
+                       CONFIG["icc_port"], m_type=control_msg, msg_type=\
+                       "arp_reply", target_ip4=target_ip4, \
+                       uid=self.state["_uid"], ip6=self.state["_ip6"])
+
+        else:
+            logging.error("Unknown ARP message operation")
+            sys.exit()
+
+    def packet_handle(self, data):
+        ip4 = ip4_b2a(data[72:76])
+        if ip4 in self.arp_table:
+            make_remote_call(self.cc_sock,dest_addr=self.arp_table[ip4]["ip6"],\
+              dest_port=CONFIG["icc_port"], m_type=traffic_msg, 
+              payload=data[42:])
+        logging.debug("packet_handle {0} in {1}".format(ip4, self.arp_table))
+         
+
+    def icc_packet_handle(self, data):
+        if data[1] == control_msg:
+            if data[0] != ipop_ver:
+                #TODO change it to raising exception
+                logging.debug("ipop version mismatch: tincan:{0} contro\
+                               ller:{1}".format(data[0], ipop_ver))
+                sys.exit()
+            msg = json.loads(data[2:])
+            logging.debug("recv %s %s" % (addr, data[2:]))
+            msg_type = msg.get("type", None)
+            if msg_type == "arp_request":
+                target_ip4 = msg["target_ip4"]
+
+                if target_ip4 in self.arp_table:
+                    make_remote_call(self.cc_sock, dest, CONFIG["icc_port"], \
+                       control_msg, msg_type="arp_reply",target_ip4=target_ip4,\
+                       uid=self.state["_uid"], ip6=self.state["_ip6"])
+                    return
+
+                make_arp(self.sock, op="\x01", \
+                  src_ip4=ip4_a2b(self.state["_ip4"]),\
+                  target_ip4=ip4_a2b(target_ip4))
+
+            elif msg_type == "arp_reply":
+                self.arp_table[msg["target_ip4"]] = msg
+                make_arp(self.sock, op="\x02", \
+                  src_ip4=ip4_a2b(self.state["_ip4"]),\
+                  target_ip4=ip4_a2b(msg["target_ip4"]))
+
+
+        elif data[1] == traffic_msg:
+            send_packet(self.sock, data[42:])
+
 
 def setup_config(config):
     """Validate config and set default value here. Return ``True`` if config is
