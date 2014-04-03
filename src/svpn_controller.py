@@ -30,9 +30,21 @@ class SvpnUdpServer(UdpServer):
         socks = select.select([self.sock], [], [], CONFIG["wait_time"])
         for sock in socks[0]:
             data, addr = sock.recvfrom(CONFIG["buf_size"])
-            if data[0] == "{":
-                msg = json.loads(data)
-                logging.debug("recv %s %s" % (addr, data))
+            #---------------------------------------------------------------
+            #| offset(byte) |                                              |
+            #---------------------------------------------------------------
+            #|      0       | ipop version                                 |
+            #|      1       | message type                                 |
+            #|      2       | Payload (JSON formatted control message)     |
+            #---------------------------------------------------------------
+            if data[0] != ipop_ver:
+                logging.debug("ipop version mismatch: tincan:{0} controller:{1}"
+                              "".format(data[0].encode("hex"), \
+                                   ipop_ver.encode("hex")))
+                sys.exit()
+            if data[1] == tincan_control:
+                msg = json.loads(data[2:])
+                logging.debug("recv %s %s" % (addr, data[2:]))
                 msg_type = msg.get("type", None)
 
                 if msg_type == "local_state":
