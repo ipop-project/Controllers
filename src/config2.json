@@ -1,0 +1,26 @@
+{
+    "stun": ["stun.l.google.com:19302"],
+    "turn": [
+        {"server": "209.141.33.252:19302", "user": "svpnjingle", "pass": "1234567890"}
+    ],
+    "ip4": "10.0.4.3",
+    "localhost": "127.0.0.1",
+    "ip6_prefix": "fd50:0dbc:41f2:4a3c",
+    "localhost6": "::1",
+    "svpn_port": 5800,
+    "uid_size": 40,
+    "sec": true,
+    "wait_time": 30,
+    "buf_size": 4096,
+    "xmpp_username": "0@ejabberd",
+    "xmpp_password": "0",
+    "xmpp_host": "129.114.33.157",
+    "tincan_path": "../../trunk/out/Release/ipop-tincan",
+    "on-demand_connection": false,
+    "on-demand_inactive_timeout": 100,
+    "tincan_logging": 2,
+    "switchmode": 0,
+    "controller_logging": "DEBUG",
+    "icc": false,
+    "icc_port": 30000
+}

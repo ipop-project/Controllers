@@ -45,6 +45,7 @@ CONFIG = {
 IP_MAP = {}
 
 ipop_ver = "\x02"
+<<<<<<< HEAD
 control_msg = "\x01"
 traffic_msg = "\x02"
 null_uid = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
@@ -59,6 +60,10 @@ def ip4_a2b(str_ip4):
 def ip4_b2a(bin_ip4):
     return str(ord(bin_ip4[0])) + "." + str(ord(bin_ip4[1])) + "." + \
            str(ord(bin_ip4[2])) + "." + str(ord(bin_ip4[3]))
+=======
+tincan_control = "\x01"
+tincan_packet = "\x02"
+>>>>>>> upstream/master
 
 def gen_ip4(uid, peer_map, ip4=None):
     ip4 = ip4 or CONFIG["ip4"]
@@ -90,6 +95,7 @@ def gen_uid(ip4):
 def make_call(sock, **params):
     if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
+<<<<<<< HEAD
     return sock.sendto(ipop_ver + control_msg + json.dumps(params), dest)
 
 def make_remote_call(sock, dest_addr, dest_port, m_type, payload, **params):
@@ -128,6 +134,9 @@ def make_arp(sock, op, src_ip4, target_ip4, src_uid=null_uid,dest_uid=null_uid,\
     if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
     return sock.sendto(arp_msg, dest)
+=======
+    return sock.sendto(ipop_ver + tincan_control + json.dumps(params), dest)
+>>>>>>> upstream/master
 
 def do_send_msg(sock, method, overlay_id, uid, data):
     return make_call(sock, m=method, overlay_id=overlay_id, uid=uid, data=data)
