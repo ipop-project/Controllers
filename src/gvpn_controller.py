@@ -24,7 +24,7 @@ class GvpnUdpServer(UdpServer):
 
         if CONFIG["icc"]:
             self.inter_controller_conn()
-            self.arp_table = []
+            self.arp_table = {}
 
     def ctrl_conn_init(self):
         do_set_logging(self.sock, CONFIG["tincan_logging"])
@@ -97,7 +97,6 @@ class GvpnUdpServer(UdpServer):
         self.ondemand_create_connection(uid, send_req=True)
 
     def serve(self):
-<<<<<<< HEAD
         socks, _, _ = select.select(self.sock_list, [], [], CONFIG["wait_time"])
         for sock in socks:
             if sock == self.sock:
@@ -112,15 +111,15 @@ class GvpnUdpServer(UdpServer):
                 #|              | message)                                     |
                 #|-------------------------------------------------------------|
                 data, addr = sock.recvfrom(CONFIG["buf_size"])
-                if data[1] == control_msg:
-                    if data[0] != ipop_ver:
-                        logging.debug("ipop version mismatch: tincan:{0} contro\
-                                       ller:{1}".format(data[0], ipop_ver))
-                        sys.exit()
+                if data[0] != ipop_ver:
+                    logging.debug("ipop version mismatch: tincan:{0} controller"
+                                  ":{1}" "".format(data[0].encode("hex"), \
+                                   ipop_ver.encode("hex")))
+                    sys.exit()
+                if data[1] == tincan_control:
                     msg = json.loads(data[2:])
                     logging.debug("recv %s %s" % (addr, data[2:]))
                     msg_type = msg.get("type", None)
-    
                     if msg_type == "local_state":
                         self.state = msg
                     elif msg_type == "peer_state": 
@@ -138,49 +137,6 @@ class GvpnUdpServer(UdpServer):
                         if not msg["uid"] in self.peers:
                             msg["last_active"]=time.time()
                         elif not "total_byte" in self.peers[msg["uid"]]:
-=======
-        socks = select.select([self.sock], [], [], CONFIG["wait_time"])
-        for sock in socks[0]:
-            data, addr = sock.recvfrom(CONFIG["buf_size"])
-            #---------------------------------------------------------------
-            #| offset(byte) |                                              |
-            #---------------------------------------------------------------
-            #|      0       | ipop version                                 |
-            #|      1       | message type                                 |
-            #|      2       | Payload (JSON formatted control message)     |
-            #---------------------------------------------------------------
-            if data[0] != ipop_ver:
-                logging.debug("ipop version mismatch: tincan:{0} controller:{1}"
-                              "".format(data[0].encode("hex"), \
-                                   ipop_ver.encode("hex")))
-                sys.exit()
-            if data[1] == tincan_control:
-                msg = json.loads(data[2:])
-                logging.debug("recv %s %s" % (addr, data[2:]))
-                msg_type = msg.get("type", None)
-
-                if msg_type == "local_state":
-                    self.state = msg
-                elif msg_type == "peer_state": 
-                    if msg["status"] == "offline" or "stats" not in msg:
-                        self.peers[msg["uid"]] = msg
-                        self.trigger_conn_request(msg)
-                        continue
-                    stats = msg["stats"]
-                    total_byte = 0
-                    for stat in stats:
-                        total_byte += stat["sent_total_bytes"]
-                        total_byte += stat["recv_total_bytes"]
-                    msg["total_byte"]=total_byte
-                    logging.debug("self.peers:{0}".format(self.peers))
-                    if not msg["uid"] in self.peers:
-                        msg["last_active"]=time.time()
-                    elif not "total_byte" in self.peers[msg["uid"]]:
-                        msg["last_active"]=time.time()
-                    else:
-                        if msg["total_byte"] > \
-                                        self.peers[msg["uid"]]["total_byte"]:
->>>>>>> upstream/master
                             msg["last_active"]=time.time()
                         else:
                             if msg["total_byte"] > \
@@ -211,7 +167,6 @@ class GvpnUdpServer(UdpServer):
                         fpr = msg["data"][:fpr_len]
                         cas = msg["data"][fpr_len + 1:]
                         ip4 = self.uid_ip_table[msg["uid"]]
-<<<<<<< HEAD
                         self.create_connection(msg["uid"], fpr, 1, 
                                                CONFIG["sec"], cas, ip4)
     
@@ -228,52 +183,12 @@ class GvpnUdpServer(UdpServer):
                 # If a packet that is destined to yet no p2p connection 
                 # established node, the packet as a whole is forwarded to 
                 # controller
-                elif data[1] == traffic_msg:
+                elif data[1] == tincan_packet:
 
                     #Ignore IPv6 packets for log readability. Most of them are 
                     #Multicast DNS packets
                     if data[54:56] == "\x86\xdd":
                         continue
-=======
-                        self.create_connection(msg["uid"], fpr, 1, CONFIG["sec"],
-                              cas, ip4)
-                elif msg_type == "con_resp":
-                    if self.check_collision(msg_type, msg["uid"]): continue
-                    fpr_len = len(self.state["_fpr"])
-                    fpr = msg["data"][:fpr_len]
-                    cas = msg["data"][fpr_len + 1:]
-                    ip4 = self.uid_ip_table[msg["uid"]]
-                    self.create_connection(msg["uid"], fpr, 1, CONFIG["sec"],
-                          cas, ip4)
-
-                # send message is used as "request for start mutual connection"
-                elif msg_type == "send_msg": 
-                    if CONFIG["on-demand_connection"]:
-                        if msg["data"].startswith("destroy"):
-                            do_trim_link(self.sock, msg["uid"])
-                        else:
-                            self.ondemand_create_connection(msg["uid"], False)
-               
-            # If a packet that is destined to yet no p2p connection established
-            # node, the packet as a whole is forwarded to controller
-            #---------------------------------------------------------------
-            #| offset(byte) |                                              |
-            #---------------------------------------------------------------
-            #|      0       | ipop version                                 |
-            #|      1       | message type                                 |
-            #|      2       | source uid                                   |
-            #|     22       | destination uid                              |
-            #|     42       | Payload (IP packet or JSON format control    |
-            #|              | message)                                     |
-            #---------------------------------------------------------------
-            elif data[1] == tincan_packet:
-                if not CONFIG["on-demand_connection"]:
-                    return
-                if len(data) < 16:
-                    return
-                self.create_connection_req(data[2:])
->>>>>>> upstream/master
-
                     logging.debug("IP packet forwarded \nversion:{0}\nmsg_type:"
                         "{1}\nsrc_uid:{2}\ndest_uid:{3}\nsrc_mac:{4}\ndst_mac:{"
                         "5}\neth_type:{6}".format(data[0].encode("hex"), \
