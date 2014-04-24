@@ -53,24 +53,18 @@ bc_mac = "\xff\xff\xff\xff\xff\xff"
 null_mac = "\x00\x00\x00\x00\x00\x00"
 
 def ip4_a2b(str_ip4):
-    bin_ip4 = chr(int(str_ip4.split('.')[0])) + chr(int(str_ip4.split('.')[1]))\
-             + chr(int(str_ip4.split('.')[2])) + chr(int(str_ip4.split('.')[3])) 
-    return bin_ip4
+    return "".join(chr(int(x)) for x in str_ip4.split('.'))
 
 def ip4_b2a(bin_ip4):
-    return str(ord(bin_ip4[0])) + "." + str(ord(bin_ip4[1])) + "." + \
-           str(ord(bin_ip4[2])) + "." + str(ord(bin_ip4[3]))
+    return "".join(str(ord(bin_ip4[x])) + "." for x in range (0,3)) \
+           + str(ord(bin_ip4[3]))
 
 def mac_a2b(str_mac):
-    bin_mac = ""
-    for i in range (0, 6): 
-        bin_mac += str_mac.split(':')[i].decode("hex")
-    return bin_mac
+    return "".join(x.decode("hex") for x in str_mac.split(':'))
 
 def mac_b2a(bin_mac):
-    return bin_mac[0].encode("hex") + ":" + bin_mac[1].encode("hex") + ":" + \
-           bin_mac[2].encode("hex") + ":" + bin_mac[3].encode("hex") + ":" + \
-           bin_mac[4].encode("hex") + ":" + bin_mac[5].encode("hex") 
+    return "".join(bin_mac[x].encode("hex") + ":" for x in range(0,5)) +\
+           bin_mac[5].encode("hex")
 
 def gen_ip4(uid, peer_map, ip4=None):
     ip4 = ip4 or CONFIG["ip4"]
@@ -116,13 +110,11 @@ def send_packet(sock, msg):
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
     return sock.sendto(ipop_ver + tincan_packet + msg, dest)
 
-def make_arp(sock, src_uid=null_uid, dest_uid=null_uid, dest_mac=bc_mac,\
+def make_arp(src_uid=null_uid, dest_uid=null_uid, dest_mac=bc_mac,\
              src_mac=bc_mac, op="\x01", sender_mac=bc_mac,\
              sender_ip4=CONFIG["ip4"], target_mac=null_mac,\
              target_ip4=CONFIG["ip4"]):
     arp_msg = ""
-    arp_msg += ipop_ver
-    arp_msg += tincan_packet
     arp_msg += src_uid
     arp_msg += dest_uid
     arp_msg += dest_mac
@@ -138,9 +130,7 @@ def make_arp(sock, src_uid=null_uid, dest_uid=null_uid, dest_mac=bc_mac,\
     arp_msg += sender_ip4
     arp_msg += target_mac
     arp_msg += target_ip4
-    if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
-    else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
-    return sock.sendto(arp_msg, dest)
+    return arp_msg
 
 def do_send_msg(sock, method, overlay_id, uid, data):
     return make_call(sock, m=method, overlay_id=overlay_id, uid=uid, data=data)
@@ -250,20 +240,22 @@ class UdpServer(object):
                 logging.debug("{0} is associated with ipop router peers ({1} ro"
                               "uter:{2})".format(target_ip4, self.arp_table, \
                               in_peer))
-                make_arp(self.sock, dest_mac=data[42:48],\
+                arp = make_arp(dest_mac=data[42:48],\
                   src_mac=mac_a2b(self.state["_mac"]), op="\x02",\
                   sender_mac=mac_a2b(self.state["_mac"]),\
                   sender_ip4=data[80:84], target_ip4=data[70:74],\
                   target_mac=data[42:48])
+                send_packet(self.sock, arp)
                 return
 
             if target_ip4 in self.arp_table:
-                if not self.arp_table == "local":
-                    make_arp(self.sock, dest_mac=data[42:48],\
+                if not self.arp_table[target_ip4]["local"]:
+                    arp = make_arp( dest_mac=data[42:48],\
                       src_mac=mac_a2b(self.state["_mac"]), op="\x02",\
                       sender_mac=mac_a2b(self.state["_mac"]), \
                       sender_ip4=data[80:84], target_ip4=data[70:74],\
                       target_mac=data[42:48])
+                    send_packet(self.sock, arp)
                 return
 
             # Not found, broadcast ARP request message
@@ -289,7 +281,7 @@ class UdpServer(object):
 
         else:
             logging.error("Unknown ARP message operation")
-            sys.exit()
+            return None
 
     def packet_handle(self, data):
         ip4 = ip4_b2a(data[72:76])
@@ -298,7 +290,6 @@ class UdpServer(object):
               dest_port=CONFIG["icc_port"], m_type=tincan_packet, 
               payload=data[42:])
         logging.debug("send packet over controller {0} in {1}".format(ip4, self.arp_table))
-         
 
     def icc_packet_handle(self, data):
         if data[0] != ipop_ver:
@@ -314,18 +305,21 @@ class UdpServer(object):
             if msg_type == "arp_request":
                 target_ip4 = msg["target_ip4"]
                 #Set source mac as broadcast 
-                make_arp(self.sock, src_mac=mac_a2b(self.state["_mac"]), \
+                arp = make_arp(src_mac=mac_a2b(self.state["_mac"]), \
                   #op="\x01", sender_mac=mac_a2b(self.state["_mac"]), \
                   op="\x01", \
                    sender_ip4=ip4_a2b(self.state["_ip4"]),\
                    target_ip4=ip4_a2b(target_ip4))
+                send_packet(self.sock, arp)
 
             elif msg_type == "arp_reply":
                 self.arp_table[msg["target_ip4"]] = msg
-                make_arp(self.sock,  src_mac=mac_a2b(self.state["_mac"]),\
+                self.arp_table[msg["target_ip4"]]["local"] = False
+                arp = make_arp(src_mac=mac_a2b(self.state["_mac"]),\
                   op="\x02", sender_mac=mac_a2b(self.state["_mac"]),\
                   sender_ip4=ip4_a2b(msg["target_ip4"]),\
                   target_ip4=ip4_a2b(msg["target_ip4"]))
+                send_packet(self.sock, arp)
 
 
         elif data[1] == tincan_packet:
