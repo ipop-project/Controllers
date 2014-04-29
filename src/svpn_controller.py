@@ -13,6 +13,7 @@ class SvpnUdpServer(UdpServer):
         do_set_local_ip(self.sock, uid, ip4, gen_ip6(uid), CONFIG["ip4_mask"],
                         CONFIG["ip6_mask"], CONFIG["subnet_mask"])
         do_register_service(self.sock, user, password, host)
+        do_set_trimpolicy(self.sock, CONFIG["trim_enabled"])
         do_get_state(self.sock)
 
     def create_connection(self, uid, data, overlay_id, sec, cas, ip4):
@@ -27,7 +28,7 @@ class SvpnUdpServer(UdpServer):
                     do_trim_link(self.sock, k)
 
     def serve(self):
-        socks = select.select(sock_list, [], [], CONFIG["wait_time"])
+        socks = select.select(self.sock_list, [], [], CONFIG["wait_time"])
         for sock in socks[0]:
             data, addr = sock.recvfrom(CONFIG["buf_size"])
             #---------------------------------------------------------------

@@ -39,7 +39,8 @@ CONFIG = {
     "controller_logging" : "INFO",
     "icc" : False, # Inter-Controller Connection
     "icc_port" : 30000,
-    "switchmode" : 0
+    "switchmode" : 0,
+    "trim_enabled": False
 }
 
 IP_MAP = {}
@@ -177,6 +178,9 @@ def do_set_translation(sock, translate):
 
 def do_set_switchmode(sock, switchmode):
     return make_call(sock, m="set_switchmode", switchmode=switchmode)
+
+def do_set_trimpolicy(sock, trim_enabled):
+    return make_call(sock, m="set_trimpolicy", trim_enabled=trim_enabled)
 
 class UdpServer(object):
     def __init__(self, user, password, host, ip4):
@@ -390,8 +394,4 @@ def parse_config():
 
     if args.ip_config:
         load_peer_ip_config(args.ip_config)
-
-
-
-
 
