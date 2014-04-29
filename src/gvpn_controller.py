@@ -40,8 +40,9 @@ class GvpnUdpServer(UdpServer):
                            CONFIG["router_ip6_mask"], CONFIG["subnet_mask"])
 
         do_register_service(self.sock, self.user, self.password, self.host)
-        do_get_state(self.sock)
         do_set_switchmode(self.sock, CONFIG["switchmode"])
+        do_set_trimpolicy(self.sock, CONFIG["trim_enabled"])
+        do_get_state(self.sock)
 
     def create_connection(self, uid, data, nid, sec, cas, ip4):
         do_create_link(self.sock, uid, data, nid, sec, cas)
