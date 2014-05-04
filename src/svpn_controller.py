@@ -14,7 +14,7 @@ class SvpnUdpServer(UdpServer):
                         CONFIG["ip6_mask"], CONFIG["subnet_mask"])
         do_register_service(self.sock, user, password, host)
         do_set_trimpolicy(self.sock, CONFIG["trim_enabled"])
-        do_get_state(self.sock)
+        do_get_state(self.sock, False)
 
     def create_connection(self, uid, data, overlay_id, sec, cas, ip4):
         self.peerlist.add(uid)
@@ -74,7 +74,7 @@ def main():
         time_diff = time.time() - last_time
         if time_diff > CONFIG["wait_time"]:
             server.trim_connections()
-            do_get_state(server.sock)
+            do_get_state(server.sock, False)
             last_time = time.time()
 
 if __name__ == "__main__":
