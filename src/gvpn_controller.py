@@ -101,16 +101,13 @@ class GvpnUdpServer(UdpServer):
         socks, _, _ = select.select(self.sock_list, [], [], CONFIG["wait_time"])
         for sock in socks:
             if sock == self.sock:
-                #|-------------------------------------------------------------|
+                #---------------------------------------------------------------
                 #| offset(byte) |                                              |
-                #|-------------------------------------------------------------|
+                #---------------------------------------------------------------
                 #|      0       | ipop version                                 |
                 #|      1       | message type                                 |
-                #|      2       | source uid                                   |
-                #|     22       | destination uid                              |
-                #|     42       | Payload (IP packet or JSON format control    |
-                #|              | message)                                     |
-                #|-------------------------------------------------------------|
+                #|      2       | Payload (JSON formatted control message)     |
+                #---------------------------------------------------------------
                 data, addr = sock.recvfrom(CONFIG["buf_size"])
                 if data[0] != ipop_ver:
                     logging.debug("ipop version mismatch: tincan:{0} controller"
@@ -184,6 +181,15 @@ class GvpnUdpServer(UdpServer):
                 # If a packet that is destined to yet no p2p connection 
                 # established node, the packet as a whole is forwarded to 
                 # controller
+                #|-------------------------------------------------------------|
+                #| offset(byte) |                                              |
+                #|-------------------------------------------------------------|
+                #|      0       | ipop version                                 |
+                #|      1       | message type                                 |
+                #|      2       | source uid                                   |
+                #|     22       | destination uid                              |
+                #|     42       | Payload (Ethernet frame)                     |
+                #|-------------------------------------------------------------|
                 elif data[1] == tincan_packet:
 
                     #Ignore IPv6 packets for log readability. Most of them are 
