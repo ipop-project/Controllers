@@ -5,6 +5,7 @@ from ipoplib import *
 class SvpnUdpServer(UdpServer):
     def __init__(self, user, password, host, ip4, uid):
         UdpServer.__init__(self, user, password, host, ip4)
+        self.uid = uid
         self.peerlist = set()
         self.ip_map = dict(IP_MAP)
         do_set_logging(self.sock, CONFIG["tincan_logging"])
@@ -15,6 +16,8 @@ class SvpnUdpServer(UdpServer):
         do_register_service(self.sock, user, password, host)
         do_set_trimpolicy(self.sock, CONFIG["trim_enabled"])
         do_get_state(self.sock, False)
+        if CONFIG["icc"]:
+            self.inter_controller_conn()
 
     def create_connection(self, uid, data, overlay_id, sec, cas, ip4):
         self.peerlist.add(uid)
@@ -28,42 +31,81 @@ class SvpnUdpServer(UdpServer):
                     do_trim_link(self.sock, k)
 
     def serve(self):
-        socks = select.select(self.sock_list, [], [], CONFIG["wait_time"])
-        for sock in socks[0]:
-            data, addr = sock.recvfrom(CONFIG["buf_size"])
-            #---------------------------------------------------------------
-            #| offset(byte) |                                              |
-            #---------------------------------------------------------------
-            #|      0       | ipop version                                 |
-            #|      1       | message type                                 |
-            #|      2       | Payload (JSON formatted control message)     |
-            #---------------------------------------------------------------
-            if data[0] != ipop_ver:
-                logging.debug("ipop version mismatch: tincan:{0} controller:{1}"
-                              "".format(data[0].encode("hex"), \
-                                   ipop_ver.encode("hex")))
-                sys.exit()
-            if data[1] == tincan_control:
-                msg = json.loads(data[2:])
-                logging.debug("recv %s %s" % (addr, data[2:]))
-                msg_type = msg.get("type", None)
+        socks, _, _ = select.select(self.sock_list, [], [], CONFIG["wait_time"])
+        for sock in socks:
+            if sock == self.sock:
+                data, addr = sock.recvfrom(CONFIG["buf_size"])
+                #---------------------------------------------------------------
+                #| offset(byte) |                                              |
+                #---------------------------------------------------------------
+                #|      0       | ipop version                                 |
+                #|      1       | message type                                 |
+                #|      2       | Payload (JSON formatted control message)     |
+                #---------------------------------------------------------------
+                if data[0] != ipop_ver:
+                    logging.debug("ipop version mismatch: tincan:{0} controller"
+                                  ":{1}".format(data[0].encode("hex"), \
+                                       ipop_ver.encode("hex")))
+                    sys.exit()
+                if data[1] == tincan_control:
+                    msg = json.loads(data[2:])
+                    logging.debug("recv %s %s" % (addr, data[2:]))
+                    msg_type = msg.get("type", None)
+    
+                    if msg_type == "local_state":
+                        self.state = msg
+                    elif msg_type == "peer_state":
+                        self.peers[msg["uid"]] = msg
+                        self.trigger_conn_request(msg)
+                    # we ignore connection status notification for now
+                    elif msg_type == "con_stat": pass
+                    elif msg_type == "con_req" or msg_type == "con_resp":
+                        if self.check_collision(msg_type, msg["uid"]): continue
+                        fpr_len = len(self.state["_fpr"])
+                        fpr = msg["data"][:fpr_len]
+                        cas = msg["data"][fpr_len + 1:]
+                        ip4 = gen_ip4(msg["uid"],self.ip_map,self.state["_ip4"])
+                        self.create_connection(msg["uid"], fpr, 1,\
+                                               CONFIG["sec"], cas, ip4)
+                    return
 
-                if msg_type == "local_state":
-                    self.state = msg
-                elif msg_type == "peer_state":
-                    self.peers[msg["uid"]] = msg
-                    self.trigger_conn_request(msg)
-                # we ignore connection status notification for now
-                elif msg_type == "con_stat": pass
-                elif msg_type == "con_req" or msg_type == "con_resp":
-                    if self.check_collision(msg_type, msg["uid"]): continue
-                    fpr_len = len(self.state["_fpr"])
-                    fpr = msg["data"][:fpr_len]
-                    cas = msg["data"][fpr_len + 1:]
-                    ip4 = gen_ip4(msg["uid"], self.ip_map, self.state["_ip4"])
-                    self.create_connection(msg["uid"], fpr, 1, CONFIG["sec"],
-                                           cas, ip4)
+                #|-------------------------------------------------------------|
+                #| offset(byte) |                                              |
+                #|-------------------------------------------------------------|
+                #|      0       | ipop version                                 |
+                #|      1       | message type                                 |
+                #|      2       | source uid                                   |
+                #|     22       | destination uid                              |
+                #|     42       | Payload (Ethernet frame)                     |
+                #|-------------------------------------------------------------|
+                elif data[1] == tincan_packet:
+                    if data[54:56] == "\x86\xdd" and data[80:82] != "\xff\x02"\
+                       and CONFIG["multihop"]:
+                        hext=""
+                        for i in range(0, len(data),2):
+                            hext += data[i:i+2].encode("hex")
+                            hext += " "
+                            if i % 16 == 14:
+                                hext += "\n"
+                        print hext
+                        dest_ip6=ip6_b2a(data[80:96])
+                        if dest_ip6 in self.far_peers:
+                            logging.debug("Destination({0}) packet is in direct" 
+                                  "peers({1})".format(dest_ip6, self.far_peers))
+                            make_remote_call(sock=self.cc_sock, \
+                              dest_addr=self.far_peers[dest_ip6]["via"],\
+                              dest_port=CONFIG["icc_port"],\
+                              m_type=tincan_packet, payload=data[42:])
+                        else:
+                            self.lookup(dest_ip6)
+                    return
 
+            elif sock == self.cc_sock and CONFIG["multihop"]:
+                data, addr = sock.recvfrom(CONFIG["buf_size"])
+                logging.debug("Packet received from {0}".format(addr))
+                self.multihop_handle(data)
+
+    
 def main():
     parse_config()
     server = SvpnUdpServer(CONFIG["xmpp_username"], CONFIG["xmpp_password"],

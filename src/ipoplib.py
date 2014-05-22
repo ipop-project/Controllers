@@ -53,6 +53,10 @@ null_uid += "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 bc_mac = "\xff\xff\xff\xff\xff\xff"
 null_mac = "\x00\x00\x00\x00\x00\x00"
 
+def ip6_b2a(bin_ip6):
+    return "".join(bin_ip6[x:x+2].encode("hex") + ":" for x in range(0, 14, 2))\
+           + bin_ip6[14].encode("hex") + bin_ip6[15].encode("hex")
+
 def ip4_a2b(str_ip4):
     return "".join(chr(int(x)) for x in str_ip4.split('.'))
 
@@ -66,6 +70,9 @@ def mac_a2b(str_mac):
 def mac_b2a(bin_mac):
     return "".join(bin_mac[x].encode("hex") + ":" for x in range(0,5)) +\
            bin_mac[5].encode("hex")
+
+def uid_a2b(str_uid):
+    return str_uid.decode("hex")
 
 def gen_ip4(uid, peer_map, ip4=None):
     ip4 = ip4 or CONFIG["ip4"]
@@ -94,10 +101,14 @@ def gen_ip6(uid, ip6=None):
 def gen_uid(ip4):
     return hashlib.sha1(ip4).hexdigest()[:CONFIG["uid_size"]]
 
-def make_call(sock, **params):
+def make_call(sock, payload=None, **params):
     if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
-    return sock.sendto(ipop_ver + tincan_control + json.dumps(params), dest)
+    if payload == None:
+        return sock.sendto(ipop_ver + tincan_control + json.dumps(params), dest)
+    else:
+        return sock.sendto(ipop_ver + tincan_packet + payload, dest)
+      
 
 def make_remote_call(sock, dest_addr, dest_port, m_type, payload, **params):
     dest = (dest_addr, dest_port)
@@ -186,6 +197,7 @@ class UdpServer(object):
     def __init__(self, user, password, host, ip4):
         self.state = {}
         self.peers = {}
+        self.far_peers = {}
         self.conn_stat = {}
         if socket.has_ipv6:
             self.sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
@@ -337,6 +349,104 @@ class UdpServer(object):
                 msg += data[14:]
                 send_packet(self.sock, msg)
 
+    def update_farpeers(self, key, hop_count, via):
+        if not key in self.far_peers:
+            self.far_peers[key] = {}
+            self.far_peers[key]["hop_count"] = sys.maxint
+        if self.far_peers[key]["hop_count"] >= hop_count:
+            self.far_peers[key]["hop_count"] = hop_count
+            self.far_peers[key]["via"] = via
+
+    def lookup(self, dest_ip6):
+        for k, v in self.peers.iteritems():
+            if "ip6" in v:
+                make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"],\
+                  dest_port=CONFIG["icc_port"], m_type=tincan_control,\
+                  payload=None, msg_type="lookup_request", target_ip6=dest_ip6,\
+                  via=[self.state["_ip6"], v["ip6"]])
+ 
+    def multihop_handle(self, data):
+        if data[0] != ipop_ver:
+             logging.error("ipop version mismatch: tincan:{0} controller:{1}"
+                           "".format(data[0].encode("hex"),\
+                           ipop_ver.encode("hex")))
+        if data[1] == tincan_control: 
+            msg = json.loads(data[2:])
+            logging.debug("multihop recv {0}".format(msg))
+            msg_type = msg.get("msg_type", None)
+            if msg_type == "lookup_request":
+                for k, v in self.peers.iteritems():
+                    # found in peer, do lookup_reply
+                    if "ip6" in v and v["ip6"] == msg["target_ip6"]:
+                        # IP is found in my peers,  
+                        # send reply message back to previous sender
+                        make_remote_call(sock=self.cc_sock,\
+                          dest_addr=msg["via"][-2],\
+                          dest_port=CONFIG["icc_port"], m_type=tincan_control,\
+                          payload=None, msg_type="lookup_reply",\
+                          target_ip6=msg["target_ip6"], via=msg["via"])
+                        self.update_farpeers(msg["target_ip6"], 1,\
+                                             msg["target_ip6"])
+                        return
+
+                #not found
+                #self.update_farpeers(msg["target_ip6"]], len(msg["via"]), 
+                #             msg["via"][-2]) 
+            if msg_type == "lookup_reply":
+                self.update_farpeers(msg["target_ip6"], len(msg["via"]),\
+                                     msg["via"][1]) 
+
+        if data[1] == tincan_packet: 
+            target_ip6=ip6_b2a(data[40:56])
+            logging.debug("Multihop Packet Destined to {0}".format(target_ip6))
+            if target_ip6 == self.state["_ip6"]:
+                make_call(self.sock, payload=null_uid + null_uid + data[2:])
+                return
+            if ip6_b2a(data[40:56]) in self.far_peers: 
+                make_remote_call(sock=self.cc_sock,\
+                  dest_addr=self.far_peers[target_ip6]["via"],\
+                  dest_port=CONFIG["icc_port"], m_type=tincan_packet,\
+                  payload=data[2:])
+                return
+            logging.debug("Oops this should not happen")
+            #for k, v in self.peers.iteritems():
+            #    if "ip6" in v and v["ip6"] == ip6_b2a(data[40:56]):
+            #        uid = v["uid"]
+            #        make_call(self.sock, payload=null_uid + uid_a2b(uid) + data[2:])
+
+    def handle_lookup_request(self, msg):
+
+        # dest not in my peer, multicasting to peers
+        for k, v in self.peers.iteritems():
+            #Do not send lookup_request back to source
+            if msg["via"][-2] == v["ip6"]:
+                continue
+
+            #If this message visit here before, just drop it
+            cyclic = False
+            for via in msg["via"]:
+                if v["ip6"] == via:
+                    cyclic = True
+                    break
+                 
+            #Multicast lookup_request
+            if not cyclic:
+                msg["via"].append(v["ip6"])
+                msg = json.dumps(msg)
+                self.tcp_send(v["ip6"], msg)
+
+    def handle_lookup_reply(self, msg):
+        # update far_peers if ip6 does not exists or shortest hop count
+        self.update_farpeers(msg["src_ip6"], msg["hops"], 
+                             msg["via"][-msg["hops"] + 1]) 
+        if msg["dest_ip6"] != self.state["_ip6"]:
+            self.tcp_send(hop, msg)
+        
+        for k, v in self.peers.iteritems():
+            if msg["dest_ip6"] == v["ip6"]:
+                return
+        self.update_farpeers(msg["dest_ip6"], len(msg["via"]) - msg["hops"], 
+                             msg["via"][len(msg["via"]) - msg["hops"]]) 
 
 def setup_config(config):
     """Validate config and set default value here. Return ``True`` if config is
