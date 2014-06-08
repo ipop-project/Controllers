@@ -18,6 +18,7 @@ class SvpnUdpServer(UdpServer):
         do_get_state(self.sock, False)
         if CONFIG["icc"]:
             self.inter_controller_conn()
+            self.lookup_req = {}
 
     def create_connection(self, uid, data, overlay_id, sec, cas, ip4):
         self.peerlist.add(uid)
@@ -79,30 +80,42 @@ class SvpnUdpServer(UdpServer):
                 #|     42       | Payload (Ethernet frame)                     |
                 #|-------------------------------------------------------------|
                 elif data[1] == tincan_packet:
+                    # At this point, we only handle ipv6 packet
                     if data[54:56] == "\x86\xdd" and data[80:82] != "\xff\x02"\
                        and CONFIG["multihop"]:
-                        hext=""
-                        for i in range(0, len(data),2):
-                            hext += data[i:i+2].encode("hex")
-                            hext += " "
-                            if i % 16 == 14:
-                                hext += "\n"
-                        print hext
+                        logging.pktdump("Destination unknown packet", dump=data)
                         dest_ip6=ip6_b2a(data[80:96])
                         if dest_ip6 in self.far_peers:
-                            logging.debug("Destination({0}) packet is in direct" 
+                            logging.pktdump("Destination({0}) packet is in far" 
                                   "peers({1})".format(dest_ip6, self.far_peers))
-                            make_remote_call(sock=self.cc_sock, \
-                              dest_addr=self.far_peers[dest_ip6]["via"],\
-                              dest_port=CONFIG["icc_port"],\
-                              m_type=tincan_packet, payload=data[42:])
+                            if CONFIG["multihop_sr"]: #Source routing
+                                # Attach all the ipv6 address of hop in the 
+                                payload = ""
+                                for hop in self.far_peers[dest_ip6]["via"][1:]:
+                                    payload += tincan_sr6 + ip6_a2b(hop)
+                                payload += tincan_sr6
+                                payload += data[80:96]
+                                payload += tincan_sr6_end
+                                payload += data[42:]
+                                #send packet to the next hop
+                                make_remote_call(sock=self.cc_sock,\
+                                  dest_addr=self.far_peers[dest_ip6]["via"][1],\
+                                  dest_port=CONFIG["icc_port"],\
+                                  m_type=tincan_sr6, payload=payload)
+                            else:
+                                # Non source route mode
+                                make_remote_call(sock=self.cc_sock, \
+                                  dest_addr=self.far_peers[dest_ip6]["via"],\
+                                  dest_port=CONFIG["icc_port"],\
+                                  m_type=tincan_packet, payload=data[42:])
                         else:
+                            # Destination is not known, we flood lookup_req msg
                             self.lookup(dest_ip6)
                     return
 
             elif sock == self.cc_sock and CONFIG["multihop"]:
                 data, addr = sock.recvfrom(CONFIG["buf_size"])
-                logging.debug("Packet received from {0}".format(addr))
+                logging.pktdump("Packet received from {0}".format(addr))
                 self.multihop_handle(data)
 
     
