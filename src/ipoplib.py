@@ -28,6 +28,7 @@ CONFIG = {
     "ip6_mask": 64,
     "subnet_mask": 32,
     "svpn_port": 5800,
+    "contr_port": 5801,
     "local_uid": "",
     "uid_size": 40,
     "sec": True,
@@ -231,10 +232,14 @@ class UdpServer(object):
         self.conn_stat = {}
         if socket.has_ipv6:
             self.sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+            self.sock_svr = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+            self.sock_svr.bind((CONFIG["localhost6"], CONFIG["contr_port"]))
         else:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock_svr = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            self.sock_svr.bind((CONFIG["localhost"], CONFIG["contr_port"]))
         self.sock.bind(("", 0))
-        self.sock_list = [ self.sock ]
+        self.sock_list = [ self.sock, self.sock_svr ]
 
     def inter_controller_conn(self):
 

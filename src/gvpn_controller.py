@@ -100,7 +100,7 @@ class GvpnUdpServer(UdpServer):
     def serve(self):
         socks, _, _ = select.select(self.sock_list, [], [], CONFIG["wait_time"])
         for sock in socks:
-            if sock == self.sock:
+            if sock == self.sock or sock == self.sock_svr:
                 #---------------------------------------------------------------
                 #| offset(byte) |                                              |
                 #---------------------------------------------------------------
@@ -118,6 +118,10 @@ class GvpnUdpServer(UdpServer):
                     msg = json.loads(data[2:])
                     logging.debug("recv %s %s" % (addr, data[2:]))
                     msg_type = msg.get("type", None)
+                    if msg_type == "echo_request":
+                        make_remote_call(self.sock_svr, m_type=tincan_control,\
+                          dest_addr=addr[0], dest_port=addr[1], payload=None,\ 
+                          msg_type="echo_reply")
                     if msg_type == "local_state":
                         self.state = msg
                     elif msg_type == "peer_state": 
