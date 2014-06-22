@@ -146,8 +146,6 @@ def make_call(sock, payload=None, **params):
 def make_remote_call(sock, dest_addr, dest_port, m_type, payload, **params):
     dest = (dest_addr, dest_port)
     if m_type == tincan_control:
-        print dest
-        print ipop_ver + m_type + json.dumps(params)
         return sock.sendto(ipop_ver + m_type + json.dumps(params), dest)
     else:
         return sock.sendto(ipop_ver + m_type + payload, dest)
