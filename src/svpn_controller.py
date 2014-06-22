@@ -30,6 +30,14 @@ class SvpnUdpServer(UdpServer):
             if "fpr" in v and v["status"] == "offline":
                 if v["last_time"] > CONFIG["wait_time"] * 2:
                     do_trim_link(self.sock, k)
+        if CONFIG["multihop"]: 
+            connection_count = 0 
+            for k, v in self.peers.iteritems():
+                if "fpr" in v and v["status"] == "online":
+                    connection_count += 1
+                    if connection_count > CONFIG["multihop_cl"]:
+                        do_trim_link(self.sock, k)
+        
 
     def serve(self):
         socks, _, _ = select.select(self.sock_list, [], [], CONFIG["wait_time"])
@@ -55,15 +63,31 @@ class SvpnUdpServer(UdpServer):
                     if msg_type == "echo_request":
                         make_remote_call(self.sock_svr, m_type=tincan_control,\
                           dest_addr=addr[0], dest_port=addr[1], payload=None,\
-                          msg_type="echo_reply")
+                          type="echo_reply")
                     if msg_type == "local_state":
                         self.state = msg
                     elif msg_type == "peer_state":
-                        self.peers[msg["uid"]] = msg
+                        uid = msg["uid"]
+                        if msg["status"] == "online": 
+                            self.peers_ip4[msg["ip4"]] = msg
+                            self.peers_ip6[msg["ip6"]] = msg
+                        else:
+                            if uid in self.peers and\
+                              self.peers[uid]["status"]=="online":
+                                del self.peers_ip4[self.peers[uid]["ip4"]]
+                                del self.peers_ip6[self.peers[uid]["ip6"]]
+                        self.peers[uid] = msg
                         self.trigger_conn_request(msg)
                     # we ignore connection status notification for now
                     elif msg_type == "con_stat": pass
                     elif msg_type == "con_req" or msg_type == "con_resp":
+                        if CONFIG["multihop"]:
+                            conn_cnt = 0
+                            for k, v in self.peers.iteritems():
+                                if "fpr" in v and v["status"] == "online":
+                                    conn_cnt += 1
+                            if conn_cnt >= CONFIG["multihop_cl"]:
+                                continue
                         if self.check_collision(msg_type, msg["uid"]): continue
                         fpr_len = len(self.state["_fpr"])
                         fpr = msg["data"][:fpr_len]
@@ -91,16 +115,23 @@ class SvpnUdpServer(UdpServer):
                         if dest_ip6 in self.far_peers:
                             logging.pktdump("Destination({0}) packet is in far" 
                                   "peers({1})".format(dest_ip6, self.far_peers))
+                            next_hop_addr = self.far_peers[dest_ip6]["via"][1] 
+                            if not next_hop_addr in self.peers_ip6:
+                                del self.far_peers[dest_ip6]
+                                self.lookup(dest_ip6)
+                                return
                             if CONFIG["multihop_sr"]: #Source routing
                                 # Attach all the ipv6 address of hop in the 
-                                payload = ""
-                                for hop in self.far_peers[dest_ip6]["via"][1:]:
-                                    payload += tincan_sr6 + ip6_a2b(hop)
-                                payload += tincan_sr6
-                                payload += data[80:96]
-                                payload += tincan_sr6_end
+                                payload = tincan_sr6 # Multihop packet
+                                payload = "\x01" # Hop Index
+                                payload += chr(self.far_peers[dest_ip6]\
+                                                    ["hop_count"]+1) # Hop Count
+                                for hop in self.far_peers[dest_ip6]["via"]:
+                                    payload += ip6_a2b(hop)
+                                payload += data[80:96] 
                                 payload += data[42:]
                                 #send packet to the next hop
+                                logging.pktdump("sending", dump=payload)
                                 make_remote_call(sock=self.cc_sock,\
                                   dest_addr=self.far_peers[dest_ip6]["via"][1],\
                                   dest_port=CONFIG["icc_port"],\

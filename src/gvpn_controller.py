@@ -120,8 +120,8 @@ class GvpnUdpServer(UdpServer):
                     msg_type = msg.get("type", None)
                     if msg_type == "echo_request":
                         make_remote_call(self.sock_svr, m_type=tincan_control,\
-                          dest_addr=addr[0], dest_port=addr[1], payload=None,\ 
-                          msg_type="echo_reply")
+                          dest_addr=addr[0], dest_port=addr[1], payload=None,\
+                          type="echo_reply")
                     if msg_type == "local_state":
                         self.state = msg
                     elif msg_type == "peer_state": 
