@@ -43,9 +43,11 @@ CONFIG = {
     "icc_port" : 30000,
     "switchmode" : 0,
     "trim_enabled": False,
+    "multihop": False,
+    "multihop_cl": 100, #Multihop connection count limit
     "multihop_ihc": 3, #Multihop initial hop count
-    "multihop_hl": 10, #Multihop hop count limit
-    "multihop_tl": 1,  # Multihop time limit 
+    "multihop_hl": 10, #Multihop maximum hop count limit
+    "multihop_tl": 1,  # Multihop time limit (second)
     "multihop_sr": True # Multihop source route
 }
 
@@ -228,6 +230,8 @@ class UdpServer(object):
     def __init__(self, user, password, host, ip4):
         self.state = {}
         self.peers = {}
+        self.peers_ip4 = {}
+        self.peers_ip6 = {}
         self.far_peers = {}
         self.conn_stat = {}
         if socket.has_ipv6:
@@ -455,32 +459,31 @@ class UdpServer(object):
                 for k, v in self.peers.iteritems():
                     #Do not send lookup_request back to previous hop
                     logging.pktdump("k:{0}, v:{1}".format(k, v))
-                    if msg["via"][-2] == v["ip6"]:
+                    if "ip6" in v and msg["via"][-2] == v["ip6"]:
                         continue
                     # Flood lookup_request
-                    if msg["ttl"] > 1:
-                        msg["via"].append(v["ip6"])
+                    if "ip6" in v and msg["ttl"] > 1:
                         make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"],\
                           dest_port=CONFIG["icc_port"], m_type=tincan_control,\
                           payload=None, msg_type="lookup_request",\
                           ttl=msg["ttl"]-1, target_ip6=msg["target_ip6"],\
-                          via=msg["via"])
+                          via=msg["via"] + [v["ip6"]])
 
             if msg_type == "lookup_reply":
-                if CONFIG["multihop_sr"] and ~msg["via_idx"]+1==len(msg["via"]):
-                    # In source route mode, only source node updates route 
-                    # information
-                    self.update_farpeers(msg["target_ip6"], len(msg["via"]), 
-                                        msg["via"])
+                if CONFIG["multihop_sr"]:
+                    if  ~msg["via_idx"]+1==len(msg["via"]):
+                        # In source route mode, only source node updates route 
+                        # information
+                        self.update_farpeers(msg["target_ip6"],len(msg["via"]), 
+                                             msg["via"])
+                        if msg["target_ip6"] in self.lookup_req:
+                            del self.lookup_req[msg["target_ip6"]]
+                        return
                 else:
                     # Non source route mode, route information is kept at each
                     # hop. Each node only keeps the next hop info
                     self.update_farpeers(msg["target_ip6"], len(msg["via"]),\
                                      msg["via"][msg["via_idx"]+1]) 
-                if ~msg["via_idx"]+1 >= len(msg["via"]):
-                    if msg["target_ip6"] in self.lookup_req:
-                        del self.lookup_req[msg["target_ip6"]]
-                    return
 
                 # Send lookup_reply message back to the source
                 make_remote_call(sock=self.cc_sock,\
@@ -489,6 +492,16 @@ class UdpServer(object):
                   payload=None, msg_type="lookup_reply",\
                   target_ip6=msg["target_ip6"],\
                   via=msg["via"], via_idx=msg["via_idx"]-1)
+
+            if msg_type == "route_error":
+                if msg["index"] == 0:
+                    del self.far_peers[msg["via"][-1]]
+                else:
+                    make_remote_call(sock=self.cc_sock,\
+                      dest_addr=msg["via"][msg["index"]-1],\
+                      dest_port=CONFIG["icc_port"], m_type=tincan_control,\
+                      payload=None, msg_type="route_error",\
+                      index=msg["index"]-1, via=msg["via"])\
 
         if data[1] == tincan_packet: 
             target_ip6=ip6_b2a(data[40:56])
@@ -515,14 +528,32 @@ class UdpServer(object):
             logging.error("Unroutable packet. Oops this should not happen")
 
         if data[1] == tincan_sr6: 
-            if data[2] == tincan_sr6:
-                #Strip the current hop address and send to next hop
-                make_remote_call(sock=self.cc_sock,\
-                  dest_addr=ip6_b2a(data[3:19]),dest_port=CONFIG["icc_port"],\
-                  m_type=tincan_sr6, payload=data[19:])
-            if data[2] == tincan_sr6_end:
-                # Multihop packet arrived at destination
-                make_call(self.sock, payload=null_uid + null_uid + data[3:])
+            logging.pktdump("Multihop packet received", dump=data)
+            hop_index = ord(data[2]) + 1
+            hop_count = ord(data[3])
+            if hop_index == hop_count:
+                make_call(self.sock, payload=null_uid + null_uid +\
+                  data[4+(hop_index)*16:])
+                return
+            packet = chr(hop_index)
+            packet += data[3:]
+            next_addr_offset = 4+(hop_index)*16
+            next_hop_addr = data[next_addr_offset:next_addr_offset+16] 
+            for k, v in self.peers.iteritems():
+                if v["ip6"]==ip6_b2a(next_hop_addr) and v["status"]=="online":
+                    make_remote_call(sock=self.cc_sock,\
+                      dest_addr=ip6_b2a(next_hop_addr),\
+                      dest_port=CONFIG["icc_port"], m_type=tincan_sr6,\
+                      payload=packet)
+                    return
+            via = []
+            for i in range(hop_count):
+                via.append(ip6_b2a(data[4+i*16:4+16*i+16]))
+            make_remote_call(sock=self.cc_sock, dest_addr=via[hop_index-2],\
+              dest_port=CONFIG["icc_port"], m_type=tincan_control,\
+              payload=None, msg_type="route_error", via=via, index=hop_index-2)
+            logging.debug("Link lost send back route_error message to source{0}"
+                          "".format(via[hop_index-2]))
                 
 def setup_config(config):
     """Validate config and set default value here. Return ``True`` if config is
