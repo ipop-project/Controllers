@@ -151,7 +151,7 @@ def make_remote_call(sock, dest_addr, dest_port, m_type, payload, **params):
         return sock.sendto(ipop_ver + m_type + payload, dest)
 
 def send_packet(sock, msg):
-    if socket.has_ipv6: dest = (CONFIG["localhost7"], CONFIG["svpn_port"])
+    if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
     return sock.sendto(ipop_ver + tincan_packet + msg, dest)
 
