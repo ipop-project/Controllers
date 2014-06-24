@@ -19,6 +19,10 @@ class SvpnUdpServer(UdpServer):
         if CONFIG["icc"]:
             self.inter_controller_conn()
             self.lookup_req = {}
+        if "network_ignore_list" in CONFIG:
+            logging.debug("network ignore list")
+            make_call(self.sock, m="set_network_ignore_list",\
+                             network_ignore_list=CONFIG["network_ignore_list"])
 
     def create_connection(self, uid, data, overlay_id, sec, cas, ip4):
         self.peerlist.add(uid)

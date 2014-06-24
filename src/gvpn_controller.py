@@ -26,6 +26,11 @@ class GvpnUdpServer(UdpServer):
             self.inter_controller_conn()
             self.arp_table = {}
 
+        if "network_ignore_list" in CONFIG:
+            logging.debug("network ignore list")
+            make_call(self.sock, m="set_network_ignore_list",\
+                             network_ignore_list=CONFIG["network_ignore_list"])
+
     def ctrl_conn_init(self):
         do_set_logging(self.sock, CONFIG["tincan_logging"])
         do_set_cb_endpoint(self.sock, self.sock.getsockname())
