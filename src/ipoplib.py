@@ -13,6 +13,7 @@ import socket
 import sys
 from threading import Timer
 import time
+import struct
 
 # Set default config values
 CONFIG = {
