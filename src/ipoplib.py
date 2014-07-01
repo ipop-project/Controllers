@@ -342,6 +342,10 @@ class UdpServer(object):
     def packet_handle(self, data):
         ip4 = ip4_b2a(data[72:76])
         if ip4 in self.arp_table:
+            if self.arp_table[ip4]["local"]:
+                logging.debug("OS arp cache not yet evicted {0}. discarding"
+                              " packet".format(ip4))
+                return
             make_remote_call(self.cc_sock,dest_addr=self.arp_table[ip4]["ip6"],\
               dest_port=CONFIG["icc_port"], m_type=tincan_packet, 
               payload=data[42:])
