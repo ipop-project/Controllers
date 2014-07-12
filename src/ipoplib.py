@@ -349,7 +349,18 @@ class UdpServer(object):
             make_remote_call(self.cc_sock,dest_addr=self.arp_table[ip4]["ip6"],\
               dest_port=CONFIG["icc_port"], m_type=tincan_packet, 
               payload=data[42:])
-        logging.debug("send packet over controller {0} in {1}".format(ip4, self.arp_table))
+            logging.debug("send packet over controller {0} in {1}".format(ip4,\
+                          self.arp_table))
+            return
+
+        # Not found, broadcast ARP request message
+        for k, v in self.peers.iteritems():
+            if v["status"] == "online":
+                logging.debug("Send arp_request({0}) msg to {1}".format(ip4,\
+                              v["ip6"]))
+                make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"],\
+                  dest_port=CONFIG["icc_port"], m_type=tincan_control,\
+                  payload=None, msg_type="arp_request", target_ip4=ip4)
 
     def icc_packet_handle(self, data):
         if data[0] != ipop_ver:
