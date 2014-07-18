@@ -24,6 +24,8 @@ class GvpnUdpServer(UdpServer):
 
         if CONFIG["icc"]:
             self.inter_controller_conn()
+        
+        if CONFIG["switchmode"]:
             self.arp_table = {}
 
         if "network_ignore_list" in CONFIG:
@@ -213,11 +215,13 @@ class GvpnUdpServer(UdpServer):
                         data[48:54].encode("hex"), data[54:56].encode("hex")))
 
                     if data[54:56] == "\x08\x06": #ARP Message
-                        self.arp_handle(data)
+                        if CONFIG["switchmode"]:
+                            self.arp_handle(data)
                         continue
 
                     if data[54:56] == "\x08\x00": #IPv4 Packet
-                        self.packet_handle(data)
+                        if CONFIG["switchmode"]:
+                            self.packet_handle(data)
                         continue
 
                     if not CONFIG["on-demand_connection"]:
