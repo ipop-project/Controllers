@@ -362,19 +362,29 @@ class UdpServer(object):
                   dest_port=CONFIG["icc_port"], m_type=tincan_control,\
                   payload=None, msg_type="arp_request", target_ip4=ip4)
 
-    def icc_packet_handle(self, data):
+    def icc_packet_handle(self, addr, data):
         if data[0] != ipop_ver:
            #TODO change it to raising exception
             logging.error("ipop version mismatch: tincan:{0} contro ller:{1}"
                           "".format(data[0], ipop_ver))
             sys.exit()
         if data[1] == tincan_control:
-            logging.debug("icc_packet_handle control msg:{0}".format(data))
             msg = json.loads(data[2:])
             logging.debug("msg:{0}".format(data[2:]))
             msg_type = msg.get("msg_type", None)
             if msg_type == "arp_request":
                 target_ip4 = msg["target_ip4"]
+                # If the target ip address is the same as the associated bridge
+                # We notify back remote arp_reply message
+                if "bridge_ip" in CONFIG and target_ip4 == CONFIG["bridge_ip"]:
+                    logging.debug("Target is brdige IP reply back to {0}"
+                                  "".format(addr[0]))
+                    make_remote_call(sock=self.cc_sock, dest_addr=addr[0],\
+                      dest_port=CONFIG["icc_port"], m_type=tincan_control,\
+                      payload=None, msg_type="arp_reply",target_ip4=target_ip4,\
+                      uid=self.state["_uid"], ip6=self.state["_ip6"])
+                    return
+
                 #Set source mac as broadcast 
                 arp = make_arp(src_mac=mac_a2b(self.state["_mac"]), \
                   op="\x01", sender_ip4=ip4_a2b(self.state["_ip4"]),\
@@ -393,7 +403,8 @@ class UdpServer(object):
 
         elif data[1] == tincan_packet:
             logging.debug("icc_packet_handle packet")
-            if ip4_b2a(data[32:36]) in self.arp_table:
+            if ip4_b2a(data[32:36]) in self.arp_table or\
+                      ip4_b2a(data[32:36]) == CONFIG["bridge_ip"]:
                 msg = ""
                 msg += null_uid
                 msg += null_uid

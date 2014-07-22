@@ -238,7 +238,7 @@ class GvpnUdpServer(UdpServer):
             elif sock == self.cc_sock:
                 data, addr = sock.recvfrom(CONFIG["buf_size"])
                 logging.debug("ICC packet received from {0}".format(addr))
-                self.icc_packet_handle(data)
+                self.icc_packet_handle(addr, data)
                 
             else:
                 logging.error("Unknown type socket")
