@@ -274,7 +274,7 @@ class UdpServer(object):
             if uid > self.state["_uid"]:
                 do_trim_link(self.sock, uid)
                 self.conn_stat.pop(uid, None)
-                return False
+            return False
         elif msg_type == "con_resp":
             self.conn_stat[uid] = "resp_recv"
             return False
