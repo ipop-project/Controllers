@@ -2,8 +2,10 @@
 
 import argparse
 import binascii
+import datetime
 import getpass
 import hashlib
+import httplib
 import json
 import logging
 import os
@@ -49,7 +51,10 @@ CONFIG = {
     "multihop_ihc": 3, #Multihop initial hop count
     "multihop_hl": 10, #Multihop maximum hop count limit
     "multihop_tl": 1,  # Multihop time limit (second)
-    "multihop_sr": True # Multihop source route
+    "multihop_sr": True, # Multihop source route
+    "stat_report": False,
+    "stat_server" : "127.0.0.1:5000",
+    "report_time_period": 600,
 }
 
 IP_MAP = {}
@@ -581,6 +586,11 @@ class UdpServer(object):
               payload=None, msg_type="route_error", via=via, index=hop_index-2)
             logging.debug("Link lost send back route_error message to source{0}"
                           "".format(via[hop_index-2]))
+
+    def report(self):
+        return json.dumps({"uid": self.uid, "ipv4": self.ip4,\
+               "ipv6": self.ip6, "time": str(datetime.datetime.now()),
+               "controller": self.vpn_type, "version": ord(ipop_ver)}) 
                 
 def setup_config(config):
     """Validate config and set default value here. Return ``True`` if config is

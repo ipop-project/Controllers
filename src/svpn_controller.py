@@ -6,6 +6,9 @@ class SvpnUdpServer(UdpServer):
     def __init__(self, user, password, host, ip4, uid):
         UdpServer.__init__(self, user, password, host, ip4)
         self.uid = uid
+        self.ip4 = ip4
+        self.ip6 = gen_ip6(uid)
+        self.vpn_type = "SocialVPN"
         self.peerlist = set()
         self.ip_map = dict(IP_MAP)
         do_set_logging(self.sock, CONFIG["tincan_logging"])
@@ -162,13 +165,35 @@ def main():
     server = SvpnUdpServer(CONFIG["xmpp_username"], CONFIG["xmpp_password"],
                        CONFIG["xmpp_host"], CONFIG["ip4"], CONFIG["local_uid"])
     last_time = time.time()
+    last_report_time = time.time()
+    if CONFIG["stat_report"]:
+        conn = httplib.HTTPConnection(CONFIG["stat_server"])
+        header = {"Content-Type": "application/json"}
     while True:
         server.serve()
         time_diff = time.time() - last_time
+        report_time_diff = time.time() - last_report_time
         if time_diff > CONFIG["wait_time"]:
             server.trim_connections()
             do_get_state(server.sock, False)
             last_time = time.time()
+        if CONFIG["stat_report"] and\
+           report_time_diff > CONFIG["report_time_period"]:
+            data = server.report()
+            try:
+                conn.request("POST", "api/submit", data, header)
+                response = conn.getresponse()
+                if response.status == 200:
+                    logging.debug("IPOP stats reported succesfully")
+                else:
+                    logging.error("Error report on IPOP stat server, status:{0}"
+                                  ", reason:{1}".format(response.status,\
+                                  response.reason))
+                    raise 
+            except: 
+                logging.debug("Connection error to IPOP stat server.")
+                conn = httplib.HTTPConnection(CONFIG["stat_server"])
+            last_report_time = time.time()
 
 if __name__ == "__main__":
     main()
