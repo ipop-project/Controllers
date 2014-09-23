@@ -5,17 +5,18 @@ import binascii
 import datetime
 import getpass
 import hashlib
-import httplib
 import json
 import logging
 import os
 import random
 import select
 import socket
-import sys
-from threading import Timer
-import time
 import struct
+import sys
+import time
+import urllib2
+
+from threading import Timer
 
 # Set default config values
 CONFIG = {

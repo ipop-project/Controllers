@@ -166,9 +166,6 @@ def main():
                        CONFIG["xmpp_host"], CONFIG["ip4"], CONFIG["local_uid"])
     last_time = time.time()
     last_report_time = time.time()
-    if CONFIG["stat_report"]:
-        conn = httplib.HTTPConnection(CONFIG["stat_server"])
-        header = {"Content-Type": "application/json"}
     while True:
         server.serve()
         time_diff = time.time() - last_time
@@ -181,18 +178,16 @@ def main():
            report_time_diff > CONFIG["report_time_period"]:
             data = server.report()
             try:
-                conn.request("POST", "api/submit", data, header)
-                response = conn.getresponse()
-                if response.status == 200:
-                    logging.debug("IPOP stats reported succesfully")
-                else:
-                    logging.error("Error report on IPOP stat server, status:{0}"
-                                  ", reason:{1}".format(response.status,\
-                                  response.reason))
-                    raise 
+                req = urllib2.Request(url="http://" + CONFIG["stat_server"] +\
+                                      "/api/submit", data=data)
+                req.add_header("Content-Type", "application/json")
+                res = urllib2.urlopen(req)
+                logging.debug("HTTP response code:{0}, msg:{1}"
+                              "".format(res.getcode(), res.read()))
+                if res.getcode() != 200:
+                    raise
             except: 
-                logging.debug("Connection error to IPOP stat server.")
-                conn = httplib.HTTPConnection(CONFIG["stat_server"])
+                logging.error("Status report failed")
             last_report_time = time.time()
 
 if __name__ == "__main__":
