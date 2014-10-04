@@ -621,6 +621,10 @@ def parse_config():
                         dest="update_config", action="store_true")
     parser.add_argument("-p", help="load remote ip configuration file",
                         dest="ip_config", metavar="ip_config")
+    parser.add_argument("-s", help="configuration as json string (overrides configuration from file)",
+                        dest="config_string", metavar="config_string")
+    parser.add_argument("--pwdstdout", help="use stdout as password stream",
+                        dest="pwdstdout", action="store_true")
 
     args = parser.parse_args()
 
@@ -629,6 +633,11 @@ def parse_config():
         with open(args.config_file) as f:
             loaded_config = json.load(f)
         CONFIG.update(loaded_config)
+        
+    if args.config_string:
+        # Load the config string
+        loaded_config = json.loads(args.config_string)
+        CONFIG.update(loaded_config)        
 
     need_save = setup_config(CONFIG)
     if need_save and args.config_file and args.update_config:
@@ -637,11 +646,14 @@ def parse_config():
 
     if not ("xmpp_username" in CONFIG and "xmpp_host" in CONFIG):
         raise ValueError("At least 'xmpp_username' and 'xmpp_host' must be "
-                         "specified in config file")
+                         "specified in config file or string")
 
     if "xmpp_password" not in CONFIG:
         prompt = "\nPassword for %s: " % CONFIG["xmpp_username"]
-        CONFIG["xmpp_password"] = getpass.getpass(prompt)
+        if args.pwdstdout:
+          CONFIG["xmpp_password"] = getpass.getpass(prompt, stream=sys.stdout)
+        else:
+          CONFIG["xmpp_password"] = getpass.getpass(prompt)
 
     if "controller_logging" in CONFIG:
         level = getattr(logging, CONFIG["controller_logging"])
