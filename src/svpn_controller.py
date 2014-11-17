@@ -164,31 +164,17 @@ def main():
     parse_config()
     server = SvpnUdpServer(CONFIG["xmpp_username"], CONFIG["xmpp_password"],
                        CONFIG["xmpp_host"], CONFIG["ip4"], CONFIG["local_uid"])
+    set_global_variable_server(server)
+    if CONFIG["stat_report"]:
+        server.report()
     last_time = time.time()
-    last_report_time = time.time()
     while True:
         server.serve()
         time_diff = time.time() - last_time
-        report_time_diff = time.time() - last_report_time
         if time_diff > CONFIG["wait_time"]:
             server.trim_connections()
             do_get_state(server.sock, False)
             last_time = time.time()
-        if CONFIG["stat_report"] and\
-           report_time_diff > CONFIG["report_time_period"]:
-            data = server.report()
-            try:
-                req = urllib2.Request(url="http://" + CONFIG["stat_server"] +\
-                                      "/api/submit", data=data)
-                req.add_header("Content-Type", "application/json")
-                res = urllib2.urlopen(req)
-                logging.debug("HTTP response code:{0}, msg:{1}"
-                              "".format(res.getcode(), res.read()))
-                if res.getcode() != 200:
-                    raise
-            except: 
-                logging.error("Status report failed")
-            last_report_time = time.time()
 
 if __name__ == "__main__":
     main()
