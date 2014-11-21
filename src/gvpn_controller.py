@@ -248,6 +248,9 @@ def main():
     parse_config()
     server = GvpnUdpServer(CONFIG["xmpp_username"], CONFIG["xmpp_password"],
                        CONFIG["xmpp_host"], CONFIG["ip4"])
+    set_global_variable_server(server)
+    if CONFIG["stat_report"]:
+        server.report()
     last_time = time.time()
     while True:
         server.serve()

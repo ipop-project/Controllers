@@ -10,6 +10,7 @@ import logging
 import os
 import random
 import select
+import signal
 import socket
 import struct
 import sys
@@ -54,8 +55,8 @@ CONFIG = {
     "multihop_tl": 1,  # Multihop time limit (second)
     "multihop_sr": True, # Multihop source route
     "stat_report": False,
-    "stat_server" : "127.0.0.1:5000",
-    "report_time_period": 600,
+    "stat_server" : "metrics.ipop-project.org",
+    "stat_server_port" : 5000
 }
 
 IP_MAP = {}
@@ -74,6 +75,31 @@ null_mac = "\x00\x00\x00\x00\x00\x00"
 # packet contents in hexadecimal to log
 logging.addLevelName(5, "PKTDUMP")
 logging.PKTDUMP = 5
+
+# server is cross-module(?) variable
+server = None
+
+# server is assigned in each Social/GroupVPN controller and then should be 
+# assigned in library module too.
+def set_global_variable_server(s):
+    global server
+    server = s
+
+# When proces killed or keyboard interrupted exit_handler runs then exit
+def exit_handler(signum, frame):
+    logging.info("Terminating Controller")
+    if CONFIG["stat_report"]:
+        if server != None:
+            server.report()
+        else:
+            logging.debug("Controller socket is not created yet")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, exit_handler)
+# AFAIK, there is no way to catch SIGKILL
+# signal.signal(signal.SIGKILL, exit_handler)
+signal.signal(signal.SIGQUIT, exit_handler)
+signal.signal(signal.SIGTERM, exit_handler)
 
 def pktdump(message, dump=None, *args, **argv):
     hext = ""
@@ -587,12 +613,29 @@ class UdpServer(object):
               payload=None, msg_type="route_error", via=via, index=hop_index-2)
             logging.debug("Link lost send back route_error message to source{0}"
                           "".format(via[hop_index-2]))
-
-    def report(self):
-        return json.dumps({"uid": self.uid, "ipv4": self.ip4,\
-               "ipv6": self.ip6, "time": str(datetime.datetime.now()),
-               "controller": self.vpn_type, "version": ord(ipop_ver)}) 
                 
+    def report(self):
+        data = json.dumps({ 
+                "xmpp_host" : hashlib.sha1(CONFIG["xmpp_host"]).hexdigest(),\
+                "uid": hashlib.sha1(self.uid).hexdigest(), "xmpp_username":\
+                hashlib.sha1(CONFIG["xmpp_username"]).hexdigest(),\
+                "time": str(datetime.datetime.now()),\
+                "controller": self.vpn_type, "version": ord(ipop_ver)}) 
+
+        try:
+            url="http://" + CONFIG["stat_server"] + ":" +\
+                str(CONFIG["stat_server_port"]) + "/api/submit"
+            req = urllib2.Request(url=url, data=data)
+            req.add_header("Content-Type", "application/json")
+            res = urllib2.urlopen(req)
+            logging.debug("Succesfully reported status to the stat-server({0})."
+              ".\nHTTP response code:{1}, msg:{2}".format(url, res.getcode(),\
+              res.read()))
+            if res.getcode() != 200:
+                raise
+        except:
+            logging.debug("Status report failed.")
+
 def setup_config(config):
     """Validate config and set default value here. Return ``True`` if config is
     changed.
