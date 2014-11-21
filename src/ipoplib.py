@@ -55,7 +55,8 @@ CONFIG = {
     "multihop_tl": 1,  # Multihop time limit (second)
     "multihop_sr": True, # Multihop source route
     "stat_report": True,
-    "stat_server" : "metrics.ipop-project.org"
+    "stat_server" : "metrics.ipop-project.org",
+    "stat_server_port" : 5000
 }
 
 IP_MAP = {}
@@ -87,13 +88,12 @@ def set_global_variable_server(s):
 # When proces killed or keyboard interrupted exit_handler runs then exit
 def exit_handler(signum, frame):
     logging.info("Terminating Controller")
-    print "exit handler"
-    print server
     if CONFIG["stat_report"]:
         if server != None:
             server.report()
         else:
             logging.debug("Controller socket is not created yet")
+    sys.exit(0)
 
 signal.signal(signal.SIGINT, exit_handler)
 # AFAIK, there is no way to catch SIGKILL
@@ -617,19 +617,20 @@ class UdpServer(object):
     def report(self):
         data = json.dumps({ 
                 "xmpp_host" : hashlib.sha1(CONFIG["xmpp_host"]).hexdigest(),\
-                "uid": hashlib.sha1(self.uid).hexdigest(),\
-                "xmpp_username": hashlib.sha1(CONFIG["xmpp_username"]).hexdigest(),\
-                "ipv4": self.ip4, "ipv6": self.ip6,\
+                "uid": hashlib.sha1(self.uid).hexdigest(), "xmpp_username":\
+                hashlib.sha1(CONFIG["xmpp_username"]).hexdigest(),\
                 "time": str(datetime.datetime.now()),\
                 "controller": self.vpn_type, "version": ord(ipop_ver)}) 
 
         try:
-            req = urllib2.Request(url="http://" + CONFIG["stat_server"] + ":5000"\
-                                 "/api/submit", data=data)
+            url="http://" + CONFIG["stat_server"] + ":" +\
+                str(CONFIG["stat_server_port"]) + "/api/submit"
+            req = urllib2.Request(url=url, data=data)
             req.add_header("Content-Type", "application/json")
             res = urllib2.urlopen(req)
-            logging.debug("HTTP response code:{0}, msg:{1}"
-                          "".format(res.getcode(), res.read()))
+            logging.debug("Succesfully reported status to the stat-server({0})."
+              ".\nHTTP response code:{1}, msg:{2}".format(url, res.getcode(),\
+              res.read()))
             if res.getcode() != 200:
                 raise
         except:
