@@ -54,7 +54,7 @@ CONFIG = {
     "multihop_hl": 10, #Multihop maximum hop count limit
     "multihop_tl": 1,  # Multihop time limit (second)
     "multihop_sr": True, # Multihop source route
-    "stat_report": True,
+    "stat_report": False,
     "stat_server" : "metrics.ipop-project.org",
     "stat_server_port" : 5000
 }
