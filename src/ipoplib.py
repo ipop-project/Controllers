@@ -98,7 +98,7 @@ def exit_handler(signum, frame):
 signal.signal(signal.SIGINT, exit_handler)
 # AFAIK, there is no way to catch SIGKILL
 # signal.signal(signal.SIGKILL, exit_handler)
-signal.signal(signal.SIGQUIT, exit_handler)
+# signal.signal(signal.SIGQUIT, exit_handler)
 signal.signal(signal.SIGTERM, exit_handler)
 
 def pktdump(message, dump=None, *args, **argv):

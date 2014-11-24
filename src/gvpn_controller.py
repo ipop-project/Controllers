@@ -11,6 +11,7 @@ class GvpnUdpServer(UdpServer):
         self.host = host
         self.ip4 = ip4
         self.uid = gen_uid(ip4)
+        self.vpn_type = "GroupVPN"
         self.ctrl_conn_init()
 
         self.uid_ip_table = {}
