@@ -340,7 +340,7 @@ class UdpServer(object):
                 if not self.arp_table[target_ip4]["local"]:
                     arp = make_arp( dest_mac=data[42:48],\
                       src_mac=mac_a2b(self.state["_mac"]), op="\x02",\
-                      sender_mac=mac_a2b(self.state["_mac"]), \
+                      sender_mac=mac_a2b(self.arp_table[target_ip4]["mac"]), \
                       sender_ip4=data[80:84], target_ip4=data[70:74],\
                       target_mac=data[42:48])
                     send_packet(self.sock, arp)
@@ -365,7 +365,8 @@ class UdpServer(object):
                     make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"],\
                       dest_port=CONFIG["icc_port"], m_type=tincan_control,\
                       payload=None, msg_type="arp_reply", target_ip4=local_ip4,\
-                      uid=self.state["_uid"], ip6=self.state["_ip6"])
+                      uid=self.state["_uid"], ip6=self.state["_ip6"],\
+                      mac=mac_b2a(data[64:70]))
 
         else:
             logging.error("Unknown ARP message operation")
@@ -406,17 +407,6 @@ class UdpServer(object):
             msg_type = msg.get("msg_type", None)
             if msg_type == "arp_request":
                 target_ip4 = msg["target_ip4"]
-                # If the target ip address is the same as the associated bridge
-                # We notify back remote arp_reply message
-                if "bridge_ip" in CONFIG and target_ip4 == CONFIG["bridge_ip"]:
-                    logging.debug("Target is brdige IP reply back to {0}"
-                                  "".format(addr[0]))
-                    make_remote_call(sock=self.cc_sock, dest_addr=addr[0],\
-                      dest_port=CONFIG["icc_port"], m_type=tincan_control,\
-                      payload=None, msg_type="arp_reply",target_ip4=target_ip4,\
-                      uid=self.state["_uid"], ip6=self.state["_ip6"])
-                    return
-
                 #Set source mac as broadcast 
                 arp = make_arp(src_mac=mac_a2b(self.state["_mac"]), \
                   op="\x01", sender_ip4=ip4_a2b(self.state["_ip4"]),\
@@ -426,8 +416,8 @@ class UdpServer(object):
             elif msg_type == "arp_reply":
                 self.arp_table[msg["target_ip4"]] = msg
                 self.arp_table[msg["target_ip4"]]["local"] = False
-                arp = make_arp(src_mac=mac_a2b(self.state["_mac"]),\
-                  op="\x02", sender_mac=mac_a2b(self.state["_mac"]),\
+                arp = make_arp(src_mac=mac_a2b(msg["mac"]),\
+                  op="\x02", sender_mac=mac_a2b(msg["mac"]),\
                   sender_ip4=ip4_a2b(msg["target_ip4"]),\
                   target_ip4=ip4_a2b(msg["target_ip4"]))
                 send_packet(self.sock, arp)
@@ -435,13 +425,12 @@ class UdpServer(object):
 
         elif data[1] == tincan_packet:
             logging.debug("icc_packet_handle packet")
-            if ip4_b2a(data[32:36]) in self.arp_table or\
-                      ip4_b2a(data[32:36]) == CONFIG["bridge_ip"]:
+            if ip4_b2a(data[32:36]) in self.arp_table:
                 msg = ""
                 msg += null_uid
                 msg += null_uid
-                msg += mac_a2b(self.state["_mac"]) 
-                msg += mac_a2b(self.state["_mac"]) 
+                msg += mac_a2b(self.arp_table[ip4_b2a(data[32:36])]["mac"])
+                msg += data[8:14] #MAC
                 msg += data[14:]
                 send_packet(self.sock, msg)
 
