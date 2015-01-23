@@ -18,7 +18,7 @@ class SvpnUdpServer(UdpServer):
                         CONFIG["ip6_mask"], CONFIG["subnet_mask"])
         do_register_service(self.sock, user, password, host)
         do_set_trimpolicy(self.sock, CONFIG["trim_enabled"])
-        do_get_state(self.sock, False)
+        do_get_state(self.sock, stats=False)
         if CONFIG["icc"]:
             self.inter_controller_conn()
             self.lookup_req = {}
@@ -72,7 +72,7 @@ class SvpnUdpServer(UdpServer):
                           dest_addr=addr[0], dest_port=addr[1], payload=None,\
                           type="echo_reply")
                     if msg_type == "local_state":
-                        self.state = msg
+                        self.ipop_state = msg
                     elif msg_type == "peer_state":
                         uid = msg["uid"]
                         if msg["status"] == "online": 
@@ -96,10 +96,10 @@ class SvpnUdpServer(UdpServer):
                             if conn_cnt >= CONFIG["multihop_cl"]:
                                 continue
                         if self.check_collision(msg_type, msg["uid"]): continue
-                        fpr_len = len(self.state["_fpr"])
+                        fpr_len = len(self.ipop_state["_fpr"])
                         fpr = msg["data"][:fpr_len]
                         cas = msg["data"][fpr_len + 1:]
-                        ip4 = gen_ip4(msg["uid"],self.ip_map,self.state["_ip4"])
+                        ip4 = gen_ip4(msg["uid"],self.ip_map,self.ipop_state["_ip4"])
                         self.create_connection(msg["uid"], fpr, 1,\
                                                CONFIG["sec"], cas, ip4)
                     return
@@ -173,7 +173,7 @@ def main():
         time_diff = time.time() - last_time
         if time_diff > CONFIG["wait_time"]:
             server.trim_connections()
-            do_get_state(server.sock, False)
+            do_get_state(server.sock, stats=False)
             last_time = time.time()
 
 if __name__ == "__main__":

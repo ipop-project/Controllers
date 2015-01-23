@@ -1,0 +1,10 @@
+{
+    "xmpp_username": "ipoptester@ejabberd",
+    "xmpp_host": "192.168.14.131",
+    "nick": "ipoptester",
+    "xmpp_password": "password",
+    "ip4_mask": 16,
+    "controller_logging": "DEBUG",
+    "tincan_logging": 2
+}
+
