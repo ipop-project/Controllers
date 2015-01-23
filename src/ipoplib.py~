@@ -244,8 +244,8 @@ def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask):
 def do_set_remote_ip(sock, uid, ip4, ip6):
     return make_call(sock, m="set_remote_ip", uid=uid, ip4=ip4, ip6=ip6)
 
-def do_get_state(sock,peer_uid = "",stats = True):
-    return make_call(sock, m="get_state", uid = peer_uid ,stats=stats)
+def do_get_state(sock, stats=True):
+    return make_call(sock, m="get_state", stats=stats)
 
 def do_set_logging(sock, logging):
     return make_call(sock, m="set_logging", logging=logging)
