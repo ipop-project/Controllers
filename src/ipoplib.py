@@ -244,8 +244,8 @@ def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask):
 def do_set_remote_ip(sock, uid, ip4, ip6):
     return make_call(sock, m="set_remote_ip", uid=uid, ip4=ip4, ip6=ip6)
 
-def do_get_state(sock, stats=True):
-    return make_call(sock, m="get_state", stats=stats)
+def do_get_state(sock,peer_uid = "",stats = True):
+    return make_call(sock, m="get_state", uid = peer_uid ,stats=stats)
 
 def do_set_logging(sock, logging):
     return make_call(sock, m="set_logging", logging=logging)
@@ -261,7 +261,7 @@ def do_set_trimpolicy(sock, trim_enabled):
 
 class UdpServer(object):
     def __init__(self, user, password, host, ip4):
-        self.state = {}
+        self.ipop_state = {}
         self.peers = {}
         self.peers_ip4 = {}
         self.peers_ip6 = {}
@@ -298,12 +298,12 @@ class UdpServer(object):
         if "fpr" not in peer and peer["xmpp_time"] < CONFIG["wait_time"] * 8:
             self.conn_stat[peer["uid"]] = "req_sent"
             do_send_msg(self.sock, "con_req", 1, peer["uid"],
-                        self.state["_fpr"]);
+                        self.ipop_state["_fpr"]);
 
     def check_collision(self, msg_type, uid):
         if msg_type == "con_req" and \
            self.conn_stat.get(uid, None) == "req_sent":
-            if uid > self.state["_uid"]:
+            if uid > self.ipop_state["_uid"]:
                 do_trim_link(self.sock, uid)
                 self.conn_stat.pop(uid, None)
             return False
@@ -329,8 +329,8 @@ class UdpServer(object):
                               "uter:{2})".format(target_ip4, self.arp_table, \
                               in_peer))
                 arp = make_arp(dest_mac=data[42:48],\
-                  src_mac=mac_a2b(self.state["_mac"]), op="\x02",\
-                  sender_mac=mac_a2b(self.state["_mac"]),\
+                  src_mac=mac_a2b(self.ipop_state["_mac"]), op="\x02",\
+                  sender_mac=mac_a2b(self.ipop_state["_mac"]),\
                   sender_ip4=data[80:84], target_ip4=data[70:74],\
                   target_mac=data[42:48])
                 send_packet(self.sock, arp)
@@ -339,7 +339,7 @@ class UdpServer(object):
             if target_ip4 in self.arp_table:
                 if not self.arp_table[target_ip4]["local"]:
                     arp = make_arp( dest_mac=data[42:48],\
-                      src_mac=mac_a2b(self.state["_mac"]), op="\x02",\
+                      src_mac=mac_a2b(self.ipop_state["_mac"]), op="\x02",\
                       sender_mac=mac_a2b(self.arp_table[target_ip4]["mac"]), \
                       sender_ip4=data[80:84], target_ip4=data[70:74],\
                       target_mac=data[42:48])
@@ -365,7 +365,7 @@ class UdpServer(object):
                     make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"],\
                       dest_port=CONFIG["icc_port"], m_type=tincan_control,\
                       payload=None, msg_type="arp_reply", target_ip4=local_ip4,\
-                      uid=self.state["_uid"], ip6=self.state["_ip6"],\
+                      uid=self.ipop_state["_uid"], ip6=self.ipop_state["_ip6"],\
                       mac=mac_b2a(data[64:70]))
 
         else:
@@ -408,8 +408,8 @@ class UdpServer(object):
             if msg_type == "arp_request":
                 target_ip4 = msg["target_ip4"]
                 #Set source mac as broadcast 
-                arp = make_arp(src_mac=mac_a2b(self.state["_mac"]), \
-                  op="\x01", sender_ip4=ip4_a2b(self.state["_ip4"]),\
+                arp = make_arp(src_mac=mac_a2b(self.ipop_state["_mac"]), \
+                  op="\x01", sender_ip4=ip4_a2b(self.ipop_state["_ip4"]),\
                   target_ip4=ip4_a2b(target_ip4))
                 send_packet(self.sock, arp)
 
@@ -449,7 +449,7 @@ class UdpServer(object):
                 make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"],\
                   dest_port=CONFIG["icc_port"], m_type=tincan_control,\
                   payload=None, msg_type="lookup_request", target_ip6=dest_ip6,\
-                  via=[self.state["_ip6"], v["ip6"]], ttl=ttl)
+                  via=[self.ipop_state["_ip6"], v["ip6"]], ttl=ttl)
 
     def lookup(self, dest_ip6):
         logging.pktdump("Lookup: {0} pending lookup:{1}".format(dest_ip6, self.lookup_req))
@@ -487,7 +487,7 @@ class UdpServer(object):
 
                 #If this message visit here before, just drop it
                 for via in msg["via"][:-1]:
-                    if self.state["_ip6"] == via:
+                    if self.ipop_state["_ip6"] == via:
                         return
 
                 # found in peer, do lookup_reply
@@ -554,7 +554,7 @@ class UdpServer(object):
         if data[1] == tincan_packet: 
             target_ip6=ip6_b2a(data[40:56])
             logging.pktdump("Multihop Packet Destined to {0}".format(target_ip6))
-            if target_ip6 == self.state["_ip6"]:
+            if target_ip6 == self.ipop_state["_ip6"]:
                 make_call(self.sock, payload=null_uid + null_uid + data[2:])
                 return
 
