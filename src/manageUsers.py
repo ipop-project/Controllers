@@ -1,40 +1,39 @@
 
 #!/usr/bin/env python
 
-'''
-Usage:
-1. To Invite users
-python manageUsers.py -i invite -u applicants.ini
-2. To block users and free allocated IP addresses.
-python manageUsers.py -d delete -u applicants.ini
-3. To view current IP/JID allocation.
-python manageUsers.py -s show
-
-Note:
-applicants.ini file contains XMPP credentials and JID's on which the 
-action has to be performed.
-
-Sample applicants.ini file
-
-# user's xmpp credentials for logging into xmpp account
-[credentials]
-xmpp_ip_address = 192.168.14.131
-jid : ipopuser@ejabberd
-password : password
-room_name : ipoptestroom3@conference.ejabberd
-#room_password : password
-network_prefix : 172.31.0.0
-# File containing configuration parameters for the room.
-[jids]
-ipoptester@ejabberd : None
-ipoptester3@ejabberd : None
-#ipoptester12@ejabberd : None <-- commented out
-#ipoptester13@ejabberd : None
-#ipoptester14@ejabberd : None
-#ipoptester15@ejabberd : None
-#ipoptester16@ejabberd : None
-#ipoptester17@ejabberd : None
-'''
+#        Usage:
+#        1. To Invite users
+#        python manageUsers.py -i invite -u applicants.ini
+#        2. To block users and free allocated IP addresses.
+#        python manageUsers.py -d delete -u applicants.ini
+#        3. To view current IP/JID allocation.
+#        python manageUsers.py -s show
+#
+#        Note:
+#        applicants.ini file contains XMPP credentials and JID's on which the 
+#        action has to be performed.
+#
+#        Sample applicants.ini file
+#
+#        # user's xmpp credentials for logging into xmpp account
+#        [credentials]
+#        xmpp_ip_address = 192.168.14.131
+#        jid : ipopuser@ejabberd
+#        password : password
+#        room_name : ipoptestroom3@conference.ejabberd
+#        #room_password : password
+#        network_prefix : 172.31.0.0
+#        # File containing configuration parameters for the room.
+#        [jids]
+#        ipoptester@ejabberd : None
+#        ipoptester3@ejabberd : None
+#        #ipoptester12@ejabberd : None <-- commented out
+#        #ipoptester13@ejabberd : None
+#        #ipoptester14@ejabberd : None
+#        #ipoptester15@ejabberd : None
+#        #ipoptester16@ejabberd : None
+#        #ipoptester17@ejabberd : None
+        
 
 
 import sys
@@ -45,15 +44,15 @@ import shelve
 import random
 import logging
 
-'''Handle character encoding if using sub 3 python'''
+#Handle character encoding if using sub 3 python
 if sys.version_info <(3,0):
     reload(sys)
     sys.setdefaultencoding('utf8')
 
-''' This class interacts with XMPP server, logs into the server
-with room admin credentials and invites/blocks other users
-Mapping between JID and IP address allocated to them are maintained in 
-a file database.'''
+#This class interacts with XMPP server, logs into the server
+#with room admin credentials and invites/blocks other users
+#Mapping between JID and IP address allocated to them are maintained in 
+#a file database.
 class roomManager(sleekxmpp.ClientXMPP):
 
     def __init__(self,jid,password,room_name,action,jid_file):
@@ -81,10 +80,10 @@ class roomManager(sleekxmpp.ClientXMPP):
         logging.debug("presence message : %s"%(presence))
         if presence['muc']['nick'] == self.nick:
             logging.debug("ip table: %s"%(self.ip_table))
-            '''action here refers to the presence of invite
-            flag in command line argument,depending on which either
-            a invitation is sent to the JID's in applicants.ini file
-            or their access to the room is revoked.'''
+            #action here refers to the presence of invite
+            #flag in command line argument,depending on which either
+            #a invitation is sent to the JID's in applicants.ini file
+            #or their access to the room is revoked.
             if self.action != None:
                 for ip in self.ip_table:
                     self.room.invite(self.room_name,self.ip_table[ip],\
@@ -96,17 +95,17 @@ class roomManager(sleekxmpp.ClientXMPP):
         
             self.send_presence('offline')
             self.disconnect(wait=True)
-'''Randomly generate a IP address, checks if it is unassigned
-and allocate it to a new user.also make a note of it in the database.
-currently generates a address in the range (ip prefix && 255.255.xxx.xxx).
-can be modified to accomdate any other range.'''            
+#Randomly generate a IP address, checks if it is unassigned
+#and allocate it to a new user.also make a note of it in the database.
+#currently generates a address in the range (ip prefix && 255.255.xxx.xxx).
+#can be modified to accomdate any other range.            
 def allocateIP(prefix,user_jid):
     parts = prefix.split(".")
     ip_prefix = parts[0] + "." + parts[1] + "."
     ip_table = shelve.open('ip_table.db',writeback=True)
     jid_ip_table = shelve.open('jid_ip_table.db',writeback=True)
-    ip_prefix = ip_prefix + str(random.randint(0,255)) + "." + \
-                str(random.randint(0,255))
+    ip_prefix = ip_prefix + str(random.randint(1,254)) + "." + \
+                str(random.randint(1,254))
     current_ip_user = ip_table.get(ip_prefix,None)
     while(True):
         if current_ip_user == None:
@@ -118,12 +117,12 @@ def allocateIP(prefix,user_jid):
                 jid_ip_table.close()
             break
         else:
-            ip_prefix = ip_prefix  + str(random.randint(0,255)) + "." + \
-                        str(random.randint(0,255))
+            ip_prefix = ip_prefix  + str(random.randint(1,254)) + "." + \
+                        str(random.randint(1,254))
             current_ip_user = ip_table.get(ip_prefix,None)
     
-'''Frees the IP4 addresses by removing them from the database
-Users are blocked from the room in muc_online() method of roomManager'''            
+#Frees the IP4 addresses by removing them from the database
+#Users are blocked from the room in muc_online() method of roomManager            
 def deallocate(prefix,users):
     jid_ip_table = shelve.open('jid_ip_table.db',writeback=True)
     ip_table = shelve.open('ip_table.db',writeback=True)
@@ -141,7 +140,7 @@ def deallocate(prefix,users):
     print("current allocation status.")
     show_allocation()
     
-'''open the database file and print the current JID <-> IP4 mappings.'''       
+#open the database file and print the current JID <-> IP4 mappings.       
 def show_allocation():
     try:
         jid_ip_table = shelve.open('jid_ip_table.db')
@@ -151,8 +150,8 @@ def show_allocation():
         jid_ip_table.close()
     
             
-'''Wrapper for allocate method, simply checks that the JID is not
-already in use before allocating new IP4 address'''    
+#Wrapper for allocate method, simply checks that the JID is not
+#already in use before allocating new IP4 address    
 def allocate(prefix,users):
     jid_table = shelve.open('jid_table.db',writeback=True)
     for user in users:
@@ -167,8 +166,8 @@ def allocate(prefix,users):
         
 
 
-'''reads input file to retrieve XMPP credentials and 
-other configuration data.'''
+#reads input file to retrieve XMPP credentials and 
+#other configuration data.
 def mapFile(section):
     config = {}
     options = Config.options(section)

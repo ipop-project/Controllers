@@ -13,10 +13,10 @@ from sleekxmpp.xmlstream.handler.callback import Callback
 from sleekxmpp.xmlstream.matcher import StanzaPath
 from sleekxmpp.stanza.message import Message
 from sleekxmpp.plugins.base import base_plugin
-'''create and configure module logger'''
+#create and configure module logger
 log = logging.getLogger('gvpn_controller')
 log.setLevel(logging.DEBUG)
-'''set up a new custom message stanza'''
+#set up a new custom message stanza
 class Ipop_Msg(ElementBase):
     namespace = 'Conn_setup'
     name = 'Ipop'
@@ -24,50 +24,50 @@ class Ipop_Msg(ElementBase):
     interfaces = set(('setup','payload','uid'))
     subinterfaces = interfaces
 
-'''Handles interaction both with tincan and XMPP server '''
+#Handles interaction both with tincan and XMPP server
 class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
     def __init__(self,user,password,host,nick,room_passwd = None):
         sleekxmpp.ClientXMPP.__init__(self,user,password)
-        '''Initially the values are undefined, will either be provided
-           by admin via XMPP message or existing cached values will be
-           used '''
+        #Initially the values are undefined, will either be provided
+        #by admin via XMPP message or existing cached values will be
+        #used 
         self.room = None
         self.ip4 = None
         self.uid = None 
         self.nick = nick
-        '''dict for keeping track of JID's and their 
-           connection status. ie. req_send
-           ,resp_recvd etc'''
+        #dict for keeping track of JID's and their 
+        #connection status. ie. req_send
+        #,resp_recvd etc
         self.xmpp_peers = {}
-        '''dict for keeping track of peer's xmpp_overlay status'''
+        #dict for keeping track of peer's xmpp_overlay status
         self.peer_xmpp_status = {}
-        '''uid-jid mapping,key = uid, val = jid'''
+        #uid-jid mapping,key = uid, val = jid
         self.uid_jid = {}
-        '''register new plugin stanza and the handler 
-        for , whenever a matching 
-        msg will be rcvd on xmpp stream
-        MsgListener method will be triggered.'''
+        #register new plugin stanza and the handler 
+        #for , whenever a matching 
+        #msg will be rcvd on xmpp stream
+        #MsgListener method will be triggered.
         register_stanza_plugin(Message, Ipop_Msg)
         self.registerHandler(
             Callback('Ipop',
                      StanzaPath('message/Ipop'),
                      self.MsgListener))
-        ''' Register event handler for session 
-         initialization/called after session 
-         with xmpp server established.'''
+         #Register event handler for session 
+         #initialization/called after session 
+         #with xmpp server established.
         self.add_event_handler("session_start",self.start)
-        '''Register handlers for groupchat messages and MuC invitations,
-           any invitation will be accepted automatically'''
+        #Register handlers for groupchat messages and MuC invitations,
+        #any invitation will be accepted automatically
         self.add_event_handler("groupchat_message", self.muc_message)
         self.add_event_handler("groupchat_invite", self.accept_invite)
-        '''Initialize other parameters'''
+        #Initialize other parameters
         self.user = user
         self.password = password
         self.room_passwd = room_passwd
         self.host = host
         self.uid_ip_table = {}
         
-    '''start a new thread to handle sleekXmpp functionality'''
+    #start a new thread to handle sleekXmpp functionality
     def xmpp_handler(self):
         try:
             if (self.connect(address = (self.host,5222))):
@@ -121,7 +121,7 @@ class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
         self.send_con_req(peer_jid)
         log.debug(' ON_DEMAND CON_REQ sent to %s',(peer_jid.full))
         
-    ''' checks if all room/ip4 are present in shelve '''
+    #checks if all room/ip4 are present in shelve
     def check_shelve(self):
         try:
             s = shelve.open('access.db')
@@ -137,8 +137,8 @@ class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
             except:
                 log.debug("encountered problem with shelve")
 
-    '''After a xmpp session is established get roster and broadcast 
-		presence message .'''
+    #After a xmpp session is established get roster and broadcast 
+	#presence message.
     def start(self,event):
         self.get_roster()
         self.send_presence()
@@ -156,14 +156,14 @@ class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
         if (self.initialize()):
             try:
                 self.plugin['xep_0045'].joinMUC(self.room, 
-                    self.nick,password = "password",
+                    self.nick,password = self.room_passwd ,
                     wait = True)
             except:
                 log.error(" *** Unable to join the MuC room. ***")
                  
-    '''The below handler method listens for the 
-		matched messages on the xmpp stream, extracts the set-up
-	 	type and payload and takes suitable action depending on them'''
+    #the below handler method listens for the 
+    #matched messages on the xmpp stream, extracts the set-up
+	#type and payload and takes suitable action depending on them
     def MsgListener(self,message):
         # filter out messages sent from self.
         if message['mucnick'] != self.nick:
@@ -227,10 +227,10 @@ class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
                     peer_nick = message['from'].full.split("/")[1]
                     do_trim_link(self.sock, peer_uid)
                     log.debug('destroyed link to %s',(peer_nick))
-                    """ we check if the peer is on-line on the xmpp overlay 
-                        On-Demand is False i.e. connections should be 
-                        re-established automatically
-                        we will send conn_req back to peer """
+                    #we check if the peer is on-line on the xmpp overlay 
+                    #On-Demand is False i.e. connections should be 
+                    #re-established automatically
+                    #we will send conn_req back to peer
                     if not CONFIG["on-demand_connection"] and \
                        self.peer_xmpp_status[peer_nick] == "xmpp_online":
                         self.send_con_req(message['from'])
@@ -245,14 +245,14 @@ class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
         if presence['muc']['nick'] != self.nick:
             peer_nick = presence['muc']['nick']
             log.debug('********presence recvd from: %s',(peer_nick))
-            """ Handle three cases.
-              1: If peer had gone offline on xmpp overlay its 
-                 important to broadcast one's uid to it to help 
-                 it perform trim connections.
-              2: On-Demand --  do not send a conn_req as soon as presence 
-                 is recvd from a peer, just send one's UID 
-              3: Regular -- respond back with a connection request.
-                 peer_xmpp_status can take only two values -- offline/online"""
+            #Handle three cases.
+            # 1: If peer had gone offline on xmpp overlay its 
+            #     important to broadcast one's uid to it to help 
+            #    it perform trim connections.
+            #  2: On-Demand --  do not send a conn_req as soon as presence 
+            #     is recvd from a peer, just send one's UID 
+            #  3: Regular -- respond back with a connection request.
+            #     peer_xmpp_status can take only two values -- offline/online
             if self.peer_xmpp_status.get(peer_nick,None) != "xmpp_online":
                 self.broadcast_uid(presence['from'],peer_nick)
                 self.peer_xmpp_status[peer_nick] = "xmpp_online"
@@ -290,14 +290,13 @@ class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
         log.debug('********Invite from %s to %s',inv["from"], inv["to"])
         self.room = inv["from"]
         self.ip4 = (inv['body'].split('#')[1])
-        '''store room,ip4 into shelve, to be used in case controller
-        has to be restarted. In case a fresh invite is recieved access
-        details in the shelve will be overwritten.'''
+        #store room,ip4 into shelve, to be used in case controller
+        #has to be restarted. 
         s = shelve.open('access.db',writeback=True)
         try:
             s['room'] = self.room
             s['ip4'] = self.ip4
-            log.debug("shelve written/updated due to new invite")
+            log.debug("shelve written due to new invite")
         finally:
             s.close()
         self.add_event_handler("muc::%s::got_online"%self.room,
@@ -309,7 +308,7 @@ class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
         if (self.initialize()):
             try:
                 self.plugin['xep_0045'].joinMUC(self.room, 
-                    self.nick,password = "password",
+                    self.nick,password = self.room_passwd ,
                     wait = True)
             except:
                 log.error(" *** Unable to join the MuC room. ***")
@@ -325,12 +324,12 @@ class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
             log.debug('********presence--offline recvd from: %s',(peer_nick))
             self.peer_xmpp_status[peer_nick] = "xmpp_offline"
 
-    ''' Messages sent to bootstrap p2p links contain two parts
-		1.  setup_load --- contains information that enables the 
-                recipient to check the type of msg and if its
-                meant for it.
-		2.  payload --- contains information required to act on , 
-                depending on the type of msg	 '''
+    # Messages sent to bootstrap p2p links contain two parts
+	#	1.  setup_load --- contains information that enables the 
+    #            recipient to check the type of msg and if its
+    #            meant for it.
+	#	2.  payload --- contains information required to act on , 
+    #            depending on the type of msg	
 
     # Prepare a msg, containing ones UID and send it to peer
     def broadcast_uid(self,peer_jid,peer_nick):

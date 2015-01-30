@@ -1,38 +1,36 @@
-'''
-Usage:
-
-python create_room.py -r room_config.ini
-
-sample room_config.ini file:
-
-# user's xmpp credentials for logging into xmpp account
-[credentials]
-jid : ipopuser@ejabberd
-password : password
-# IP address/DNS for XMPP server
-xmpp_ip : 192.168.14.131 
-# File containing configuration parameters for the room.
-[parameters]
-room_name = ipoptestroom9@conference.ejabberd
-room_description : Script configured room
-room_persistent : True
-room_public : True
-room_password_protected : False
-# room password <--commented out
-#room_roomsecret : password
-room_maxusers : 400
-room_membersonly : True
-room_members_by_default : True
-room_allow_private_messages : True
-room_moderated : False
-
-Note: JID used to create the room will be the owner and will have all
-admin rights, same JID should be used when managing users subsequently.
-'''
-
-
 #!/usr/bin/env python
 
+#        
+#        Usage:
+#
+#        python create_room.py -r room_config.ini
+#
+#        sample room_config.ini file:
+#
+#        # user's xmpp credentials for logging into xmpp account
+#        [credentials]
+#        jid : ipopuser@ejabberd
+#        password : password
+#        # IP address/DNS for XMPP server
+#        xmpp_ip : 192.168.14.131 
+#        # File containing configuration parameters for the room.
+#        [parameters]
+#        room_name = ipoptestroom9@conference.ejabberd
+#        room_description : Script configured room
+#        room_persistent : True
+#        room_public : True
+#        room_password_protected : False
+#        # room password <--commented out
+#        #room_roomsecret : password
+#        room_maxusers : 400
+#        room_membersonly : True
+#        room_members_by_default : True
+#        room_allow_private_messages : True
+#        room_moderated : False
+#
+#        Note: JID used to create the room will be the owner and will have all
+#        admin rights, same JID should be used when managing users subsequently.
+        
 import sys
 import sleekxmpp
 import argparse
@@ -41,13 +39,13 @@ from sleekxmpp.xmlstream import ET
 from sleekxmpp.plugins.xep_0004 import *
 import logging
 
-'''Handle character encoding for sub 3 python versions'''
+#Handle character encoding for sub 3 python versions
 if sys.version_info <(3,0):
     reload(sys)
     sys.setdefaultencoding('utf8')
 
-'''This class handles interaction with the XMPP server, logs in with
-provided XMPP credentials and creates and configures the room.'''
+#This class handles interaction with the XMPP server, logs in with
+#provided XMPP credentials and creates and configures the room.
 class roomSetup(sleekxmpp.ClientXMPP):
 
     def __init__(self,jid,password,room_config):
@@ -57,7 +55,7 @@ class roomSetup(sleekxmpp.ClientXMPP):
         self.nick = jid.split("@")[0]
         logging.debug("nick: " + self.nick)
         logging.debug("room_name: "+self.room_name)
-        '''register event handlers'''
+        #register event handlers
         self.add_event_handler('session_start', self.session_start)
         self.add_event_handler('muc::%s::got_online' % self.room_name, \
                                 self.muc_online)
@@ -68,8 +66,8 @@ class roomSetup(sleekxmpp.ClientXMPP):
         self.room = self.plugin['xep_0045']
         self.room.joinMUC(self.room_name,self.nick)
         
-    '''room is configured by pushing a XML form containing configuration
-        to the XMPP server.'''   
+    #room is configured by pushing a XML form containing configuration
+    #    to the XMPP server   
     def muc_online(self, presence):
         logging.debug("presence from server: %s"%(presence))
         if presence['muc']['nick'] == self.nick:
@@ -108,7 +106,7 @@ def str2bool(string):
         return True
     else:
         return False
-'''Read the configuration file containing configuration and access information'''
+#Read the configuration file containing configuration and access information
 def mapFile(section):
     config = {}
     options = Config.options(section)
