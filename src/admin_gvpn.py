@@ -325,12 +325,12 @@ class Gvpn_UDPServer(UdpServer,sleekxmpp.ClientXMPP):
             self.peer_xmpp_status[peer_nick] = "xmpp_offline"
 
     # Messages sent to bootstrap p2p links contain two parts
-	#	1.  setup_load --- contains information that enables the 
+    #	1.  setup_load --- contains information that enables the 
     #            recipient to check the type of msg and if its
     #            meant for it.
-	#	2.  payload --- contains information required to act on , 
+    #	2.  payload --- contains information required to act on , 
     #            depending on the type of msg	
-
+    #
     # Prepare a msg, containing ones UID and send it to peer
     def broadcast_uid(self,peer_jid,peer_nick):
         payload = unicode(self.uid)
