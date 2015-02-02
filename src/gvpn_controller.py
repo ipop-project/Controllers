@@ -11,6 +11,7 @@ class GvpnUdpServer(UdpServer):
         self.host = host
         self.ip4 = ip4
         self.uid = gen_uid(ip4)
+        self.vpn_type = "GroupVPN"
         self.ctrl_conn_init()
 
         self.uid_ip_table = {}
@@ -60,20 +61,20 @@ class GvpnUdpServer(UdpServer):
             if "fpr" in v and v["status"] == "offline":
                 if v["last_time"] > CONFIG["wait_time"] * 2:
                     do_send_msg(self.sock, "send_msg", 1, k,
-                                "destroy" + self.state["_uid"])
+                                "destroy" + self.ipop_state["_uid"])
                     do_trim_link(self.sock, k)
             if CONFIG["on-demand_connection"] and v["status"] == "online": 
                 if v["last_active"] + CONFIG["on-demand_inactive_timeout"]\
                                                               < time.time():
                     logging.debug("Inactive, trimming node:{0}".format(k))
                     do_send_msg(self.sock, 1, "send_msg", k,
-                                "destroy" + self.state["_uid"])
+                                "destroy" + self.ipop_state["_uid"])
                     do_trim_link(self.sock, k)
  
     def ondemand_create_connection(self, uid, send_req):
         logging.debug("idle peers {0}".format(self.idle_peers))
         peer = self.idle_peers[uid]
-        fpr_len = len(self.state["_fpr"])
+        fpr_len = len(self.ipop_state["_fpr"])
         fpr = peer["data"][:fpr_len]
         cas = peer["data"][fpr_len + 1:]
         ip4 = self.uid_ip_table[peer["uid"]]
@@ -130,7 +131,7 @@ class GvpnUdpServer(UdpServer):
                           dest_addr=addr[0], dest_port=addr[1], payload=None,\
                           type="echo_reply")
                     if msg_type == "local_state":
-                        self.state = msg
+                        self.ipop_state = msg
                     elif msg_type == "peer_state": 
                         if msg["status"] == "offline" or "stats" not in msg:
                             self.peers[msg["uid"]] = msg
@@ -164,7 +165,7 @@ class GvpnUdpServer(UdpServer):
                         else:
                             if self.check_collision(msg_type,msg["uid"]): 
                                 continue
-                            fpr_len = len(self.state["_fpr"])
+                            fpr_len = len(self.ipop_state["_fpr"])
                             fpr = msg["data"][:fpr_len]
                             cas = msg["data"][fpr_len + 1:]
                             ip4 = self.uid_ip_table[msg["uid"]]
@@ -172,7 +173,7 @@ class GvpnUdpServer(UdpServer):
                                                    CONFIG["sec"], cas, ip4)
                     elif msg_type == "con_resp":
                         if self.check_collision(msg_type, msg["uid"]): continue
-                        fpr_len = len(self.state["_fpr"])
+                        fpr_len = len(self.ipop_state["_fpr"])
                         fpr = msg["data"][:fpr_len]
                         cas = msg["data"][fpr_len + 1:]
                         ip4 = self.uid_ip_table[msg["uid"]]
@@ -248,6 +249,9 @@ def main():
     parse_config()
     server = GvpnUdpServer(CONFIG["xmpp_username"], CONFIG["xmpp_password"],
                        CONFIG["xmpp_host"], CONFIG["ip4"])
+    set_global_variable_server(server)
+    if CONFIG["stat_report"]:
+        server.report()
     last_time = time.time()
     while True:
         server.serve()

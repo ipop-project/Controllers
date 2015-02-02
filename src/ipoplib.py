@@ -2,6 +2,7 @@
 
 import argparse
 import binascii
+import datetime
 import getpass
 import hashlib
 import json
@@ -9,11 +10,14 @@ import logging
 import os
 import random
 import select
+import signal
 import socket
-import sys
-from threading import Timer
-import time
 import struct
+import sys
+import time
+import urllib2
+
+from threading import Timer
 
 # Set default config values
 CONFIG = {
@@ -49,7 +53,10 @@ CONFIG = {
     "multihop_ihc": 3, #Multihop initial hop count
     "multihop_hl": 10, #Multihop maximum hop count limit
     "multihop_tl": 1,  # Multihop time limit (second)
-    "multihop_sr": True # Multihop source route
+    "multihop_sr": True, # Multihop source route
+    "stat_report": False,
+    "stat_server" : "metrics.ipop-project.org",
+    "stat_server_port" : 5000
 }
 
 IP_MAP = {}
@@ -68,6 +75,31 @@ null_mac = "\x00\x00\x00\x00\x00\x00"
 # packet contents in hexadecimal to log
 logging.addLevelName(5, "PKTDUMP")
 logging.PKTDUMP = 5
+
+# server is cross-module(?) variable
+server = None
+
+# server is assigned in each Social/GroupVPN controller and then should be 
+# assigned in library module too.
+def set_global_variable_server(s):
+    global server
+    server = s
+
+# When proces killed or keyboard interrupted exit_handler runs then exit
+def exit_handler(signum, frame):
+    logging.info("Terminating Controller")
+    if CONFIG["stat_report"]:
+        if server != None:
+            server.report()
+        else:
+            logging.debug("Controller socket is not created yet")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, exit_handler)
+# AFAIK, there is no way to catch SIGKILL
+# signal.signal(signal.SIGKILL, exit_handler)
+# signal.signal(signal.SIGQUIT, exit_handler)
+signal.signal(signal.SIGTERM, exit_handler)
 
 def pktdump(message, dump=None, *args, **argv):
     hext = ""
@@ -212,8 +244,8 @@ def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask):
 def do_set_remote_ip(sock, uid, ip4, ip6):
     return make_call(sock, m="set_remote_ip", uid=uid, ip4=ip4, ip6=ip6)
 
-def do_get_state(sock, stats=True):
-    return make_call(sock, m="get_state", stats=stats)
+def do_get_state(sock,peer_uid = "",stats = True):
+    return make_call(sock, m="get_state", uid = peer_uid ,stats=stats)
 
 def do_set_logging(sock, logging):
     return make_call(sock, m="set_logging", logging=logging)
@@ -229,7 +261,7 @@ def do_set_trimpolicy(sock, trim_enabled):
 
 class UdpServer(object):
     def __init__(self, user, password, host, ip4):
-        self.state = {}
+        self.ipop_state = {}
         self.peers = {}
         self.peers_ip4 = {}
         self.peers_ip6 = {}
@@ -266,12 +298,12 @@ class UdpServer(object):
         if "fpr" not in peer and peer["xmpp_time"] < CONFIG["wait_time"] * 8:
             self.conn_stat[peer["uid"]] = "req_sent"
             do_send_msg(self.sock, "con_req", 1, peer["uid"],
-                        self.state["_fpr"]);
+                        self.ipop_state["_fpr"]);
 
     def check_collision(self, msg_type, uid):
         if msg_type == "con_req" and \
            self.conn_stat.get(uid, None) == "req_sent":
-            if uid > self.state["_uid"]:
+            if uid > self.ipop_state["_uid"]:
                 do_trim_link(self.sock, uid)
                 self.conn_stat.pop(uid, None)
             return False
@@ -297,8 +329,8 @@ class UdpServer(object):
                               "uter:{2})".format(target_ip4, self.arp_table, \
                               in_peer))
                 arp = make_arp(dest_mac=data[42:48],\
-                  src_mac=mac_a2b(self.state["_mac"]), op="\x02",\
-                  sender_mac=mac_a2b(self.state["_mac"]),\
+                  src_mac=mac_a2b(self.ipop_state["_mac"]), op="\x02",\
+                  sender_mac=mac_a2b(self.ipop_state["_mac"]),\
                   sender_ip4=data[80:84], target_ip4=data[70:74],\
                   target_mac=data[42:48])
                 send_packet(self.sock, arp)
@@ -307,8 +339,8 @@ class UdpServer(object):
             if target_ip4 in self.arp_table:
                 if not self.arp_table[target_ip4]["local"]:
                     arp = make_arp( dest_mac=data[42:48],\
-                      src_mac=mac_a2b(self.state["_mac"]), op="\x02",\
-                      sender_mac=mac_a2b(self.state["_mac"]), \
+                      src_mac=mac_a2b(self.ipop_state["_mac"]), op="\x02",\
+                      sender_mac=mac_a2b(self.arp_table[target_ip4]["mac"]), \
                       sender_ip4=data[80:84], target_ip4=data[70:74],\
                       target_mac=data[42:48])
                     send_packet(self.sock, arp)
@@ -333,7 +365,8 @@ class UdpServer(object):
                     make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"],\
                       dest_port=CONFIG["icc_port"], m_type=tincan_control,\
                       payload=None, msg_type="arp_reply", target_ip4=local_ip4,\
-                      uid=self.state["_uid"], ip6=self.state["_ip6"])
+                      uid=self.ipop_state["_uid"], ip6=self.ipop_state["_ip6"],\
+                      mac=mac_b2a(data[64:70]))
 
         else:
             logging.error("Unknown ARP message operation")
@@ -374,28 +407,17 @@ class UdpServer(object):
             msg_type = msg.get("msg_type", None)
             if msg_type == "arp_request":
                 target_ip4 = msg["target_ip4"]
-                # If the target ip address is the same as the associated bridge
-                # We notify back remote arp_reply message
-                if "bridge_ip" in CONFIG and target_ip4 == CONFIG["bridge_ip"]:
-                    logging.debug("Target is brdige IP reply back to {0}"
-                                  "".format(addr[0]))
-                    make_remote_call(sock=self.cc_sock, dest_addr=addr[0],\
-                      dest_port=CONFIG["icc_port"], m_type=tincan_control,\
-                      payload=None, msg_type="arp_reply",target_ip4=target_ip4,\
-                      uid=self.state["_uid"], ip6=self.state["_ip6"])
-                    return
-
                 #Set source mac as broadcast 
-                arp = make_arp(src_mac=mac_a2b(self.state["_mac"]), \
-                  op="\x01", sender_ip4=ip4_a2b(self.state["_ip4"]),\
+                arp = make_arp(src_mac=mac_a2b(self.ipop_state["_mac"]), \
+                  op="\x01", sender_ip4=ip4_a2b(self.ipop_state["_ip4"]),\
                   target_ip4=ip4_a2b(target_ip4))
                 send_packet(self.sock, arp)
 
             elif msg_type == "arp_reply":
                 self.arp_table[msg["target_ip4"]] = msg
                 self.arp_table[msg["target_ip4"]]["local"] = False
-                arp = make_arp(src_mac=mac_a2b(self.state["_mac"]),\
-                  op="\x02", sender_mac=mac_a2b(self.state["_mac"]),\
+                arp = make_arp(src_mac=mac_a2b(msg["mac"]),\
+                  op="\x02", sender_mac=mac_a2b(msg["mac"]),\
                   sender_ip4=ip4_a2b(msg["target_ip4"]),\
                   target_ip4=ip4_a2b(msg["target_ip4"]))
                 send_packet(self.sock, arp)
@@ -403,13 +425,12 @@ class UdpServer(object):
 
         elif data[1] == tincan_packet:
             logging.debug("icc_packet_handle packet")
-            if ip4_b2a(data[32:36]) in self.arp_table or\
-                      ip4_b2a(data[32:36]) == CONFIG["bridge_ip"]:
+            if ip4_b2a(data[32:36]) in self.arp_table:
                 msg = ""
                 msg += null_uid
                 msg += null_uid
-                msg += mac_a2b(self.state["_mac"]) 
-                msg += mac_a2b(self.state["_mac"]) 
+                msg += mac_a2b(self.arp_table[ip4_b2a(data[32:36])]["mac"])
+                msg += data[8:14] #MAC
                 msg += data[14:]
                 send_packet(self.sock, msg)
 
@@ -428,7 +449,7 @@ class UdpServer(object):
                 make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"],\
                   dest_port=CONFIG["icc_port"], m_type=tincan_control,\
                   payload=None, msg_type="lookup_request", target_ip6=dest_ip6,\
-                  via=[self.state["_ip6"], v["ip6"]], ttl=ttl)
+                  via=[self.ipop_state["_ip6"], v["ip6"]], ttl=ttl)
 
     def lookup(self, dest_ip6):
         logging.pktdump("Lookup: {0} pending lookup:{1}".format(dest_ip6, self.lookup_req))
@@ -466,7 +487,7 @@ class UdpServer(object):
 
                 #If this message visit here before, just drop it
                 for via in msg["via"][:-1]:
-                    if self.state["_ip6"] == via:
+                    if self.ipop_state["_ip6"] == via:
                         return
 
                 # found in peer, do lookup_reply
@@ -533,7 +554,7 @@ class UdpServer(object):
         if data[1] == tincan_packet: 
             target_ip6=ip6_b2a(data[40:56])
             logging.pktdump("Multihop Packet Destined to {0}".format(target_ip6))
-            if target_ip6 == self.state["_ip6"]:
+            if target_ip6 == self.ipop_state["_ip6"]:
                 make_call(self.sock, payload=null_uid + null_uid + data[2:])
                 return
 
@@ -582,6 +603,28 @@ class UdpServer(object):
             logging.debug("Link lost send back route_error message to source{0}"
                           "".format(via[hop_index-2]))
                 
+    def report(self):
+        data = json.dumps({ 
+                "xmpp_host" : hashlib.sha1(CONFIG["xmpp_host"]).hexdigest(),\
+                "uid": hashlib.sha1(self.uid).hexdigest(), "xmpp_username":\
+                hashlib.sha1(CONFIG["xmpp_username"]).hexdigest(),\
+                "time": str(datetime.datetime.now()),\
+                "controller": self.vpn_type, "version": ord(ipop_ver)}) 
+
+        try:
+            url="http://" + CONFIG["stat_server"] + ":" +\
+                str(CONFIG["stat_server_port"]) + "/api/submit"
+            req = urllib2.Request(url=url, data=data)
+            req.add_header("Content-Type", "application/json")
+            res = urllib2.urlopen(req)
+            logging.debug("Succesfully reported status to the stat-server({0})."
+              ".\nHTTP response code:{1}, msg:{2}".format(url, res.getcode(),\
+              res.read()))
+            if res.getcode() != 200:
+                raise
+        except:
+            logging.debug("Status report failed.")
+
 def setup_config(config):
     """Validate config and set default value here. Return ``True`` if config is
     changed.
@@ -610,6 +653,10 @@ def parse_config():
                         dest="update_config", action="store_true")
     parser.add_argument("-p", help="load remote ip configuration file",
                         dest="ip_config", metavar="ip_config")
+    parser.add_argument("-s", help="configuration as json string (overrides configuration from file)",
+                        dest="config_string", metavar="config_string")
+    parser.add_argument("--pwdstdout", help="use stdout as password stream",
+                        dest="pwdstdout", action="store_true")
 
     args = parser.parse_args()
 
@@ -618,6 +665,11 @@ def parse_config():
         with open(args.config_file) as f:
             loaded_config = json.load(f)
         CONFIG.update(loaded_config)
+        
+    if args.config_string:
+        # Load the config string
+        loaded_config = json.loads(args.config_string)
+        CONFIG.update(loaded_config)        
 
     need_save = setup_config(CONFIG)
     if need_save and args.config_file and args.update_config:
@@ -626,11 +678,14 @@ def parse_config():
 
     if not ("xmpp_username" in CONFIG and "xmpp_host" in CONFIG):
         raise ValueError("At least 'xmpp_username' and 'xmpp_host' must be "
-                         "specified in config file")
+                         "specified in config file or string")
 
     if "xmpp_password" not in CONFIG:
         prompt = "\nPassword for %s: " % CONFIG["xmpp_username"]
-        CONFIG["xmpp_password"] = getpass.getpass(prompt)
+        if args.pwdstdout:
+          CONFIG["xmpp_password"] = getpass.getpass(prompt, stream=sys.stdout)
+        else:
+          CONFIG["xmpp_password"] = getpass.getpass(prompt)
 
     if "controller_logging" in CONFIG:
         level = getattr(logging, CONFIG["controller_logging"])
