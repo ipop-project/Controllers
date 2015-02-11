@@ -236,13 +236,18 @@ def do_create_link(sock, uid, fpr, overlay_id, sec, cas, stun=None, turn=None):
 def do_trim_link(sock, uid):
     return make_call(sock, m="trim_link", uid=uid)
 
-def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask):
+def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask,
+                    switchmode):
     return make_call(sock, m="set_local_ip", uid=uid, ip4=ip4, ip6=ip6,
                      ip4_mask=ip4_mask, ip6_mask=ip6_mask,
-                     subnet_mask=subnet_mask)
+                     subnet_mask=subnet_mask, switchmode=switchmode)
 
 def do_set_remote_ip(sock, uid, ip4, ip6):
-    return make_call(sock, m="set_remote_ip", uid=uid, ip4=ip4, ip6=ip6)
+    if (CONFIG["switchmode"] == 1):
+        return make_call(sock, m="set_remote_ip", uid=uid, ip4="127.0.0.1",\
+                         ip6="::1/128")
+    else: 
+        return make_call(sock, m="set_remote_ip", uid=uid, ip4=ip4, ip6=ip6)
 
 def do_get_state(sock,peer_uid = "",stats = True):
     return make_call(sock, m="get_state", uid = peer_uid ,stats=stats)
@@ -312,65 +317,6 @@ class UdpServer(object):
             return False
         else:
             return True
-
-    def arp_handle(self, data):
-        if data[63] == "\x01": #ARP Request message
-            in_peer = False
-            target_ip4 = ip4_b2a(data[80:84])
-            logging.debug("ARP request message looking for {0}, arp_table:{1}"\
-                          .format(target_ip4, self.arp_table))
-            for k, v in self.peers.iteritems():
-                if v["status"] == "online" and v["ip4"] == target_ip4:
-                    in_peer = True
-                    break
-
-            if in_peer:
-                logging.debug("{0} is associated with ipop router peers ({1} ro"
-                              "uter:{2})".format(target_ip4, self.arp_table, \
-                              in_peer))
-                arp = make_arp(dest_mac=data[42:48],\
-                  src_mac=mac_a2b(self.ipop_state["_mac"]), op="\x02",\
-                  sender_mac=mac_a2b(self.ipop_state["_mac"]),\
-                  sender_ip4=data[80:84], target_ip4=data[70:74],\
-                  target_mac=data[42:48])
-                send_packet(self.sock, arp)
-                return
-
-            if target_ip4 in self.arp_table:
-                if not self.arp_table[target_ip4]["local"]:
-                    arp = make_arp( dest_mac=data[42:48],\
-                      src_mac=mac_a2b(self.ipop_state["_mac"]), op="\x02",\
-                      sender_mac=mac_a2b(self.arp_table[target_ip4]["mac"]), \
-                      sender_ip4=data[80:84], target_ip4=data[70:74],\
-                      target_mac=data[42:48])
-                    send_packet(self.sock, arp)
-                return
-
-            # Not found, broadcast ARP request message
-            for k, v in self.peers.iteritems():
-                if v["status"] == "online":
-                    make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"], dest_port=\
-                      CONFIG["icc_port"], m_type=tincan_control, payload=None,\
-                      msg_type="arp_request", target_ip4=target_ip4)
-
-        elif data[63] == "\x02": #ARP Reply message
-            logging.debug("ARP reply message")
-            local_ip4 = ip4_b2a(data[70:74])
-            self.arp_table[local_ip4] = {}
-            self.arp_table[local_ip4]["local"] = True
-            self.arp_table[local_ip4]["mac"] = mac_b2a(data[64:70])
-            logging.debug("arp table :{0}".format(self.arp_table))
-            for k, v in self.peers.iteritems():
-                if v["status"] == "online":
-                    make_remote_call(sock=self.cc_sock, dest_addr=v["ip6"],\
-                      dest_port=CONFIG["icc_port"], m_type=tincan_control,\
-                      payload=None, msg_type="arp_reply", target_ip4=local_ip4,\
-                      uid=self.ipop_state["_uid"], ip6=self.ipop_state["_ip6"],\
-                      mac=mac_b2a(data[64:70]))
-
-        else:
-            logging.error("Unknown ARP message operation")
-            return None
 
     def packet_handle(self, data):
         ip4 = ip4_b2a(data[72:76])

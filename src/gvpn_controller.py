@@ -34,6 +34,7 @@ class GvpnUdpServer(UdpServer):
             make_call(self.sock, m="set_network_ignore_list",\
                              network_ignore_list=CONFIG["network_ignore_list"])
 
+
     def ctrl_conn_init(self):
         do_set_logging(self.sock, CONFIG["tincan_logging"])
         do_set_cb_endpoint(self.sock, self.sock.getsockname())
@@ -41,7 +42,7 @@ class GvpnUdpServer(UdpServer):
         if not CONFIG["router_mode"]:
             do_set_local_ip(self.sock, self.uid, self.ip4, gen_ip6(self.uid),
                              CONFIG["ip4_mask"], CONFIG["ip6_mask"],
-                             CONFIG["subnet_mask"])
+                             CONFIG["subnet_mask"], CONFIG["switchmode"])
         else:
             do_set_local_ip(self.sock, self.uid, CONFIG["router_ip"],
                            gen_ip6(self.uid), CONFIG["router_ip4_mask"],
@@ -54,7 +55,10 @@ class GvpnUdpServer(UdpServer):
 
     def create_connection(self, uid, data, nid, sec, cas, ip4):
         do_create_link(self.sock, uid, data, nid, sec, cas)
-        do_set_remote_ip(self.sock, uid, ip4, gen_ip6(uid))
+        if (CONFIG["switchmode"] == 1):
+            do_set_remote_ip(self.sock, uid, ip4, gen_ip6(uid))
+        else: 
+            do_set_remote_ip(self.sock, uid, ip4, gen_ip6(uid))
 
     def trim_connections(self):
         for k, v in self.peers.iteritems():
@@ -203,9 +207,9 @@ class GvpnUdpServer(UdpServer):
                 #|     42       | Payload (Ethernet frame)                     |
                 #|-------------------------------------------------------------|
                 elif data[1] == tincan_packet:
-
-                    #Ignore IPv6 packets for log readability. Most of them are 
-                    #Multicast DNS packets
+ 
+                    # Ignore IPv6 packets for log readability. Most of them are
+                    # Multicast DNS packets
                     if data[54:56] == "\x86\xdd":
                         continue
                     logging.debug("IP packet forwarded \nversion:{0}\nmsg_type:"
@@ -214,23 +218,13 @@ class GvpnUdpServer(UdpServer):
                         data[1].encode("hex"), data[2:22].encode("hex"), \
                         data[22:42].encode("hex"), data[42:48].encode("hex"),\
                         data[48:54].encode("hex"), data[54:56].encode("hex")))
-
-                    if data[54:56] == "\x08\x06": #ARP Message
-                        if CONFIG["switchmode"]:
-                            self.arp_handle(data)
-                        continue
-
-                    if data[54:56] == "\x08\x00": #IPv4 Packet
-                        if CONFIG["switchmode"]:
-                            self.packet_handle(data)
-                        continue
-
+ 
                     if not CONFIG["on-demand_connection"]:
                         continue
                     if len(data) < 16:
                         continue
                     self.create_connection_req(data[2:])
-    
+     
                 else:
                     logging.error("Unknown type message")
                     logging.debug("{0}".format(data[0:].encode("hex")))
