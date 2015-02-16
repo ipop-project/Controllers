@@ -15,7 +15,7 @@ class SvpnUdpServer(UdpServer):
         do_set_translation(self.sock, 1)
         do_set_cb_endpoint(self.sock, self.sock.getsockname())
         do_set_local_ip(self.sock, uid, ip4, gen_ip6(uid), CONFIG["ip4_mask"],
-                        CONFIG["ip6_mask"], CONFIG["subnet_mask"])
+                        CONFIG["ip6_mask"], CONFIG["subnet_mask"], 0)
         do_register_service(self.sock, user, password, host)
         do_set_trimpolicy(self.sock, CONFIG["trim_enabled"])
         do_get_state(self.sock, stats=False)
