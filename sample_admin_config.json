@@ -4,6 +4,7 @@
     "nick": "ipoptester",
     "xmpp_password": "password",
     "ip4_mask": 16,
+    "stat_report": true,
     "controller_logging": "DEBUG",
     "tincan_logging": 2
 }
