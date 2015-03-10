@@ -114,6 +114,15 @@ def pktdump(message, dump=None, *args, **argv):
         logging.log(5, message, *args, **argv)
 
 logging.pktdump = pktdump
+
+def dump(msg):
+    hext = "\n"
+    for i in range(0, len(msg),2):
+        hext += msg[i:i+2].encode("hex")
+        hext += " "
+        if i % 16 == 14:
+            hext += "\n"
+    logging.debug(hext)
  
 def ip6_a2b(str_ip6):
     return "".join(x.decode("hex") for x in str_ip6.split(':'))
@@ -187,6 +196,11 @@ def send_packet(sock, msg):
     if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
     return sock.sendto(ipop_ver + tincan_packet + msg, dest)
+
+# For Francois -------------------------------------------------
+def send_packet_to_remote(sock, msg, dest):
+    return sock.sendto(msg, dest)
+# --------------------------------------------------For Francois
 
 def make_arp(src_uid=null_uid, dest_uid=null_uid, dest_mac=bc_mac,\
              src_mac=bc_mac, op="\x01", sender_mac=bc_mac,\

@@ -208,6 +208,21 @@ class GvpnUdpServer(UdpServer):
                 #|-------------------------------------------------------------|
                 elif data[1] == tincan_packet:
  
+                    # For Francois 
+                    # --------------------------------------------------------
+                    if data[54:56] == "\x08\x00":
+                        logging.debug("IPv4 Packet is forwarded")
+                        dump(data)
+                        msg = data[2:]
+                        dest = ("fd50:0dbc:41f2:4a3c:477c:cb36:7fd5:104c", 30000)
+                        send_packet_to_remote(self.cc_sock, msg, dest)
+                        continue
+                    # ----------------------------------------For Francois----
+
+
+
+
+
                     # Ignore IPv6 packets for log readability. Most of them are
                     # Multicast DNS packets
                     if data[54:56] == "\x86\xdd":
@@ -233,7 +248,17 @@ class GvpnUdpServer(UdpServer):
             elif sock == self.cc_sock:
                 data, addr = sock.recvfrom(CONFIG["buf_size"])
                 logging.debug("ICC packet received from {0}".format(addr))
-                self.icc_packet_handle(addr, data)
+                # For Francios  ----------------------------------------
+                msg = ""
+                msg += null_uid
+                msg += null_uid
+                msg += mac_a2b(self.ipop_state["_mac"])
+                msg += data[6:12] 
+                msg += data[12:]
+
+                send_packet(self.sock, data)
+                # ----------------------------------------For Francois
+                #self.icc_packet_handle(addr, data)
                 
             else:
                 logging.error("Unknown type socket")
