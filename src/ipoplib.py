@@ -16,6 +16,7 @@ import struct
 import sys
 import time
 import urllib2
+import keyring
 
 from threading import Timer
 
@@ -626,12 +627,20 @@ def parse_config():
         raise ValueError("At least 'xmpp_username' and 'xmpp_host' must be "
                          "specified in config file or string")
 
-    if "xmpp_password" not in CONFIG:
+    if not args.update_config:
+        temp = keyring.get_password("ipop", CONFIG["xmpp_username"])
+    if temp == None and "xmpp_password" not in CONFIG:
         prompt = "\nPassword for %s: " % CONFIG["xmpp_username"]
         if args.pwdstdout:
           CONFIG["xmpp_password"] = getpass.getpass(prompt, stream=sys.stdout)
         else:
           CONFIG["xmpp_password"] = getpass.getpass(prompt)
+    if temp != None:
+        CONFIG["xmpp_password"] = temp
+    try:
+        keyring.set_password("ipop", CONFIG["xmpp_username"],CONFIG["xmpp_password"])
+    except:
+        raise RuntimeError("Unable to store password in keyring")
 
     if "controller_logging" in CONFIG:
         level = getattr(logging, CONFIG["controller_logging"])
