@@ -17,8 +17,124 @@ import sys
 import time
 import urllib2
 import keyring
+import base64
+import traceback
 
 from threading import Timer
+from keyring.util.escape import escape as escape_for_ini
+from keyring.py27compat import configparser
+import keyring.backend
+from keyring.backends.file import Encrypted,BaseKeyring
+from keyring.util import properties
+
+class IPOPEncryptedKeyring(Encrypted, BaseKeyring):
+    """PyCrypto File Keyring"""
+
+    filename = 'crypted_pass.cfg'
+    pw_prefix = 'pw:'.encode()
+
+    @properties.ClassProperty
+    @classmethod
+    def priority(self):
+        "Applicable for all platforms, but not recommended."
+        try:
+            __import__('Crypto.Cipher.AES')
+            __import__('Crypto.Protocol.KDF')
+            __import__('Crypto.Random')
+        except ImportError:
+            raise RuntimeError("PyCrypto required")
+        if not json:
+            raise RuntimeError("JSON implementation such as simplejson "
+                "required.")
+        return .6
+
+    @properties.NonDataProperty
+    def keyring_key(self):
+        # _unlock or _init_file will set the key or raise an exception
+        if self._check_file():
+            self._unlock()
+        else:
+            self._init_file()
+        return self.keyring_key
+
+    def _init_file(self):
+        """
+        Initialize a new password file and set the reference password.
+        """
+        self.keyring_key = "ipop-pass"#self._get_new_password()
+        # set a reference password, used to check that the password provided
+        #  matches for subsequent checks.
+        self.set_password('keyring-setting', 'password reference',
+            'password reference value')
+
+    def _check_file(self):
+        """
+        Check if the file exists and has the expected password reference.
+        """
+        if not os.path.exists(self.file_path):
+            return False
+        self._migrate()
+        config = configparser.RawConfigParser()
+        config.read(self.file_path)
+        try:
+            config.get(
+                escape_for_ini('keyring-setting'),
+                escape_for_ini('password reference'),
+            )
+        except (configparser.NoSectionError, configparser.NoOptionError):
+            return False
+        return True
+
+    def _unlock(self):
+        """
+        Unlock this keyring by getting the password for the keyring from the
+        user.
+        """
+        self.keyring_key = "ipop-pass" #getpass.getpass(
+            #'Please enter password for encrypted keyring: ')
+        try:
+            ref_pw = self.get_password('keyring-setting', 'password reference')
+            assert ref_pw == 'password reference value'
+        except AssertionError:
+            self._lock()
+            raise ValueError("Incorrect Password")
+
+    def _lock(self):
+        """
+        Remove the keyring key from this instance.
+        """
+        del self.keyring_key
+
+    def encrypt(self, password):
+        from Crypto.Random import get_random_bytes
+        salt = get_random_bytes(self.block_size)
+        from Crypto.Cipher import AES
+        IV = get_random_bytes(AES.block_size)
+        cipher = self._create_cipher(self.keyring_key, salt, IV)
+        password_encrypted = cipher.encrypt(self.pw_prefix + password)
+        # Serialize the salt, IV, and encrypted password in a secure format
+        data = dict(
+            salt=salt, IV=IV, password_encrypted=password_encrypted,
+        )
+        for key in data:
+            data[key] = base64.encodestring(data[key]).decode()
+        return json.dumps(data).encode()
+
+    def decrypt(self, password_encrypted):
+        # unpack the encrypted payload
+        data = json.loads(password_encrypted.decode())
+        for key in data:
+            data[key] = base64.decodestring(data[key].encode())
+        cipher = self._create_cipher(self.keyring_key, data['salt'],
+            data['IV'])
+        plaintext = cipher.decrypt(data['password_encrypted'])
+        assert plaintext.startswith(self.pw_prefix)
+        return plaintext[3:]
+
+    def _migrate(self, keyring_password=None):
+        """
+        Convert older keyrings to the current format.
+        """
 
 # Set default config values
 CONFIG = {
@@ -237,8 +353,7 @@ def do_create_link(sock, uid, fpr, overlay_id, sec, cas, stun=None, turn=None):
 def do_trim_link(sock, uid):
     return make_call(sock, m="trim_link", uid=uid)
 
-def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask,
-                    switchmode):
+def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask, switchmode):
     return make_call(sock, m="set_local_ip", uid=uid, ip4=ip4, ip6=ip6,
                      ip4_mask=ip4_mask, ip6_mask=ip6_mask,
                      subnet_mask=subnet_mask, switchmode=switchmode)
@@ -626,21 +741,43 @@ def parse_config():
     if not ("xmpp_username" in CONFIG and "xmpp_host" in CONFIG):
         raise ValueError("At least 'xmpp_username' and 'xmpp_host' must be "
                          "specified in config file or string")
-
+    # Use custom keyring incase of non-interactive environment(uses a fixed password)
+    if isinstance(keyring.get_keyring(),keyring.backends.file.EncryptedKeyring):
+        keyring.set_keyring(IPOPEncryptedKeyring())
+    save_password = False
     if not args.update_config:
-        temp = keyring.get_password("ipop", CONFIG["xmpp_username"])
-    if temp == None and "xmpp_password" not in CONFIG:
-        prompt = "\nPassword for %s: " % CONFIG["xmpp_username"]
-        if args.pwdstdout:
-          CONFIG["xmpp_password"] = getpass.getpass(prompt, stream=sys.stdout)
+        if "xmpp_password" in CONFIG:
+            # password is present in config file. No need to look for other options
+            # store password in keyring
+            temp = CONFIG["xmpp_password"]
+            save_password = True
+            # we need to store it in keyring because there is no way to distinguish between
+            # environments where password is always present in config file and otherwise.
+            # so even though config with password is going to be used always, the keyring 
+            # might prompt for password for keyring on first run
         else:
-          CONFIG["xmpp_password"] = getpass.getpass(prompt)
-    if temp != None:
-        CONFIG["xmpp_password"] = temp
-    try:
-        keyring.set_password("ipop", CONFIG["xmpp_username"],CONFIG["xmpp_password"])
-    except:
-        raise RuntimeError("Unable to store password in keyring")
+            # Try to retrieve password from keyring
+            temp = keyring.get_password("ipop", CONFIG["xmpp_username"])
+            # Try to request valid password from user
+            while temp == None or temp == "":
+                 prompt = "\nPassword for %s: " % CONFIG["xmpp_username"]
+                 if args.pwdstdout:
+                      temp = getpass.getpass(prompt, stream=sys.stdout)
+                 else:
+                      temp = getpass.getpass(prompt)
+                 save_password = True
+        if temp != None:
+            CONFIG["xmpp_password"] = temp
+    else:
+        save_password = True
+     
+    if save_password:
+        # Save password in keyring
+        try:
+            keyring.set_password("ipop", CONFIG["xmpp_username"],CONFIG["xmpp_password"])
+        except Exception, err:
+            print(traceback.format_exc())
+            raise RuntimeError("Unable to store password in the keyring")
 
     if "controller_logging" in CONFIG:
         level = getattr(logging, CONFIG["controller_logging"])
