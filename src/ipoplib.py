@@ -237,7 +237,7 @@ def do_create_link(sock, uid, fpr, overlay_id, sec, cas, stun=None, turn=None):
 def do_trim_link(sock, uid):
     return make_call(sock, m="trim_link", uid=uid)
 
-def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask,
+def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask,\
                     switchmode):
     return make_call(sock, m="set_local_ip", uid=uid, ip4=ip4, ip6=ip6,
                      ip4_mask=ip4_mask, ip6_mask=ip6_mask,
@@ -399,13 +399,15 @@ class UdpServer(object):
                   via=[self.ipop_state["_ip6"], v["ip6"]], ttl=ttl)
 
     def lookup(self, dest_ip6):
-        logging.pktdump("Lookup: {0} pending lookup:{1}".format(dest_ip6, self.lookup_req))
+        logging.pktdump("Lookup: {0} pending lookup:{1}".format(dest_ip6, \
+                        self.lookup_req))
         if dest_ip6 in self.lookup_req:
             return
-        # If no response from the lookup_request message at a certain time. Cancel the 
-        # request 
+        # If no response from the lookup_request message at a certain time.
+        # Cancel the request 
         self.lookup_req[dest_ip6] = { "ttl" : CONFIG["multihop_ihc"]}
-        timer = Timer(CONFIG["multihop_tl"], self.lookup_timeout, args=[dest_ip6])
+        timer = Timer(CONFIG["multihop_tl"], self.lookup_timeout, \
+                      args=[dest_ip6])
         timer.start()
         self.flood(dest_ip6, CONFIG["multihop_ihc"])
 
@@ -446,7 +448,8 @@ class UdpServer(object):
                           dest_addr=msg["via"][-2],\
                           dest_port=CONFIG["icc_port"], m_type=tincan_control,\
                           payload=None, msg_type="lookup_reply",\
-                          target_ip6=msg["target_ip6"], via=msg["via"], via_idx=-2)
+                          target_ip6=msg["target_ip6"], via=msg["via"],\
+                                         via_idx=-2)
                         return
 
                 # not found in peer, add current node to via then flood 
@@ -500,7 +503,8 @@ class UdpServer(object):
 
         if data[1] == tincan_packet: 
             target_ip6=ip6_b2a(data[40:56])
-            logging.pktdump("Multihop Packet Destined to {0}".format(target_ip6))
+            logging.pktdump("Multihop Packet Destined to {0}".format(\
+                            target_ip6))
             if target_ip6 == self.ipop_state["_ip6"]:
                 make_call(self.sock, payload=null_uid + null_uid + data[2:])
                 return
@@ -600,7 +604,8 @@ def parse_config():
                         dest="update_config", action="store_true")
     parser.add_argument("-p", help="load remote ip configuration file",
                         dest="ip_config", metavar="ip_config")
-    parser.add_argument("-s", help="configuration as json string (overrides configuration from file)",
+    parser.add_argument("-s", help="configuration as json string "
+                                   "(overrides configuration from file)",
                         dest="config_string", metavar="config_string")
     parser.add_argument("--pwdstdout", help="use stdout as password stream",
                         dest="pwdstdout", action="store_true")
@@ -626,21 +631,43 @@ def parse_config():
     if not ("xmpp_username" in CONFIG and "xmpp_host" in CONFIG):
         raise ValueError("At least 'xmpp_username' and 'xmpp_host' must be "
                          "specified in config file or string")
-
+    keyring.set_keyring(keyring.backends.file.PlaintextKeyring())
+    save_password = False
     if not args.update_config:
-        temp = keyring.get_password("ipop", CONFIG["xmpp_username"])
-    if temp == None and "xmpp_password" not in CONFIG:
-        prompt = "\nPassword for %s: " % CONFIG["xmpp_username"]
-        if args.pwdstdout:
-          CONFIG["xmpp_password"] = getpass.getpass(prompt, stream=sys.stdout)
+        if "xmpp_password" in CONFIG:
+            # password is present in config file. No need to look
+            # for other options store password in keyring
+            temp = CONFIG["xmpp_password"]
+            save_password = True
+            # we need to store it in keyring because there is no way
+            # to distinguish between environments where password is 
+            # always present in config file and otherwise. So even though 
+            # config with password is going to be used always, the keyring 
+            # might prompt for password for keyring on first run
         else:
-          CONFIG["xmpp_password"] = getpass.getpass(prompt)
-    if temp != None:
-        CONFIG["xmpp_password"] = temp
-    try:
-        keyring.set_password("ipop", CONFIG["xmpp_username"],CONFIG["xmpp_password"])
-    except:
-        raise RuntimeError("Unable to store password in keyring")
+            # Try to retrieve password from keyring
+            temp = keyring.get_password("ipop", CONFIG["xmpp_username"])
+            # Try to request valid password from user
+            while temp == None or temp == "":
+                 prompt = "\nPassword for %s: " % CONFIG["xmpp_username"]
+                 if args.pwdstdout:
+                      temp = getpass.getpass(prompt, stream=sys.stdout)
+                 else:
+                      temp = getpass.getpass(prompt)
+                 save_password = True
+        if temp != None:
+            CONFIG["xmpp_password"] = temp
+    else:
+        save_password = True
+     
+    if save_password:
+        # Save password in keyring
+        try:
+            keyring.set_password("ipop", CONFIG["xmpp_username"],\
+                                 CONFIG["xmpp_password"])
+        except:
+            logging.error("Unable to store password in the keyring")
+            sys.exit(0)
 
     if "controller_logging" in CONFIG:
         level = getattr(logging, CONFIG["controller_logging"])
