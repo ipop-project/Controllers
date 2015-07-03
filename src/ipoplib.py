@@ -57,7 +57,9 @@ CONFIG = {
     "multihop_sr": True, # Multihop source route
     "stat_report": False,
     "stat_server" : "metrics.ipop-project.org",
-    "stat_server_port" : 5000
+    "stat_server_port" : 5000,
+	"x509" : "",
+	"pkey" : ""
 }
 
 IP_MAP = {}
@@ -171,6 +173,7 @@ def gen_uid(ip4):
 def make_call(sock, payload=None, **params):
     if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
+    print(json.dumps(params))
     if payload == None:
         return sock.sendto(ipop_ver + tincan_control + json.dumps(params), dest)
     else:
@@ -217,9 +220,13 @@ def do_send_msg(sock, method, overlay_id, uid, data):
 def do_set_cb_endpoint(sock, addr):
     return make_call(sock, m="set_cb_endpoint", ip=addr[0], port=addr[1])
 
-def do_register_service(sock, username, password, host):
-    return make_call(sock, m="register_svc", username=username,
+def do_register_service(sock, username, password, host, x509="", pkey=""):
+    if x509 == "" or pkey == "" or x509 == None or pkey == None:
+        return make_call(sock, m="register_svc", username=username,
                      password=password, host=host)
+    else:
+        return make_call(sock, m="register_svc", username=username,
+                     password=password, host=host, x509=x509, pkey=pkey)
 
 def do_create_link(sock, uid, fpr, overlay_id, sec, cas, stun=None, turn=None):
     if stun is None:
@@ -266,7 +273,7 @@ def do_set_trimpolicy(sock, trim_enabled):
     return make_call(sock, m="set_trimpolicy", trim_enabled=trim_enabled)
 
 class UdpServer(object):
-    def __init__(self, user, password, host, ip4):
+    def __init__(self, user, password, host, ip4, x509="", pkey=""):
         self.ipop_state = {}
         self.peers = {}
         self.peers_ip4 = {}

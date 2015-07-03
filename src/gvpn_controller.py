@@ -3,11 +3,13 @@
 from ipoplib import *
 
 class GvpnUdpServer(UdpServer):
-    def __init__(self, user, password, host, ip4):
-        UdpServer.__init__(self, user, password, host, ip4)
+    def __init__(self, user, password, host, ip4, x509="", pkey=""):
+        UdpServer.__init__(self, user, password, host, ip4, x509="", pkey="")
         self.idle_peers = {}
         self.user = user
         self.password = password
+        self.x509 = x509
+        self.pkey = pkey
         self.host = host
         self.ip4 = ip4
         self.uid = gen_uid(ip4)
@@ -48,7 +50,8 @@ class GvpnUdpServer(UdpServer):
                            gen_ip6(self.uid), CONFIG["router_ip4_mask"],
                            CONFIG["router_ip6_mask"], CONFIG["subnet_mask"])
 
-        do_register_service(self.sock, self.user, self.password, self.host)
+        do_register_service(self.sock, self.user, self.password, self.host,
+                           self.x509, self.pkey)
         do_set_switchmode(self.sock, CONFIG["switchmode"])
         do_set_trimpolicy(self.sock, CONFIG["trim_enabled"])
         do_get_state(self.sock)
