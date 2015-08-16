@@ -166,7 +166,9 @@ def main():
                        CONFIG["xmpp_host"], CONFIG["ip4"], CONFIG["local_uid"])
     set_global_variable_server(server)
     if CONFIG["stat_report"]:
-        server.report()
+        t = threading.Thread(target=server.report)
+        t.daemon = True
+        t.start()
     last_time = time.time()
     while True:
         server.serve()

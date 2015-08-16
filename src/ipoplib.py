@@ -14,6 +14,7 @@ import signal
 import socket
 import struct
 import sys
+import threading
 import time
 import urllib2
 import keyring
@@ -91,7 +92,9 @@ def exit_handler(signum, frame):
     logging.info("Terminating Controller")
     if CONFIG["stat_report"]:
         if server != None:
-            server.report()
+            t = threading.Thread(target=server.report)
+            t.daemon = True
+            t.start()
         else:
             logging.debug("Controller socket is not created yet")
     sys.exit(0)
