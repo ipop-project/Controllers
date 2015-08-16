@@ -58,7 +58,7 @@ CONFIG = {
     "multihop_sr": True, # Multihop source route
     "stat_report": False,
     "stat_server" : "metrics.ipop-project.org",
-    "stat_server_port" : 5000
+    "stat_server_port" : 80
 }
 
 IP_MAP = {}
