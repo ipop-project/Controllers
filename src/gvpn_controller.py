@@ -265,7 +265,9 @@ def main():
                        CONFIG["xmpp_host"], CONFIG["ip4"])
     set_global_variable_server(server)
     if CONFIG["stat_report"]:
-        server.report() # Report the status of the node to the configured stat_server
+        t = threading.Thread(target=server.report)
+        t.daemon = True
+        t.start()
     last_time = time.time()
     while True:
         server.serve()

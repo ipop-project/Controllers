@@ -14,6 +14,7 @@ import signal
 import socket
 import struct
 import sys
+import threading
 import time
 import urllib2
 import keyring
@@ -57,7 +58,7 @@ CONFIG = {
     "multihop_sr": True, # Multihop source route
     "stat_report": False,
     "stat_server" : "metrics.ipop-project.org",
-    "stat_server_port" : 5000
+    "stat_server_port" : 80
 }
 
 IP_MAP = {}
@@ -91,7 +92,9 @@ def exit_handler(signum, frame):
     logging.info("Terminating Controller")
     if CONFIG["stat_report"]:
         if server != None:
-            server.report()
+            t = threading.Thread(target=server.report)
+            t.daemon = True
+            t.start()
         else:
             logging.debug("Controller socket is not created yet")
     sys.exit(0)
