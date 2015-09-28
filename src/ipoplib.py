@@ -65,6 +65,11 @@ IP_MAP = {}
 ipop_ver = "\x02"
 tincan_control = "\x01"
 tincan_packet = "\x02"
+icc_control = "\x03"
+icc_packet = "\x04"
+icc_mac_control = "\x00\x69\x70\x6f\x70" + icc_control
+icc_mac_packet = "\x00\x69\x70\x6f\x70" + icc_packet
+icc_ethernet_padding = "\x00\x00\x00\x00\x00\x00\x00\x00"
 tincan_sr6 = "\x03"
 tincan_sr6_end = "\x04"
 null_uid = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
@@ -188,6 +193,18 @@ def send_packet(sock, msg):
     if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
     else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
     return sock.sendto(ipop_ver + tincan_packet + msg, dest)
+
+def icc_sendto_control(sock, src_uid, dest_uid, msg):
+    if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
+    else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
+    return sock.sendto(ipop_ver + icc_control + src_uid +
+      uid_a2b(dest_uid) + icc_mac_control + icc_ethernet_padding + msg, dest)
+
+def icc_sendto_packet(sock, src_uid, dest_uid , msg):
+    if socket.has_ipv6: dest = (CONFIG["localhost6"], CONFIG["svpn_port"])
+    else: dest = (CONFIG["localhost"], CONFIG["svpn_port"])
+    return sock.sendto(ipop_ver + icc_packet + src_uid +
+      uid_a2b(dest_uid) + icc_mac_packet + icc_ethernet_padding + msg, dest)
 
 def make_arp(src_uid=null_uid, dest_uid=null_uid, dest_mac=bc_mac,\
              src_mac=bc_mac, op="\x01", sender_mac=bc_mac,\
@@ -571,6 +588,14 @@ class UdpServer(object):
                 raise
         except:
             logging.debug("Status report failed.")
+
+    def icc_sendto_control(self, dest_uid, msg):
+        icc_sendto_control(self.sock, uid_a2b(self.uid), dest_uid, msg)
+
+    def icc_sendto_packet(self, dest_uid, msg):
+        icc_sendto_packet(self.sock, uid_a2b(self.uid), dest_uid, msg)
+
+
 
 def setup_config(config):
     """Validate config and set default value here. Return ``True`` if config is
