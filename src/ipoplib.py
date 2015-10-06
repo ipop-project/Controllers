@@ -20,6 +20,7 @@ import keyring
 
 from threading import Timer
 
+
 # Set default config values
 CONFIG = {
     "stun": ["stun.l.google.com:19302", "stun1.l.google.com:19302",
@@ -79,8 +80,8 @@ null_mac = "\x00\x00\x00\x00\x00\x00"
 
 # PKTDUMP mode is for more detailed than debug logging, especially for dump
 # packet contents in hexadecimal to log
-logging.addLevelName(5, "PKTDUMP")
-logging.PKTDUMP = 5
+#logging.addLevelName(5, "PKTDUMP")
+#logging.PKTDUMP = 5
 
 # server is cross-module(?) variable
 server = None
@@ -119,7 +120,7 @@ def pktdump(message, dump=None, *args, **argv):
     else: 
         logging.log(5, message, *args, **argv)
 
-logging.pktdump = pktdump
+#logging.pktdump = pktdump
  
 def ip6_a2b(str_ip6):
     return "".join(x.decode("hex") for x in str_ip6.split(':'))
@@ -283,7 +284,7 @@ def do_set_trimpolicy(sock, trim_enabled):
     return make_call(sock, m="set_trimpolicy", trim_enabled=trim_enabled)
 
 class UdpServer(object):
-    def __init__(self, user, password, host, ip4):
+    def __init__(self, user, password, host, ip4, logger):
         self.ipop_state = {}
         self.peers = {}
         self.peers_ip4 = {}
@@ -300,6 +301,13 @@ class UdpServer(object):
             self.sock_svr.bind((CONFIG["localhost"], CONFIG["contr_port"]))
         self.sock.bind(("", 0))
         self.sock_list = [ self.sock, self.sock_svr ]
+        global logging
+        logging = logger
+        print "ipoplib"
+        print logging
+        logging.info("what")
+        
+        
 
     def inter_controller_conn(self):
 

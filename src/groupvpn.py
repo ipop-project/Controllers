@@ -2,20 +2,21 @@
 
 import ipoplib as il
 import json
-import logging
+#import logging
 import select
 import time
 import threading
 
 
 CONFIG = None
+logging = None
 
 class Controller(il.UdpServer):
-    def __init__(self, CONFIG_):
+    def __init__(self, CONFIG_, logger):
         global CONFIG
         CONFIG = CONFIG_
         il.UdpServer.__init__(self, CONFIG["xmpp_username"], 
-          CONFIG["xmpp_password"], CONFIG["xmpp_host"], CONFIG["ip4"])
+          CONFIG["xmpp_password"], CONFIG["xmpp_host"], CONFIG["ip4"], logger)
         self.idle_peers = {}
         self.user = CONFIG["xmpp_username"] # XMPP username
         self.password = CONFIG["xmpp_password"] # XMPP Password
@@ -24,6 +25,10 @@ class Controller(il.UdpServer):
         self.uid = il.gen_uid(self.ip4) # SHA-1 hash
         self.vpn_type = CONFIG["controller_type"]
         self.ctrl_conn_init()
+        global logging
+        print dir(logger)
+        logging = logger
+        print dir(logging)
 
         self.uid_ip_table = {}
         parts = CONFIG["ip4"].split(".")
@@ -280,4 +285,5 @@ class Controller(il.UdpServer):
         t = threading.Thread(target=self.start)
         t.daemon = True
         t.start()
+        return t
 
