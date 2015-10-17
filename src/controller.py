@@ -4,6 +4,7 @@ import argparse
 import binascii
 import code
 import ipoplib as i
+import observer
 import os
 import json
 import keyring
@@ -25,11 +26,13 @@ def setup_config(config):
         return True # modified
     return False
 
-#def main():
-class IpopController():
+class IpopController(observer.Observer):
     def __init__(self, argv, logger):
 
+        super(IpopController, self).__init__("controller")
         print argv
+
+        self.observable = observer.Observable()
         logger.info("say something i'm ipop")
         self.logging = logger;
         global logging
@@ -124,6 +127,11 @@ class IpopController():
             shell.interact()
         #else:
         #    t.join()
+
+    def on_message(self, msg_type, msg):
+        print("on_message type:{0} message:{1}".format(msg_type, msg))
+
+
     
 if __name__ == "__main__":
     IpopController(sys.argv[1:]).run()
