@@ -7,6 +7,7 @@ import getpass
 import hashlib
 import json
 import logging
+import observer
 import os
 import random
 import select
@@ -285,6 +286,10 @@ def do_set_trimpolicy(sock, trim_enabled):
 
 class UdpServer(object):
     def __init__(self, user, password, host, ip4, logger):
+        #super(UdpServer, self).__init__("controller")
+        #self.observable = observer.Observable()
+        #self.observable.register(self)
+
         self.ipop_state = {}
         self.peers = {}
         self.peers_ip4 = {}
@@ -598,6 +603,7 @@ class UdpServer(object):
             logging.debug("Status report failed.")
 
     def icc_sendto_control(self, dest_uid, msg):
+        logging.debug("sending control message to {0} --- {1}".format(dest_uid, msg))
         icc_sendto_control(self.sock, uid_a2b(self.uid), dest_uid, msg)
 
     def icc_sendto_packet(self, dest_uid, msg):

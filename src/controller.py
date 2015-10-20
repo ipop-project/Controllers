@@ -30,9 +30,9 @@ class IpopController(observer.Observer):
     def __init__(self, argv, logger):
 
         super(IpopController, self).__init__("controller")
-        print argv
-
         self.observable = observer.Observable()
+        self.observable.register(self)
+
         logger.info("say something i'm ipop")
         self.logging = logger;
         global logging
@@ -112,7 +112,7 @@ class IpopController(observer.Observer):
             import socialvpn as vpn
     
         print logging
-        controller = vpn.Controller(CONFIG, self.logging)
+        controller = vpn.Controller(CONFIG, self.logging, self.observable)
         t = controller.run()
     
         #if CONFIG["icc"]:

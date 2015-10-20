@@ -3,6 +3,7 @@
 import ipoplib as il
 import json
 #import logging
+import random
 import select
 import time
 import threading
@@ -10,11 +11,20 @@ import threading
 
 CONFIG = None
 logging = None
+REMOTE_UID = ""
+LOCAL_HOST_IPv4 = ""
+REMOTE_HOST_IPv4 = ""
 
 class Controller(il.UdpServer):
-    def __init__(self, CONFIG_, logger):
+    def __init__(self, CONFIG_, logger, observerable):
+
+        #super(IpopController, self).__init__("controller")
+        #self.observable = observer.Observable()
+        #self.observable.register(self)
+
         global CONFIG
         CONFIG = CONFIG_
+        self.observable = observerable
         il.UdpServer.__init__(self, CONFIG["xmpp_username"], 
           CONFIG["xmpp_password"], CONFIG["xmpp_host"], CONFIG["ip4"], logger)
         self.idle_peers = {}
@@ -169,10 +179,24 @@ class Controller(il.UdpServer):
                             continue
                         stats = msg["stats"]
                         total_byte = 0
+                        global REMOTE_UID
+                        REMOTE_UID = msg["uid"]
                         for stat in stats:
                             total_byte += stat["sent_total_bytes"]
                             total_byte += stat["recv_total_bytes"]
                         msg["total_byte"]=total_byte
+                        logging.debug("?? {0} {1} {2}".format(stats[0]["best_conn"], stats[0]["local_type"] , stats[0]["rem_type"]))
+                        if stats[0]["best_conn"] and stats[0]["local_type"] == "local" and stats[0]["rem_type"] == "local":
+                            ryu_msg = {}
+                            ryu_msg["type"] = "tincan_notify"
+			    ryu_msg["local_addr"] = stats[0]["local_addr"].split(":")[0]
+                            ryu_msg["rem_addr"] = stats[0]["rem_addr"].split(":")[0]
+                            # sock.sendto(json.dumps(ryu_msg),("::1", 30001))
+                            global LOCAL_HOST_IPv4
+                            global REMOTE_HOST_IPv4
+                            LOCAL_HOST_IPv4 = stats[0]["local_addr"].split(":")[0]
+                            REMOTE_HOST_IPv4 = stats[0]["rem_addr"].split(":")[0]
+                            logging.debug("REMOTE_HOST_IPv4:{0}".format(REMOTE_HOST_IPv4))
                         logging.debug("self.peers:{0}".format(self.peers))
                         if not msg["uid"] in self.peers:
                             msg["last_active"]=time.time()
@@ -219,6 +243,45 @@ class Controller(il.UdpServer):
                             else:
                                 self.ondemand_create_connection(msg["uid"], 
                                                                 False)
+                    elif msg_type == "packet_notify":
+                        if msg["src_port"] == 68:
+                            continue #Ignore BOOTP
+                        if msg["src_port"] == 5353:
+                            continue #Ignore Multicast DNS
+                        if msg["src_port"] == 30000:
+                            continue #Ignore ICC packet 
+                        if msg["nw_proto"] == 17:
+                            continue # Let's ignore UDP for the time being
+
+                        #ryu_msg = {}
+                        #ryu_msg["type"] = "packet_notify"
+                        #ryu_msg["protocol"] = msg["data"].split(',')[0]
+                        #msg["remote_ipop_ipv4"] = REMOTE_IPOP_IPv4
+                        src_random_port = random.randint(49125, 65535)
+                        dst_random_port = random.randint(49125, 65535)
+                        msg["src_host_ipv4"] = REMOTE_HOST_IPv4
+                        msg["remote_host_ipv4"] = REMOTE_HOST_IPv4
+                        msg["src_random_port"] = src_random_port
+                        msg["dst_random_port"] = dst_random_port
+                        #ryu_msg["src_mac"] = msg["src_mac"]
+                        #ryu_msg["dst_mac"] = msg["data"].split(',')[2]
+                        #ryu_msg["src_ipv4"] = msg["data"].split(',')[3] 
+                        #ryu_msg["dst_ipv4"] = msg["data"].split(',')[4]
+                        #logging.debug("Try sending message to {0}".format(REMOTE_IPOP_IPv4))
+                        #logging.debug("Try sending message to {0}".format("::1 / 30001"))
+                        #msg["type"] = "packet_notify_remote"
+                        logging.debug("sending message to retmoe and local".format(msg))
+                        msg["type"] = "packet_notify_remote"
+                        self.icc_sendto_control(REMOTE_UID, json.dumps(msg))
+                        #ret1 = self.cc_sock.sendto(json.dumps(msg), (REMOTE_IPOP_IPv4, 30002))
+                        #ret1 = self.cc_sock.sendto(json.dumps(msg), (REMOTE_IPOP_IPv6, 30002))
+                        #time.sleep(5)
+                        #msg["type"] = "packet_notify_local"
+                        msg["type"] = "packet_notify_local"
+                        self.observable.send_msg("ocs", "control", msg)
+                        #ret0 = self.sock.sendto(json.dumps(msg),("::1", 30001))
+                        #logging.debug("Sent {0} {1} byte".format(ret0, ret1))
+
                    
                 # If a packet that is destined to yet no p2p connection 
                 # established node, the packet as a whole is forwarded to 
@@ -258,6 +321,16 @@ class Controller(il.UdpServer):
 
                 elif data[1] == "\x03":
                     logging.debug("ICC control")
+                    #for i in range(0, len(data)):
+                    #  logging.debug("ICC control:{0} {1}".format(i, data[i]))
+                    # TODO i don't know why but there is some trailing null characters
+                    msglist = data[56:].split("\x00")
+                    #print msglist
+                    rawmsg = msglist[0] 
+                    #print rawmsg
+                    msg = json.loads(rawmsg)
+                    #print msg
+                    self.observable.send_msg("ocs", "control", msg)
 
                 elif data[1] == "\x04":
                     logging.debug("ICC packet")
