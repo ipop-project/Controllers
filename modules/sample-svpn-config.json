@@ -1,0 +1,52 @@
+{
+    "CFx": {
+        "xmpp_username": "",
+        "xmpp_password": "",
+        "ip4_mask": 24,
+        "xmpp_host": "",
+        "stat_report": true,
+        "tincan_logging": 0,
+        "vpn_type": "SocialVPN"
+    },
+    "TincanListener" : {
+        "socket_read_wait_time": 15,
+        "joinEnabled": true,
+        "dependencies": ["Logger", "TincanDispatcher"]
+    },
+    "Logger": {
+        "controller_logging": "DEBUG",
+        "joinEnabled": true
+    },
+    "TincanDispatcher": {
+        "joinEnabled": true,
+        "dependencies": ["Logger"]
+    },
+    "TincanSender":{
+        "dependencies": ["Logger"]
+    },
+    "Monitor": {
+        "joinEnabled": true,
+        "dependencies": ["Logger"]
+    },
+    "BaseTopologyManager": {
+        "timer_interval": 10,
+        "joinEnabled": true,
+        "dependencies": ["Logger"]
+    },
+    "LinkManager": {
+        "joinEnabled": true,
+        "dependencies": ["Logger"]
+    },
+    "AddressMapper": {
+        "ip4": "192.168.5.1",
+        "joinEnabled": true,
+        "dependencies": ["Logger"]
+    },
+    "Watchdog":{
+        "timer_interval": 10,
+        "joinEnabled": true,
+        "dependencies": ["Logger"]
+    }
+}
+
+

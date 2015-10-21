@@ -1,0 +1,57 @@
+{ 
+  "CFx": { 
+    "xmpp_username": "", 
+    "xmpp_password": "", 
+    "xmpp_host": "", 
+    "tincan_logging": 0, 
+    "vpn_type": "GroupVPN", 
+    "icc": true, 
+    "icc_port": 30000, 
+    "ip4_mask": 16, 
+    "stat_report": false 
+  }, 
+  "Logger": { 
+    "controller_logging": "ERROR", 
+    "joinEnabled": true 
+  }, 
+  "TincanSender": {
+    "dependencies": ["Logger"] 
+  }, 
+  "BaseTopologyManager": { 
+    "ip4": "172.31.0.16", 
+    "num_successors": 2, 
+    "num_chords": 3, 
+    "num_on_demand": 2, 
+    "num_inbound": 8, 
+    "ttl_link_initial": 60, 
+    "ttl_link_pulse": 30, 
+    "ttl_chord": 60, 
+    "ttl_on_demand": 60, 
+    "on_demand_threshold": 10, 
+    "timer_interval": 1, 
+    "interval_management": 15, 
+    "interval_central_visualizer": 5, 
+    "joinEnabled": true, 
+    "dependencies": ["Logger", "CentralVisualizer"] 
+  }, 
+  "LinkManager": { 
+    "joinEnabled": true, 
+    "dependencies": ["Logger"] 
+  }, 
+  "TincanDispatcher": { 
+    "joinEnabled": true, 
+    "dependencies": ["Logger"] 
+  }, 
+  "TincanListener" : { 
+    "socket_read_wait_time": 15, 
+    "joinEnabled": true, 
+    "dependencies": ["Logger", "TincanDispatcher"] 
+  }, 
+  "CentralVisualizer": { 
+    "central_visualizer": false, 
+    "central_visualizer_addr": "", 
+    "central_visualizer_port": 51234, 
+    "joinEnabled": true, 
+    "dependencies": ["Logger"] 
+  } 
+}
