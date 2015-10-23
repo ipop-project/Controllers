@@ -4,11 +4,9 @@
 
 #### Download
 
-* Download and extract the controller framework
+* Download the controller framework
   ```
-  wget -O controller-framework-beta-v0.3.1.tar.gz https://goo.gl/e7BSpo
-  tar xvzf controller-framework-beta-v0.3.1.tar.gz
-  cd controller-framework-beta-v0.3.1
+  wget https://github.com/ipop-project/controllers/archive/devel.zip
   ```
 
 * Run IPOP-Tincan 
