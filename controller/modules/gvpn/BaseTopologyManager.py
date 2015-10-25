@@ -199,12 +199,9 @@ class BaseTopologyManager(ControllerModule):
             if time.time() > self.peers[uid]["ttl"]:
                 self.remove_connection(uid)
 
-        # time-to-live attribute for a secondary purpose
-        #   for chords: enforce logarithmic links in the changing network
-        #   for on-demand links: reduce links assuming the packet rate has
-        #       decreased; recreated if the rate still exceeds a threshold
-        for uid in self.links["on_demand"].keys():
-            self.clean_on_demand(uid)
+        # periodically call policy for link removal
+        self.clean_chords()
+        self.clean_on_demand()
 
     ############################################################################
     # add/remove link functions                                                #
@@ -459,6 +456,13 @@ class BaseTopologyManager(ControllerModule):
             if uid != log_uid:
                 del self.links["chord"][log_uid]
 
+    def clean_chords(self):
+        for uid in self.links["chord"].keys():
+
+            # time-to-live attribute expired: remove link
+            if time.time() > self.links["chord"][uid]["ttl"]:
+                self.remove_link("chord", uid)
+
     ############################################################################
     # on-demand links policy                                                   #
     ############################################################################
@@ -482,8 +486,8 @@ class BaseTopologyManager(ControllerModule):
                 }
                 self.add_outbound_link("on_demand", uid, attributes)
 
-    def clean_on_demand(self, uid):
-        if uid in self.links["on_demand"].keys():
+    def clean_on_demand(self):
+        for uid in self.links["on_demand"].keys():
 
             # rate exceeds threshold: increase time-to-live attribute
             if self.links["on_demand"][uid]["rate"] >= self.CMConfig["threshold_on_demand"]:
