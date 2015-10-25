@@ -25,7 +25,6 @@ class Logger(ControllerModule):
 
     def processCBT(self, cbt):
 
-        '''
         if(cbt.action == 'debug'):
             logging.debug(cbt.data)
         elif(cbt.action == 'info'):
@@ -39,7 +38,6 @@ class Logger(ControllerModule):
                          dump=cbt.data.get('dump'))
         else:
             logging.warning("Unrecognized CBT from "+cbt.initiator)
-        '''
 
     def timer_method(self):
         pass

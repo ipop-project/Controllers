@@ -26,7 +26,7 @@ class BaseTopologyManager(ControllerModule):
         # links:
         #   self.links["successor"] = { uid: None }
         #   self.links["chord"]     = { uid: {"log_uid": log_uid, "ttl": ttl} }
-        #   self.links["on_demand"] = { uid: {"ttl": ttl} }
+        #   self.links["on_demand"] = { uid: {"ttl": ttl, "rate": rate} }
         #   self.links["inbound"]   = { uid: None }
 
         self.links = {}
@@ -36,8 +36,6 @@ class BaseTopologyManager(ControllerModule):
         self.links["inbound"] = {}
 
         self.log_chords = []
-
-        self.on_demand_counter = {}
 
         # discovered nodes (via initial peer_state messages or advertisement)
         self.discovered_nodes = []
@@ -205,10 +203,8 @@ class BaseTopologyManager(ControllerModule):
         #   for chords: enforce logarithmic links in the changing network
         #   for on-demand links: reduce links assuming the packet rate has
         #       decreased; recreated if the rate still exceeds a threshold
-        for con_type in ["on_demand"]:
-            for uid in self.links[con_type].keys():
-                if time.time() > self.links[con_type][uid]["ttl"]:
-                    self.remove_link(con_type, uid)
+        for uid in self.links["on_demand"].keys():
+            self.clean_on_demand(uid)
 
     ############################################################################
     # add/remove link functions                                                #
@@ -466,39 +462,36 @@ class BaseTopologyManager(ControllerModule):
     ############################################################################
     # on-demand links policy                                                   #
     ############################################################################
-    # [1] A is forwarding packets to B beyond some threshold
-    #     A requests to link to B, with B as A's on-demand link
+    # [1] A is forwarding packets to B
+    #     A immediately requests to link to B, with B as A's on-demand link
     # [2] B accepts A's link request, with A as B's inbound link
     # [3] A and B are connected
-    # [*] the link is terminated when the on-demand time-to-live attribute expires
-    #     or the link disconnects
-    # [*] A periodically resets the current count of sent packets (implements a
-    #     rate of sent packets)
-
-    def count_on_demand(self, uid):
-
-        # node is not already being counted; add to counting list
-        if uid not in self.on_demand_counter:
-            self.on_demand_counter[uid] = 0
-
-        # increment forward count
-        self.on_demand_counter[uid] += 1
-
-        # create on_demand link if forward count exceeds threshold
-        if len(self.links["on_demand"].keys()) < self.CMConfig["num_on_demand"]:
-            if self.on_demand_counter[uid] > self.CMConfig["on_demand_threshold"]:
-                self.add_on_demand(uid)
+    # [*] the link is terminated when the transfer rate is below some threshold
+    #     until the on-demand time-to-live attribute expires or the link
+    #     disconnections
 
     def add_on_demand(self, uid):
-        if uid not in self.links["on_demand"].keys():
 
-            attributes = {"ttl": time.time() + self.CMConfig["ttl_on_demand"]}
-            self.add_outbound_link("on_demand", uid, attributes)
+        if len(self.links["on_demand"].keys()) < self.CMConfig["num_on_demand"]:
 
-    def reset_on_demand(self):
+            if uid not in self.links["on_demand"].keys():
 
-        # reset counting list
-        self.on_demand_counter = {}
+                attributes = {
+                    "ttl": time.time() + self.CMConfig["ttl_on_demand"],
+                    "rate": 0
+                }
+                self.add_outbound_link("on_demand", uid, attributes)
+
+    def clean_on_demand(self, uid):
+        if uid in self.links["on_demand"].keys():
+
+            # rate exceeds threshold: increase time-to-live attribute
+            if self.links["on_demand"][uid]["rate"] >= self.CMConfig["threshold_on_demand"]:
+                self.links["on_demand"][uid]["ttl"] = time.time() + self.CMConfig["ttl_on_demand"]
+
+            # rate is below theshold and the time-to-live attribute expired: remove link
+            elif time.time() > self.links["on_demand"][uid]["ttl"]:
+                self.remove_link("on_demand", uid)
 
     ############################################################################
     # inbound links policy                                                     #
@@ -514,7 +507,6 @@ class BaseTopologyManager(ControllerModule):
             elif con_type in ["chord", "on_demand"]:
                 if len(self.links["inbound"].keys()) < self.CMConfig["num_inbound"]:
                     self.add_inbound_link(con_type, uid, fpr, request_msg)
-
 
     ############################################################################
     # service notifications                                                    #
@@ -554,6 +546,10 @@ class BaseTopologyManager(ControllerModule):
                         self.peers[msg["uid"]] = msg
                         self.peers[msg["uid"]]["ttl"] = ttl
                         self.peers[msg["uid"]]["con_status"] = con_status
+
+                        if msg["uid"] in self.links["on_demand"].keys():
+                            if "stats" in msg:
+                                self.links["on_demand"][msg["uid"]]["rate"] = msg["stats"][0]["sent_bytes_second"]
 
             elif msg_type == "con_stat":
 
@@ -627,8 +623,8 @@ class BaseTopologyManager(ControllerModule):
             log = "sent tincan_packet (exact): " + str(dst_uid[0:3])
             self.registerCBT('Logger', 'debug', log)
 
-            # count forwarded message for threshold on-demand links
-            self.count_on_demand(dst_uid)
+            # add on-demand link
+            self.add_on_demand(dst_uid)
 
         # inter-controller communication (ICC) messages
         elif(cbt.action == "ICC_MSG"):
@@ -743,9 +739,6 @@ class BaseTopologyManager(ControllerModule):
             # manage chords
             self.find_chords()
 
-            # reset on-demand counting list
-            self.reset_on_demand()
-
             # create advertisements
             self.advertise()
 
@@ -778,7 +771,7 @@ class BaseTopologyManager(ControllerModule):
             self.manage_topology()
 
             #XXX (may be removed; for debugging)
-            self.report_connections()
+#            self.report_connections()
 
             # update local state and peer list
             self.registerCBT('TincanSender', 'DO_GET_STATE', '')
