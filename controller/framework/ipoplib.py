@@ -19,6 +19,8 @@ import urllib2
 
 from threading import Timer
 
+ipop_ver = "\x02"
+
 # Set default config values
 
 CONFIG = {
@@ -86,12 +88,17 @@ CONFIG = {
         "central_visualizer_port": 0,
         "joinEnabled": True,
         "dependencies": ["Logger"]
-    }
+    },
+   "StatReport": {
+        "timer_interval": 200,
+        "joinEnabled": True,
+    },
+    "uid" : None,
+    "ipop_ver" : ipop_ver
 }
 
 IP_MAP = {}
 
-ipop_ver = "\x02"
 tincan_control = "\x01"
 tincan_packet = "\x02"
 tincan_sr6 = "\x03"
