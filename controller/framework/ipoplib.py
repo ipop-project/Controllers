@@ -19,6 +19,8 @@ import urllib2
 
 from threading import Timer
 
+ipop_ver = "\x02"
+
 # Set default config values
 
 CONFIG = {
@@ -42,12 +44,61 @@ CONFIG = {
         "stat_report": False,
         "stat_server": "metrics.ipop-project.org",
         "stat_server_port": 5000
-    }
+    },
+    "TincanListener": {
+        "buf_size": 65507,
+        "socket_read_wait_time": 15,
+        "joinEnabled": True
+    },
+    "Logger": {
+        "controller_logging": "INFO",
+        "joinEnabled": True
+    },
+    "TincanDispatcher": {
+        "joinEnabled": True
+    },
+    "BaseTopologyManager": {
+        "ip4": "192.168.5.1",
+        "link_trimmer_wait_time": 30,
+        "on-demand_connection": False,
+        "on-demand_inactive_timeout": 600,
+        "multihop": False,
+        "sec": True,
+        "timer_interval": 15,
+        "joinEnabled": True
+    },
+    "LinkManager": {
+        "joinEnabled": True
+    },
+    "TincanSender": {
+        "stun": ["stun.l.google.com:19302", "stun1.l.google.com:19302",
+                 "stun2.l.google.com:19302", "stun3.l.google.com:19302",
+                 "stun4.l.google.com:19302"],
+        "turn": [],
+        "ip6_prefix": "fd50:0dbc:41f2:4a3c",
+        "switchmode": 0,
+        "localhost": "127.0.0.1",
+        "svpn_port": 5800,
+        "localhost6": "::1",
+        "joinEnabled": True
+    },
+    "CentralVisualizer": {
+        "central_visualizer": False,
+        "central_visualizer_addr": "",
+        "central_visualizer_port": 0,
+        "joinEnabled": True,
+        "dependencies": ["Logger"]
+    },
+   "StatReport": {
+        "timer_interval": 200,
+        "joinEnabled": True,
+    },
+    "uid" : None,
+    "ipop_ver" : ipop_ver
 }
 
 IP_MAP = {}
 
-ipop_ver = "\x02"
 tincan_control = "\x01"
 tincan_packet = "\x02"
 tincan_sr6 = "\x03"

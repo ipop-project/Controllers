@@ -41,6 +41,7 @@ class CFX(object):
             self.ip4 = self.CONFIG['AddressMapper']["ip4"]
             self.uid = self.CONFIG['CFx']['local_uid']
         self.ip6 = ipoplib.gen_ip6(self.uid)
+        ipoplib.CONFIG["uid"] = self.uid
 
         if socket.has_ipv6:
             self.sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
@@ -185,7 +186,9 @@ class CFX(object):
             # Dynamically importing the modules
             try:
                 module = importlib.import_module("controller.modules."+module_name)
-            except:
+            except Exception as e:
+                print("Fail to find module {0} exception:{1}\nTrying to find in"
+                      " subdirectory".format(module_name, e))
                 if(self.vpn_type == "GroupVPN"):
                     module = importlib.import_module("controller.modules.gvpn."+module_name)
                 elif(self.vpn_type == "SocialVPN"):
@@ -303,13 +306,34 @@ class CFX(object):
             raise ValueError("At least 'xmpp_username' and 'xmpp_host' "
                              "must be specified in config file or string")
 
+        keyring_isntalled = False
+        try:
+            keyring_installed = True
+            import keyring
+        except:
+            print("keyring module is not installed")
+            pass
+  
         if "xmpp_password" not in self.CONFIG["CFx"]:
-            prompt = "\nPassword for %s:" % self.CONFIG["CFx"]["xmpp_username"]
-            if args.pwdstdout:
-                self.CONFIG["CFx"]["xmpp_password"] = getpass(prompt,
+            if not args.update_config:
+               if keyring_installed:
+                   temp = keyring.get_password("ipop", CONFIG["xmpp_username"])
+               else:
+                   temp = None
+            if temp == None and "xmpp_password" not in CONFIG:
+                prompt = "\nPassword for %s:" % self.CONFIG["CFx"]["xmpp_username"]
+                if args.pwdstdout:
+                    self.CONFIG["CFx"]["xmpp_password"] = getpass(prompt,
                                                               stream=sys.stdout)
-            else:
-                self.CONFIG["CFx"]["xmpp_password"] = getpass(prompt)
+                else:
+                    self.CONFIG["CFx"]["xmpp_password"] = getpass(prompt)
+            if temp != None:
+                CONFIG["xmpp_password"] = temp
+            try:
+               if keyring_installed:
+                   keyring.set_password("ipop", CONFIG["xmpp_username"],CONFIG["xmpp_password"])
+            except:
+                raise RuntimeError("Unable to store password in keyring")
 
         if args.ip_config:
             ipoplib.load_peer_ip_config(args.ip_config)
