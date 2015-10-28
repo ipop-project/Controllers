@@ -26,7 +26,7 @@ class BaseTopologyManager(ControllerModule):
         # links:
         #   self.links["successor"] = { uid: None }
         #   self.links["chord"]     = { uid: {"log_uid": log_uid, "ttl": ttl} }
-        #   self.links["on_demand"] = { uid: {"ttl": ttl} }
+        #   self.links["on_demand"] = { uid: {"ttl": ttl, "rate": rate} }
         #   self.links["inbound"]   = { uid: None }
 
         self.links = {}
@@ -36,8 +36,6 @@ class BaseTopologyManager(ControllerModule):
         self.links["inbound"] = {}
 
         self.log_chords = []
-
-        self.on_demand_counter = {}
 
         # discovered nodes (via initial peer_state messages or advertisement)
         self.discovered_nodes = []
@@ -102,35 +100,15 @@ class BaseTopologyManager(ControllerModule):
     #   send a connection request
     #   - con_type = {successor, chord, on_demand}
     #   - uid      = UID of the target node
-    #   - msg      = (optional) attached message
-    def request_connection(self, con_type, uid, msg=""):
+    def request_connection(self, con_type, uid):
 
-        # send connection request (successor or on-demand) via XMPP
-        if con_type == "successor" or con_type == "on_demand":
+        # send connection request
+        data = {
+            "fpr": self.local_state["_fpr"],
+            "con_type": con_type
+        }
 
-            # send con_req message
-            data = {
-                "fpr": self.local_state["_fpr"],
-                "con_type": con_type,
-                "msg": msg
-            }
-
-            self.send_msg_srv("con_req", uid, json.dumps(data))
-
-        # forward connection request (chord) via ICC
-        elif con_type == "chord":
-
-            # forward con_req message
-            new_msg = {
-                "msg_type": "con_req",
-                "src_uid": self.uid,
-                "dst_uid": uid,
-                "fpr": self.local_state["_fpr"],
-                "con_type": con_type,
-                "msg": msg
-            }
-
-            self.forward_msg("closest", uid, new_msg)
+        self.send_msg_srv("con_req", uid, json.dumps(data))
 
         log = "sent CON_REQ (" + con_type + "): " + str(uid[0:3])
         self.registerCBT('Logger', 'debug', log)
@@ -139,14 +117,13 @@ class BaseTopologyManager(ControllerModule):
     #   create connection and return a connection acknowledgement and response
     #   - uid  = UID of the target node
     #   - data = information necessary to establish a link
-    def respond_connection(self, con_type, uid, data, msg=""):
+    def respond_connection(self, con_type, uid, data):
         self.create_connection(uid, data)
 
         # send con_ack message
         data = {
             "fpr": self.local_state["_fpr"],
-            "con_type": con_type,
-            "msg": msg
+            "con_type": con_type
         }
 
         self.send_msg_srv("con_ack", uid, json.dumps(data))
@@ -201,21 +178,16 @@ class BaseTopologyManager(ControllerModule):
             if time.time() > self.peers[uid]["ttl"]:
                 self.remove_connection(uid)
 
-        # time-to-live attribute for a secondary purpose
-        #   for chords: enforce logarithmic links in the changing network
-        #   for on-demand links: reduce links assuming the packet rate has
-        #       decreased; recreated if the rate still exceeds a threshold
-        for con_type in ["on_demand"]:
-            for uid in self.links[con_type].keys():
-                if time.time() > self.links[con_type][uid]["ttl"]:
-                    self.remove_link(con_type, uid)
+        # periodically call policy for link removal
+        self.clean_chord()
+        self.clean_on_demand()
 
     ############################################################################
     # add/remove link functions                                                #
     ############################################################################
 
     # add outbound link
-    def add_outbound_link(self, con_type, uid, attributes, request_msg=""):
+    def add_outbound_link(self, con_type, uid, attributes):
 
         # add peer to link type
         self.links[con_type][uid] = attributes
@@ -231,7 +203,7 @@ class BaseTopologyManager(ControllerModule):
             }
 
             # request connection
-            self.request_connection(con_type, uid, request_msg)
+            self.request_connection(con_type, uid)
 
         else:
 
@@ -245,7 +217,7 @@ class BaseTopologyManager(ControllerModule):
             self.send_msg_icc(uid, new_msg)
 
     # add inbound link
-    def add_inbound_link(self, con_type, uid, fpr, response_msg=""):
+    def add_inbound_link(self, con_type, uid, fpr):
 
         # add peer in inbound links
         self.links["inbound"][uid] = None
@@ -259,7 +231,7 @@ class BaseTopologyManager(ControllerModule):
                 "con_status": "unknown"
             }
 
-            self.respond_connection(con_type, uid, fpr, response_msg)
+            self.respond_connection(con_type, uid, fpr)
 
     # remove link
     def remove_link(self, con_type, uid):
@@ -416,14 +388,15 @@ class BaseTopologyManager(ControllerModule):
     ############################################################################
     # chords policy                                                            #
     ############################################################################
-    # [1] A forwards a headless link request approximated by a designated UID
+    # [1] A forwards a headless find_chord message approximated by a designated UID
     # [2] B discovers that it is the closest node to the designated UID
-    #     B accepts A's link request, with A as B's inbound link
+    #     B responds with a found_chord message to A
+    # [3] A requests to link to B as A's chord
+    # [4] B accepts A's link request, with A as B's inbound link
     #     B responds to link to A
-    # [3] A identifies B, with B as A's chord
-    # [4] A and B are connected
-    # [*] the link is terminated when the chord time-to-live attribute expires
-    #     or the link disconnects
+    # [5] A and B are connected
+    # [*] the link is terminated when the chord time-to-live attribute expires and
+    #     a better chord was found or the link disconnects
 
     def find_chords(self):
 
@@ -441,80 +414,116 @@ class BaseTopologyManager(ControllerModule):
             if chord["log_uid"] in log_chords:
                 log_chords.remove(chord["log_uid"])
 
-        # forward con_req (chord) messages to the nodes closest to the designated UID
+        # forward find_chord messages to the nodes closest to the designated UID
         for log_uid in log_chords:
 
-            attributes = {
-                "log_uid": log_uid,
-                "ttl": time.time() + self.CMConfig["ttl_chord"]
+            # forward find_chord message
+            new_msg = {
+                "msg_type": "find_chord",
+                "src_uid": self.uid,
+                "dst_uid": log_uid,
+                "log_uid": log_uid
             }
 
-            self.add_outbound_link("chord", log_uid, attributes)
+            self.forward_msg("closest", log_uid, new_msg)
 
     def add_chord(self, uid, log_uid):
 
-            attributes = {
-                "log_uid": log_uid,
-                "ttl": time.time() + self.CMConfig["ttl_chord"]
+        # if a chord associated with log_uid already exists, check if the found
+        # chord is the same chord:
+        # if they are the same then the chord is already the best one available
+        # otherwise, remove the chord and link to the found chord
+        for chord in self.links["chord"].keys():
+            if self.links["chord"][chord]["log_uid"] == log_uid:
+                if chord == uid:
+                    return
+                else:
+                    self.remove_link("chord", chord)
+
+        # add chord link
+        attributes = {
+            "log_uid": log_uid,
+            "ttl": time.time() + self.CMConfig["ttl_chord"]
+        }
+
+        self.add_outbound_link("chord", uid, attributes)
+
+    def clean_chord(self):
+
+        if not self.links["chord"].keys():
+            return
+
+        # find chord with the oldest time-to-live attribute
+        uid = min(self.links["chord"].keys(), key=lambda u: (self.links["chord"][u]["ttl"]))
+
+        # time-to-live attribute has expired: determine if a better chord exists
+        if time.time() > self.links["chord"][uid]["ttl"]:
+
+            # forward find_chord message
+            new_msg = {
+                "msg_type": "find_chord",
+                "src_uid": self.uid,
+                "dst_uid": self.links["chord"][uid]["log_uid"],
+                "log_uid": self.links["chord"][uid]["log_uid"]
             }
 
-            self.add_outbound_link("chord", uid, attributes)
+            self.forward_msg("closest", self.links["chord"][uid]["log_uid"], new_msg)
 
-            if uid != log_uid:
-                del self.links["chord"][log_uid]
+            # extend time-to-live attribute
+            self.links["chord"][uid]["ttl"] = time.time() + self.CMConfig["ttl_chord"]
+
+            return
 
     ############################################################################
     # on-demand links policy                                                   #
     ############################################################################
-    # [1] A is forwarding packets to B beyond some threshold
-    #     A requests to link to B, with B as A's on-demand link
+    # [1] A is forwarding packets to B
+    #     A immediately requests to link to B, with B as A's on-demand link
     # [2] B accepts A's link request, with A as B's inbound link
     # [3] A and B are connected
-    # [*] the link is terminated when the on-demand time-to-live attribute expires
-    #     or the link disconnects
-    # [*] A periodically resets the current count of sent packets (implements a
-    #     rate of sent packets)
-
-    def count_on_demand(self, uid):
-
-        # node is not already being counted; add to counting list
-        if uid not in self.on_demand_counter:
-            self.on_demand_counter[uid] = 0
-
-        # increment forward count
-        self.on_demand_counter[uid] += 1
-
-        # create on_demand link if forward count exceeds threshold
-        if len(self.links["on_demand"].keys()) < self.CMConfig["num_on_demand"]:
-            if self.on_demand_counter[uid] > self.CMConfig["on_demand_threshold"]:
-                self.add_on_demand(uid)
+    #     B responds to link to A
+    # [*] the link is terminated when the transfer rate is below some threshold
+    #     until the on-demand time-to-live attribute expires or the link
+    #     disconnections
 
     def add_on_demand(self, uid):
-        if uid not in self.links["on_demand"].keys():
 
-            attributes = {"ttl": time.time() + self.CMConfig["ttl_on_demand"]}
-            self.add_outbound_link("on_demand", uid, attributes)
+        if len(self.links["on_demand"].keys()) < self.CMConfig["num_on_demand"]:
 
-    def reset_on_demand(self):
+            if uid not in self.links["on_demand"].keys():
 
-        # reset counting list
-        self.on_demand_counter = {}
+                # add on-demand link
+                attributes = {
+                    "ttl": time.time() + self.CMConfig["ttl_on_demand"],
+                    "rate": 0
+                }
+                self.add_outbound_link("on_demand", uid, attributes)
+
+    def clean_on_demand(self):
+        for uid in self.links["on_demand"].keys():
+
+            # rate exceeds threshold: increase time-to-live attribute
+            if self.links["on_demand"][uid]["rate"] >= self.CMConfig["threshold_on_demand"]:
+                self.links["on_demand"][uid]["ttl"] = time.time() + self.CMConfig["ttl_on_demand"]
+
+            # rate is below theshold and the time-to-live attribute expired: remove link
+            elif time.time() > self.links["on_demand"][uid]["ttl"]:
+                self.remove_link("on_demand", uid)
 
     ############################################################################
     # inbound links policy                                                     #
     ############################################################################
 
-    def add_inbound(self, con_type, uid, fpr, request_msg):
+    def add_inbound(self, con_type, uid, fpr):
 
         if uid not in self.links["inbound"].keys():
 
             if con_type == "successor":
-                self.add_inbound_link(con_type, uid, fpr, request_msg)
+                self.add_inbound_link(con_type, uid, fpr)
 
             elif con_type in ["chord", "on_demand"]:
                 if len(self.links["inbound"].keys()) < self.CMConfig["num_inbound"]:
-                    self.add_inbound_link(con_type, uid, fpr, request_msg)
-
+                    self.add_inbound_link(con_type, uid, fpr)
 
     ############################################################################
     # service notifications                                                    #
@@ -555,6 +564,10 @@ class BaseTopologyManager(ControllerModule):
                         self.peers[msg["uid"]]["ttl"] = ttl
                         self.peers[msg["uid"]]["con_status"] = con_status
 
+                        if msg["uid"] in self.links["on_demand"].keys():
+                            if "stats" in msg:
+                                self.links["on_demand"][msg["uid"]]["rate"] = msg["stats"][0]["sent_bytes_second"]
+
             elif msg_type == "con_stat":
 
                 if msg["uid"] in self.peers:
@@ -568,7 +581,7 @@ class BaseTopologyManager(ControllerModule):
                 self.registerCBT('Logger', 'debug', log)
 
                 self.add_inbound(msg["data"]["con_type"], msg["uid"],
-                                 msg["data"]["fpr"], msg["data"]["msg"])
+                                 msg["data"]["fpr"])
 
             # handle connection acknowledgement
             elif msg_type == "con_ack":
@@ -576,9 +589,6 @@ class BaseTopologyManager(ControllerModule):
 
                 log = "recv con_ack (" + msg["data"]["con_type"] + "): " + str(msg["uid"][0:3])
                 self.registerCBT('Logger', 'debug', log)
-
-                if msg["data"]["con_type"] == "chord":
-                    self.add_chord(msg["uid"], msg["data"]["msg"])
 
                 self.create_connection(msg["uid"], msg["data"]["fpr"])
 
@@ -627,8 +637,8 @@ class BaseTopologyManager(ControllerModule):
             log = "sent tincan_packet (exact): " + str(dst_uid[0:3])
             self.registerCBT('Logger', 'debug', log)
 
-            # count forwarded message for threshold on-demand links
-            self.count_on_demand(dst_uid)
+            # add on-demand link
+            self.add_on_demand(dst_uid)
 
         # inter-controller communication (ICC) messages
         elif(cbt.action == "ICC_MSG"):
@@ -669,16 +679,27 @@ class BaseTopologyManager(ControllerModule):
                 if msg["src_uid"] not in self.links["inbound"].keys():
                     self.remove_link("inbound", msg["src_uid"])
 
-            # handle connection request
-            elif msg_type == "con_req":
+            # handle find chord
+            elif msg_type == "find_chord":
 
                 if self.forward_msg("closest", msg["dst_uid"], msg):
 
-                    self.add_inbound(msg["con_type"], msg["src_uid"],
-                                     msg["fpr"], msg["dst_uid"])
+                    # forward found_chord message
+                    new_msg = {
+                        "msg_type": "found_chord",
+                        "src_uid": self.uid,
+                        "dst_uid": msg["src_uid"],
+                        "log_uid": msg["log_uid"]
+                    }
 
-                    log = "recv con_req (chord): " + str(msg["src_uid"][0:3])
-                    self.registerCBT('Logger', 'debug', log)
+                    self.forward_msg("exact", msg["src_uid"], new_msg)
+
+            # handle found chord
+            elif msg_type == "found_chord":
+
+                if self.forward_msg("closest", msg["dst_uid"], msg):
+
+                    self.add_chord(msg["src_uid"], msg["log_uid"])
 
     ############################################################################
     # manage topology                                                          #
@@ -743,9 +764,6 @@ class BaseTopologyManager(ControllerModule):
             # manage chords
             self.find_chords()
 
-            # reset on-demand counting list
-            self.reset_on_demand()
-
             # create advertisements
             self.advertise()
 
@@ -778,7 +796,7 @@ class BaseTopologyManager(ControllerModule):
             self.manage_topology()
 
             #XXX (may be removed; for debugging)
-            self.report_connections()
+#            self.report_connections()
 
             # update local state and peer list
             self.registerCBT('TincanSender', 'DO_GET_STATE', '')
