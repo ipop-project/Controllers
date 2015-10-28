@@ -103,32 +103,14 @@ class BaseTopologyManager(ControllerModule):
     #   - msg      = (optional) attached message
     def request_connection(self, con_type, uid, msg=""):
 
-        # send connection request (successor or on-demand) via XMPP
-        if con_type == "successor" or con_type == "on_demand":
+        # send connection request
+        data = {
+            "fpr": self.local_state["_fpr"],
+            "con_type": con_type,
+            "msg": msg
+        }
 
-            # send con_req message
-            data = {
-                "fpr": self.local_state["_fpr"],
-                "con_type": con_type,
-                "msg": msg
-            }
-
-            self.send_msg_srv("con_req", uid, json.dumps(data))
-
-        # forward connection request (chord) via ICC
-        elif con_type == "chord":
-
-            # forward con_req message
-            new_msg = {
-                "msg_type": "con_req",
-                "src_uid": self.uid,
-                "dst_uid": uid,
-                "fpr": self.local_state["_fpr"],
-                "con_type": con_type,
-                "msg": msg
-            }
-
-            self.forward_msg("closest", uid, new_msg)
+        self.send_msg_srv("con_req", uid, json.dumps(data))
 
         log = "sent CON_REQ (" + con_type + "): " + str(uid[0:3])
         self.registerCBT('Logger', 'debug', log)
@@ -200,7 +182,7 @@ class BaseTopologyManager(ControllerModule):
                 self.remove_connection(uid)
 
         # periodically call policy for link removal
-        self.clean_chords()
+        self.clean_chord()
         self.clean_on_demand()
 
     ############################################################################
@@ -409,14 +391,15 @@ class BaseTopologyManager(ControllerModule):
     ############################################################################
     # chords policy                                                            #
     ############################################################################
-    # [1] A forwards a headless link request approximated by a designated UID
+    # [1] A forwards a headless find_chord message approximated by a designated UID
     # [2] B discovers that it is the closest node to the designated UID
-    #     B accepts A's link request, with A as B's inbound link
+    #     B responds with a found_chord message to A
+    # [3] A requests to link to B as A's chord
+    # [4] B accepts A's link request, with A as B's inbound link
     #     B responds to link to A
-    # [3] A identifies B, with B as A's chord
-    # [4] A and B are connected
-    # [*] the link is terminated when the chord time-to-live attribute expires
-    #     or the link disconnects
+    # [5] A and B are connected
+    # [*] the link is terminated when the chord time-to-live attribute expires and
+    #     a better chord was found or the link disconnects
 
     def find_chords(self):
 
@@ -434,34 +417,65 @@ class BaseTopologyManager(ControllerModule):
             if chord["log_uid"] in log_chords:
                 log_chords.remove(chord["log_uid"])
 
-        # forward con_req (chord) messages to the nodes closest to the designated UID
+        # forward find_chord messages to the nodes closest to the designated UID
         for log_uid in log_chords:
 
-            attributes = {
-                "log_uid": log_uid,
-                "ttl": time.time() + self.CMConfig["ttl_chord"]
+            # forward find_chord message
+            new_msg = {
+                "msg_type": "find_chord",
+                "src_uid": self.uid,
+                "dst_uid": log_uid,
+                "log_uid": log_uid
             }
 
-            self.add_outbound_link("chord", log_uid, attributes)
+            self.forward_msg("closest", log_uid, new_msg)
 
     def add_chord(self, uid, log_uid):
 
-            attributes = {
-                "log_uid": log_uid,
-                "ttl": time.time() + self.CMConfig["ttl_chord"]
+        # if a chord associated with log_uid already exists, check if the found
+        # chord is the same chord:
+        # if they are the same then the chord is already the best one available
+        # otherwise, remove the chord and link to the found chord
+        for chord in self.links["chord"].keys():
+            if self.links["chord"][chord]["log_uid"] == log_uid:
+                if chord == uid:
+                    return
+                else:
+                    self.remove_link("chord", chord)
+
+        # add chord link
+        attributes = {
+            "log_uid": log_uid,
+            "ttl": time.time() + self.CMConfig["ttl_chord"]
+        }
+
+        self.add_outbound_link("chord", uid, attributes)
+
+    def clean_chord(self):
+
+        if not self.links["chord"].keys():
+            return
+
+        # find chord with the oldest time-to-live attribute
+        uid = min(self.links["chord"].keys(), key=lambda u: (self.links["chord"][u]["ttl"]))
+
+        # time-to-live attribute has expired: determine if a better chord exists
+        if time.time() > self.links["chord"][uid]["ttl"]:
+
+            # forward find_chord message
+            new_msg = {
+                "msg_type": "find_chord",
+                "src_uid": self.uid,
+                "dst_uid": self.links["chord"][uid]["log_uid"],
+                "log_uid": self.links["chord"][uid]["log_uid"]
             }
 
-            self.add_outbound_link("chord", uid, attributes)
+            self.forward_msg("closest", self.links["chord"][uid]["log_uid"], new_msg)
 
-            if uid != log_uid:
-                del self.links["chord"][log_uid]
+            # extend time-to-live attribute
+            self.links["chord"][uid]["ttl"] = time.time() + self.CMConfig["ttl_chord"]
 
-    def clean_chords(self):
-        for uid in self.links["chord"].keys():
-
-            # time-to-live attribute expired: remove link
-            if time.time() > self.links["chord"][uid]["ttl"]:
-                self.remove_link("chord", uid)
+            return
 
     ############################################################################
     # on-demand links policy                                                   #
@@ -470,6 +484,7 @@ class BaseTopologyManager(ControllerModule):
     #     A immediately requests to link to B, with B as A's on-demand link
     # [2] B accepts A's link request, with A as B's inbound link
     # [3] A and B are connected
+    #     B responds to link to A
     # [*] the link is terminated when the transfer rate is below some threshold
     #     until the on-demand time-to-live attribute expires or the link
     #     disconnections
@@ -480,6 +495,7 @@ class BaseTopologyManager(ControllerModule):
 
             if uid not in self.links["on_demand"].keys():
 
+                # add on-demand link
                 attributes = {
                     "ttl": time.time() + self.CMConfig["ttl_on_demand"],
                     "rate": 0
@@ -577,9 +593,6 @@ class BaseTopologyManager(ControllerModule):
                 log = "recv con_ack (" + msg["data"]["con_type"] + "): " + str(msg["uid"][0:3])
                 self.registerCBT('Logger', 'debug', log)
 
-                if msg["data"]["con_type"] == "chord":
-                    self.add_chord(msg["uid"], msg["data"]["msg"])
-
                 self.create_connection(msg["uid"], msg["data"]["fpr"])
 
             # handle connection response
@@ -669,16 +682,27 @@ class BaseTopologyManager(ControllerModule):
                 if msg["src_uid"] not in self.links["inbound"].keys():
                     self.remove_link("inbound", msg["src_uid"])
 
-            # handle connection request
-            elif msg_type == "con_req":
+            # handle find chord
+            elif msg_type == "find_chord":
 
                 if self.forward_msg("closest", msg["dst_uid"], msg):
 
-                    self.add_inbound(msg["con_type"], msg["src_uid"],
-                                     msg["fpr"], msg["dst_uid"])
+                    # forward found_chord message
+                    new_msg = {
+                        "msg_type": "found_chord",
+                        "src_uid": self.uid,
+                        "dst_uid": msg["src_uid"],
+                        "log_uid": msg["log_uid"]
+                    }
 
-                    log = "recv con_req (chord): " + str(msg["src_uid"][0:3])
-                    self.registerCBT('Logger', 'debug', log)
+                    self.forward_msg("exact", msg["src_uid"], new_msg)
+
+            # handle found chord
+            elif msg_type == "found_chord":
+
+                if self.forward_msg("closest", msg["dst_uid"], msg):
+
+                    self.add_chord(msg["src_uid"], msg["log_uid"])
 
     ############################################################################
     # manage topology                                                          #
