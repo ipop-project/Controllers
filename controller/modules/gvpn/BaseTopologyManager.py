@@ -100,14 +100,12 @@ class BaseTopologyManager(ControllerModule):
     #   send a connection request
     #   - con_type = {successor, chord, on_demand}
     #   - uid      = UID of the target node
-    #   - msg      = (optional) attached message
-    def request_connection(self, con_type, uid, msg=""):
+    def request_connection(self, con_type, uid):
 
         # send connection request
         data = {
             "fpr": self.local_state["_fpr"],
-            "con_type": con_type,
-            "msg": msg
+            "con_type": con_type
         }
 
         self.send_msg_srv("con_req", uid, json.dumps(data))
@@ -119,14 +117,13 @@ class BaseTopologyManager(ControllerModule):
     #   create connection and return a connection acknowledgement and response
     #   - uid  = UID of the target node
     #   - data = information necessary to establish a link
-    def respond_connection(self, con_type, uid, data, msg=""):
+    def respond_connection(self, con_type, uid, data):
         self.create_connection(uid, data)
 
         # send con_ack message
         data = {
             "fpr": self.local_state["_fpr"],
-            "con_type": con_type,
-            "msg": msg
+            "con_type": con_type
         }
 
         self.send_msg_srv("con_ack", uid, json.dumps(data))
@@ -190,7 +187,7 @@ class BaseTopologyManager(ControllerModule):
     ############################################################################
 
     # add outbound link
-    def add_outbound_link(self, con_type, uid, attributes, request_msg=""):
+    def add_outbound_link(self, con_type, uid, attributes):
 
         # add peer to link type
         self.links[con_type][uid] = attributes
@@ -206,7 +203,7 @@ class BaseTopologyManager(ControllerModule):
             }
 
             # request connection
-            self.request_connection(con_type, uid, request_msg)
+            self.request_connection(con_type, uid)
 
         else:
 
@@ -220,7 +217,7 @@ class BaseTopologyManager(ControllerModule):
             self.send_msg_icc(uid, new_msg)
 
     # add inbound link
-    def add_inbound_link(self, con_type, uid, fpr, response_msg=""):
+    def add_inbound_link(self, con_type, uid, fpr):
 
         # add peer in inbound links
         self.links["inbound"][uid] = None
@@ -234,7 +231,7 @@ class BaseTopologyManager(ControllerModule):
                 "con_status": "unknown"
             }
 
-            self.respond_connection(con_type, uid, fpr, response_msg)
+            self.respond_connection(con_type, uid, fpr)
 
     # remove link
     def remove_link(self, con_type, uid):
@@ -517,16 +514,16 @@ class BaseTopologyManager(ControllerModule):
     # inbound links policy                                                     #
     ############################################################################
 
-    def add_inbound(self, con_type, uid, fpr, request_msg):
+    def add_inbound(self, con_type, uid, fpr):
 
         if uid not in self.links["inbound"].keys():
 
             if con_type == "successor":
-                self.add_inbound_link(con_type, uid, fpr, request_msg)
+                self.add_inbound_link(con_type, uid, fpr)
 
             elif con_type in ["chord", "on_demand"]:
                 if len(self.links["inbound"].keys()) < self.CMConfig["num_inbound"]:
-                    self.add_inbound_link(con_type, uid, fpr, request_msg)
+                    self.add_inbound_link(con_type, uid, fpr)
 
     ############################################################################
     # service notifications                                                    #
@@ -584,7 +581,7 @@ class BaseTopologyManager(ControllerModule):
                 self.registerCBT('Logger', 'debug', log)
 
                 self.add_inbound(msg["data"]["con_type"], msg["uid"],
-                                 msg["data"]["fpr"], msg["data"]["msg"])
+                                 msg["data"]["fpr"])
 
             # handle connection acknowledgement
             elif msg_type == "con_ack":
