@@ -21,32 +21,36 @@
         "joinEnabled": true,
         "dependencies": ["Logger"]
     },
-    "TincanSender":{
+    "TincanSender": {
         "dependencies": ["Logger"]
     },
     "Monitor": {
+		"trigger_con_wait_time": 120,
         "joinEnabled": true,
         "dependencies": ["Logger"]
     },
     "BaseTopologyManager": {
-        "timer_interval": 10,
+		"link_trimmer_wait_time": 30,
+        "on-demand_connection": false,
+        "on-demand_inactive_timeout": 600,
+        "multihop": false,
+        "sec": true,
+        "timer_interval": 15,
         "joinEnabled": true,
-        "dependencies": ["Logger"]
+		"dependencies": ["Logger"]
     },
     "LinkManager": {
         "joinEnabled": true,
         "dependencies": ["Logger"]
     },
     "AddressMapper": {
-        "ip4": "192.168.5.1",
+        "ip4": "172.31.0.100",
         "joinEnabled": true,
         "dependencies": ["Logger"]
     },
-    "Watchdog":{
+    "Watchdog": {
         "timer_interval": 10,
         "joinEnabled": true,
         "dependencies": ["Logger"]
     }
 }
-
-

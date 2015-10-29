@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 
 import argparse
 import binascii
@@ -42,7 +42,31 @@ CONFIG = {
         "stat_report": False,
         "stat_server": "metrics.ipop-project.org",
         "stat_server_port": 5000
-    }
+    },
+    "TincanListener": {
+        "buf_size": 65507,
+        "socket_read_wait_time": 15,
+        "joinEnabled": True
+    },
+    "Logger": {
+        "controller_logging": "INFO",
+        "joinEnabled": True
+    },
+    "TincanDispatcher": {
+        "joinEnabled": True
+    },
+    "TincanSender": {
+        "stun": ["stun.l.google.com:19302", "stun1.l.google.com:19302",
+                 "stun2.l.google.com:19302", "stun3.l.google.com:19302",
+                 "stun4.l.google.com:19302"],
+        "turn": [],
+        "ip6_prefix": "fd50:0dbc:41f2:4a3c",
+        "switchmode": 0,
+        "localhost": "127.0.0.1",
+        "svpn_port": 5800,
+        "localhost6": "::1",
+        "joinEnabled": True
+     }
 }
 
 IP_MAP = {}

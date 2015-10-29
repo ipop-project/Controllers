@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+﻿#!/usr/bin/env python
 
 import os
 import sys
@@ -128,7 +128,7 @@ class CFX(object):
                 self.sock_list.append(self.sock_icc)
 
             else:
-                print "ICC is enabled but IPv6 is not supported. Exiting"
+                print("ICC is enabled but IPv6 is not supported. Exiting")
                 sys.exit()
 
         # Register to the XMPP server
@@ -146,7 +146,7 @@ class CFX(object):
                               network_ignore_list=CONFIG["CFx"]
                               ["network_ignore_list"])
 
-        print "CFx initialized. Loading Controller Modules\n"
+        print("CFx initialized. Loading Controller Modules\n")
 
         self.loaded_modules = ['CFx']  # List of modules already loaded
 
@@ -160,7 +160,7 @@ class CFX(object):
                     pass
 
         if(self.detect_cyclic_dependency(dependency_graph)):
-            print "Circular dependency detected in config.json. Exiting"
+            print("Circular dependency detected in config.json. Exiting")
             sys.exit()
 
         # Iterate through the modules mentioned in config.json
@@ -253,7 +253,7 @@ class CFX(object):
 
     def __handler(self, signum=None, frame=None):
 
-        print 'Signal handler called with signal ' + str(signum)
+        print('Signal handler called with signal ' + str(signum))
 
     def parse_config(self):
 
@@ -283,8 +283,10 @@ class CFX(object):
                 # modules in the order in which they appear in config.json
                 self.json_data = json.load(f, object_pairs_hook=OrderedDict)
                 for key in self.json_data:
-                    if(self.CONFIG.get(key, None)):
+                    if(self.CONFIG.get(key, False)):
                         self.CONFIG[key].update(self.json_data[key])
+                    else:
+                        self.CONFIG[key] = self.json_data[key]
 
         if args.config_string:
             # Load the config string
@@ -370,14 +372,3 @@ class CFX(object):
                 self.CFxHandleDict[handle].timer_thread.join()
 
         sys.exit(0)
-
-
-def main():
-
-    CFx = CFX()
-    CFx.initialize()
-    CFx.waitForShutdownEvent()
-    CFx.terminate()
-
-if __name__ == "__main__":
-    main()
