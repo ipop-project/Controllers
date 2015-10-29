@@ -43,6 +43,9 @@ CONFIG = {
         "stat_server": "metrics.ipop-project.org",
         "stat_server_port": 5000
     },
+    "TincanDispatcher": {
+        "joinEnabled": True
+    },
     "TincanListener": {
         "buf_size": 65507,
         "socket_read_wait_time": 15,
@@ -52,7 +55,7 @@ CONFIG = {
         "controller_logging": "INFO",
         "joinEnabled": True
     },
-    "TincanDispatcher": {
+    "LinkManager": {
         "joinEnabled": True
     },
     "TincanSender": {
