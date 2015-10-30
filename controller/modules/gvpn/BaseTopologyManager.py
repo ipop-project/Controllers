@@ -89,7 +89,12 @@ class BaseTopologyManager(ControllerModule):
     def send_msg_icc(self, uid, msg):
         if uid in self.peers:
             if "ip6" in self.peers[uid]:
-                cbtdata = {"dest_uid": uid, "msg": msg}
+                cbtdata = {
+                    "icc_type": "control",
+                    "src_uid": self.uid,
+                    "dst_uid": uid,
+                    "msg": msg
+                }
                 self.registerCBT('TincanSender', 'DO_SEND_ICC_MSG', cbtdata)
 
     ############################################################################

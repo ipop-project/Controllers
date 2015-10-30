@@ -7,6 +7,8 @@ class TincanDispatcher(ControllerModule):
     ipop_ver = "\x02"
     tincan_control = "\x01"
     tincan_packet = "\x02"
+    icc_control = "\x03"
+    icc_packet = "\x04"
 
     def __init__(self, CFxHandle, paramDict):
 
@@ -110,6 +112,20 @@ class TincanDispatcher(ControllerModule):
                                                data=packet)
                 self.CFxHandle.submitCBT(CBT)
 
+            elif data[1] == self.icc_control:
+
+                msg = json.loads(data[56:].split("\x00")[0])
+
+                CBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
+                                               recipient='BaseTopologyManager',
+                                               action='ICC_MSG',
+                                               data=msg)
+                self.CFxHandle.submitCBT(CBT)
+
+            elif data[1] == self.icc_packet:
+
+                pass
+
             else:
 
                 logCBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
@@ -127,17 +143,6 @@ class TincanDispatcher(ControllerModule):
                                                                     encode("hex")))
                 self.CFxHandle.submitCBT(logCBT)
                 sys.exit()
-
-        elif "ICC_PKT" == cbt.action:
-
-            if data[1] == self.tincan_control:
-
-                msg = json.loads(data[2:])
-                CBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
-                                               recipient='BaseTopologyManager',
-                                               action='ICC_MSG',
-                                               data=msg)
-                self.CFxHandle.submitCBT(CBT)
 
     def timer_method(self):
         pass
