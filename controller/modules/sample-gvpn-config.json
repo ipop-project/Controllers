@@ -13,6 +13,7 @@
     "joinEnabled": true
   },
   "TincanSender": {
+    "switchmode": 0,
     "dependencies": ["Logger"]
   },
   "BaseTopologyManager": {
