@@ -3,7 +3,6 @@
 import os
 import sys
 import json
-import time
 import signal
 import socket
 import ipoplib
@@ -109,28 +108,6 @@ class CFX(object):
                                     self.CONFIG["CFx"]["subnet_mask"],
                                     self.CONFIG["TincanSender"]["switchmode"])
 
-        # Create ICC socket
-        if self.CONFIG['CFx']["icc"]:
-            if socket.has_ipv6:
-                self.sock_icc = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-                while True:
-                    try:
-                        time.sleep(3)
-                        self.sock_icc.bind((self.ip6, self.CONFIG['CFx']["icc_port"]))
-                    except KeyboardInterrupt:
-                        self.terminate()
-                    except Exception as e:
-                        print("Wait until IPOP Tap is available")
-                        continue
-                    else:
-                        break
-
-                self.sock_list.append(self.sock_icc)
-
-            else:
-                print("ICC is enabled but IPv6 is not supported. Exiting")
-                sys.exit()
-
         # Register to the XMPP server
         ipoplib.do_register_service(self.sock, self.user,
                                     self.password, self.host)
@@ -200,13 +177,9 @@ class CFX(object):
             # Instantiate the class, with CFxHandle reference and
             # configuration parameters
 
-            # Append the icc flag and icc port to the modules config and
-            # pass the sock_list as parameter to TincanListener
+            # Pass the sock_list as parameter to the TincanListener
             # and TincanSender modules
             if(module_name in ['TincanListener', 'TincanSender']):
-                self.CONFIG[module_name]["icc"] = self.CONFIG['CFx']["icc"]
-                self.CONFIG[module_name]["icc_port"] = self.CONFIG['CFx']["icc_port"]
-
                 instance = module_class(self.sock_list,
                                         handle,
                                         self.CONFIG[module_name])

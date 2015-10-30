@@ -5,8 +5,6 @@
     "xmpp_host": "",
     "tincan_logging": 0,
     "vpn_type": "GroupVPN",
-    "icc": true,
-    "icc_port": 30000,
     "ip4_mask": 16,
     "stat_report": false
   },

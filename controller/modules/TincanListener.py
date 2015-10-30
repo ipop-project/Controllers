@@ -12,8 +12,6 @@ class TincanListener(ControllerModule):
         self.CMConfig = paramDict
         self.sock = sock_list[0]
         self.sock_svr = sock_list[1]
-        if self.CMConfig['icc']:
-            self.sock_icc = sock_list[2]
         self.sock_list = sock_list
 
     def initialize(self):
@@ -48,15 +46,6 @@ class TincanListener(ControllerModule):
                                                    recipient='Tincan'
                                                    'Dispatcher',
                                                    action='TINCAN_PKT',
-                                                   data=[data, addr])
-                    self.CFxHandle.submitCBT(cbt)
-
-                elif(sock == self.sock_icc):
-                    data,addr = sock.recvfrom(self.CMConfig["buf_size"])
-                    cbt = self.CFxHandle.createCBT(initiator='TincanListener',
-                                                   recipient='Tincan'
-                                                   'Dispatcher',
-                                                   action='ICC_PKT',
                                                    data=[data, addr])
                     self.CFxHandle.submitCBT(cbt)
 

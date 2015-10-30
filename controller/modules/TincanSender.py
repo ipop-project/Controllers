@@ -10,6 +10,11 @@ class TincanSender(ControllerModule):
     ipop_ver = "\x02"
     tincan_control = "\x01"
     tincan_packet = "\x02"
+    icc_control = "\x03"
+    icc_packet = "\x04"
+    icc_mac_control = "\x00\x69\x70\x6f\x70\x03"
+    icc_mac_packet = "\x00\x69\x70\x6f\x70\x04"
+    icc_ethernet_padding = "\x00\x00\x00\x00\x00\x00\x00\x00"
 
     def __init__(self, sock_list, CFxHandle, paramDict):
 
@@ -18,8 +23,6 @@ class TincanSender(ControllerModule):
         self.CMConfig = paramDict
         self.sock = sock_list[0]
         self.sock_svr = sock_list[1]
-        if self.CMConfig['icc']:
-            self.sock_icc = sock_list[2]
 
     def initialize(self):
 
@@ -73,11 +76,11 @@ class TincanSender(ControllerModule):
                                   payload=None, type="echo_reply")
 
         elif(cbt.action == 'DO_SEND_ICC_MSG'):
-            msg = json.dumps(cbt.data.get('msg'))
-            dest_addr = self.gen_ip6(cbt.data.get('dest_uid'))
-            dest_port = self.CMConfig["icc_port"]
-            self.sock_icc.sendto(self.ipop_ver + self.tincan_control + msg,
-                                 (dest_addr, dest_port))
+            src_uid = cbt.data.get('src_uid')
+            dst_uid = cbt.data.get('dst_uid')
+            icc_type = cbt.data.get('icc_type')
+            msg = cbt.data.get('msg')
+            self.do_send_icc_msg(self.sock, src_uid, dst_uid, icc_type, msg)
 
         elif(cbt.action == 'DO_INSERT_DATA_PACKET'):
             ipoplib.send_packet(self.sock, cbt.data.decode("hex"))
@@ -89,6 +92,19 @@ class TincanSender(ControllerModule):
                                               data="TincanSender: Unrecognized"
                                               "CBT from " + cbt.initiator)
             self.CFxHandle.submitCBT(logCBT)
+
+    def do_send_icc_msg(self, sock, src_uid, dst_uid, icc_type, msg):
+
+        if socket.has_ipv6:
+            dest = (self.CMConfig["localhost6"], self.CMConfig["svpn_port"])
+        else:
+            dest = (self.CMConfig["localhost"], self.CMConfig["svpn_port"])
+
+        if icc_type == "control":
+            return sock.sendto(self.ipop_ver + self.icc_control + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + self.icc_mac_control + self.icc_ethernet_padding + json.dumps(msg), dest)
+
+        elif icc_type == "packet":
+            return sock.sendto(self.ipop_ver + self.icc_packet + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + self.icc_mac_packet + self.icc_ethernet_padding + json.dumps(msg), dest)
 
     def do_create_link(self, sock, uid, fpr, overlay_id, sec,
                        cas, stun=None, turn=None):
