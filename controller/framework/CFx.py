@@ -5,7 +5,7 @@ import sys
 import json
 import signal
 import socket
-import ipoplib
+import fxlib
 import argparse
 import binascii
 import threading
@@ -21,7 +21,7 @@ class CFX(object):
     def __init__(self):
 
         self.parse_config()
-        ipoplib.CONFIG = self.CONFIG
+        fxlib.CONFIG = self.CONFIG
 
         # CFxHandleDict is a dict containing the references to
         # CFxHandles of all CMs with key as the module name and
@@ -35,11 +35,11 @@ class CFX(object):
         
         if(self.vpn_type == 'GroupVPN'):
             self.ip4 = self.CONFIG['BaseTopologyManager']["ip4"]
-            self.uid = ipoplib.gen_uid(self.ip4)  # SHA-1 Hash
+            self.uid = fxlib.gen_uid(self.ip4)  # SHA-1 Hash
         elif(self.vpn_type == 'SocialVPN'):
             self.ip4 = self.CONFIG['AddressMapper']["ip4"]
             self.uid = self.CONFIG['CFx']['local_uid']
-        self.ip6 = ipoplib.gen_ip6(self.uid)
+        self.ip6 = fxlib.gen_ip6(self.uid)
 
         if socket.has_ipv6:
             self.sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
@@ -77,22 +77,22 @@ class CFX(object):
         # Make Tincan API calls to initialize the controller
 
         # Set logging level
-        ipoplib.do_set_logging(self.sock, self.CONFIG["CFx"]["tincan_logging"])
+        fxlib.do_set_logging(self.sock, self.CONFIG["CFx"]["tincan_logging"])
 
         if(self.vpn_type == "GroupVPN"):
-            ipoplib.do_set_translation(self.sock, 0)
-            ipoplib.do_set_switchmode(self.sock,
+            fxlib.do_set_translation(self.sock, 0)
+            fxlib.do_set_switchmode(self.sock,
                                       self.CONFIG["TincanSender"]
                                       ["switchmode"])
         elif(self.vpn_type == "SocialVPN"):
-            ipoplib.do_set_translation(self.sock, 1)
+            fxlib.do_set_translation(self.sock, 1)
 
         # Callback endpoint to receive notifications
-        ipoplib.do_set_cb_endpoint(self.sock, self.sock.getsockname())
+        fxlib.do_set_cb_endpoint(self.sock, self.sock.getsockname())
 
         # Configure the local node
         if not self.CONFIG["CFx"]["router_mode"]:
-            ipoplib.do_set_local_ip(self.sock, self.uid, self.ip4,
+            fxlib.do_set_local_ip(self.sock, self.uid, self.ip4,
                                     self.ip6,
                                     self.CONFIG["CFx"]["ip4_mask"],
                                     self.CONFIG["CFx"]["ip6_mask"],
@@ -100,7 +100,7 @@ class CFX(object):
                                     self.CONFIG["TincanSender"]["switchmode"])
 
         else:
-            ipoplib.do_set_local_ip(self.sock, self.uid,
+            fxlib.do_set_local_ip(self.sock, self.uid,
                                     self.CONFIG["CFx"]["router_ip"],
                                     self.ip6,
                                     self.CONFIG["CFx"]["router_ip4_mask"],
@@ -109,17 +109,17 @@ class CFX(object):
                                     self.CONFIG["TincanSender"]["switchmode"])
 
         # Register to the XMPP server
-        ipoplib.do_register_service(self.sock, self.user,
+        fxlib.do_register_service(self.sock, self.user,
                                     self.password, self.host)
-        ipoplib.do_set_trimpolicy(self.sock,
+        fxlib.do_set_trimpolicy(self.sock,
                                   self.CONFIG["CFx"]["trim_enabled"])
 
         # Retrieve the state of the local node
-        ipoplib.do_get_state(self.sock)
+        fxlib.do_get_state(self.sock)
 
         # Ignore the network interfaces in the list
         if "network_ignore_list" in self.CONFIG["CFx"]:
-            ipoplib.make_call(self.sock, m="set_network_ignore_list",
+            fxlib.make_call(self.sock, m="set_network_ignore_list",
                               network_ignore_list=CONFIG["CFx"]
                               ["network_ignore_list"])
 
@@ -167,6 +167,8 @@ class CFX(object):
                     module = importlib.import_module("controller.modules.gvpn."+module_name)
                 elif(self.vpn_type == "SocialVPN"):
                     module = importlib.import_module("controller.modules.svpn."+module_name)
+                else:
+                    module = importlib.import_module("controller.modules."+self.vpn_type+module_name)
 
             # Get the class with name key from module
             module_class = getattr(module, module_name)
@@ -230,7 +232,7 @@ class CFX(object):
 
     def parse_config(self):
 
-        self.CONFIG = ipoplib.CONFIG
+        self.CONFIG = fxlib.CONFIG
 
         parser = argparse.ArgumentParser()
         parser.add_argument("-c", help="load configuration from a file",
@@ -277,17 +279,37 @@ class CFX(object):
                 "xmpp_host" in self.CONFIG["CFx"]):
             raise ValueError("At least 'xmpp_username' and 'xmpp_host' "
                              "must be specified in config file or string")
+        keyring_isntalled = False
+        try:
+            keyring_installed = True
+            import keyring
+        except:
+            print("keyring module is not installed")
 
         if "xmpp_password" not in self.CONFIG["CFx"]:
-            prompt = "\nPassword for %s:" % self.CONFIG["CFx"]["xmpp_username"]
-            if args.pwdstdout:
-                self.CONFIG["CFx"]["xmpp_password"] = getpass(prompt,
-                                                              stream=sys.stdout)
+            xmpp_pswd = None
+            if keyring_installed:
+                xmpp_pswd = keyring.get_password("ipop", 
+                                                 self.CONFIG["xmpp_username"])
+            elif not keyring_installed or (keyring_installed and xmpp_pswd == None):
+                prompt = "\nPassword for %s:" % self.CONFIG["CFx"]["xmpp_username"]
+                if args.pwdstdout:
+                    xmpp_pswd = getpass(prompt, stream=sys.stdout)
+                else:
+                    xmpp_pswd = getpass(prompt)
+            
+            if xmpp_pswd != None:
+                self.CONFIG["CFx"]["xmpp_password"] = xmpp_pswd
+                if keyring_installed:         
+                    try:
+                           keyring.set_password("ipop", self.CONFIG["xmpp_username"], self.CONFIG["xmpp_password"])
+                    except:
+                        print("Unable to store password in keyring")
             else:
-                self.CONFIG["CFx"]["xmpp_password"] = getpass(prompt)
+                raise RuntimeError("No XMPP password found!")
 
         if args.ip_config:
-            ipoplib.load_peer_ip_config(args.ip_config)
+            fxlib.load_peer_ip_config(args.ip_config)
 
     def setup_config(self, config):
         """Validate config and set default value here. Return ``True`` if config is
@@ -345,3 +367,16 @@ class CFX(object):
                 self.CFxHandleDict[handle].timer_thread.join()
 
         sys.exit(0)
+
+        def queryParam(self, ParamName=""):
+            if ParamName == "xmpp_host":
+                return self.CONFIG["CFx"][ParamName]
+            elif ParamName == "local_uid":
+                return self.CONFIG["CFx"][ParamName]
+            elif ParamName == "xmpp_username":
+                return self.CONFIG["CFx"][ParamName]
+            elif ParamName == "vpn_type":
+                return self.CONFIG["CFx"][ParamName]
+            elif ParamName == "ipop_ver":
+                return self.CONFIG["CFx"][ParamName]
+            return None
