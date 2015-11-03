@@ -1,4 +1,4 @@
-import json
+﻿import json
 import socket
 import random
 import controller.framework.ipoplib as ipoplib
@@ -6,15 +6,16 @@ from controller.framework.ControllerModule import ControllerModule
 
 
 class TincanSender(ControllerModule):
-
+    #FIXME
     ipop_ver = "\x02"
     tincan_control = "\x01"
-    tincan_packet = "\x02"
+    tincan_packet = "\x03"
     icc_control = "\x03"
     icc_packet = "\x04"
     icc_mac_control = "\x00\x69\x70\x6f\x70\x03"
     icc_mac_packet = "\x00\x69\x70\x6f\x70\x04"
     icc_ethernet_padding = "\x00\x00\x00\x00\x00\x00\x00\x00"
+    #FIXME
 
     def __init__(self, sock_list, CFxHandle, paramDict):
 

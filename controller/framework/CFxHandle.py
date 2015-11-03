@@ -1,4 +1,4 @@
-import Queue
+﻿import Queue
 import logging
 import threading
 
@@ -101,3 +101,7 @@ class CFxHandle(object):
                 break
             event.wait(interval)
             self.CMInstance.timer_method()
+
+    def queryParam(self, ParamName=""):
+        pv = self.__CFxObject.queryParam(ParamName)
+        return pv
