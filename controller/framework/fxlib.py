@@ -18,47 +18,34 @@ import time
 import urllib2
 
 from threading import Timer
+import controller.framework.ipoplib as ipoplib
 
 ipopVerMjr = "15";
 ipopVerMnr = "11";
 ipopVerRev = "0";
 ipopVerRel = ipopVerMjr + "." + ipopVerMnr + "." + ipopVerRev
 
-ipop_ver = "\x03"
-
 # Set default config values
 CONFIG = {
     "CFx": {
-        "ipop_ver" : ipop_ver,
         "ip4_mask": 24,
         "ip6_mask": 64,
         "subnet_mask": 32,
         "contr_port": 5801,
         "local_uid": "",
         "uid_size": 40,
-        "router_mode": False,
         "tincan_logging": 1,
+        "router_mode": False,
         "trim_enabled": False,
-        "multihop_cl": 100,  # Multihop connection count limit
-        "multihop_ihc": 3,  # Multihop initial hop count
-        "multihop_hl": 10,  # Multihop maximum hop count limit
-        "multihop_tl": 1,  # Multihop time limit (second)
-        "multihop_sr": True,  # Multihop source route
+        "ipopVerRel" : ipopVerRel
     },
-    "TincanDispatcher": {
-        "joinEnabled": True
+    "Logger": {
+        "controller_logging": "ERROR"
     },
     "TincanListener": {
         "buf_size": 65507,
         "socket_read_wait_time": 15,
-        "joinEnabled": True
-    },
-    "Logger": {
-        "controller_logging": "ERROR",
-        "joinEnabled": True
-    },
-    "LinkManager": {
-        "joinEnabled": True
+        "dependencies": ["Logger"]
     },
     "TincanSender": {
         "stun": ["stun.l.google.com:19302", "stun1.l.google.com:19302",
@@ -70,14 +57,10 @@ CONFIG = {
         "localhost": "127.0.0.1",
         "svpn_port": 5800,
         "localhost6": "::1",
-        "joinEnabled": True
+        "dependencies": ["Logger"]
      },
-     "StatReport": {
-        "stat_report": False,
-        "stat_server": "metrics.ipop-project.org",
-        "stat_server_port": 5000,
-        "timer_interval": 200,
-        "joinEnabled": True,
+    "LinkManager": {
+        "dependencies": ["Logger"]
     }
 }
 
@@ -99,9 +82,9 @@ def make_call(sock, payload=None, **params):
         dest = (CONFIG["TincanSender"]["localhost"],
                 CONFIG["TincanSender"]["svpn_port"])
     if payload is None:
-        return sock.sendto(ipop_ver + tincan_control + json.dumps(params), dest)
+        return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_control + json.dumps(params), dest)
     else:
-        return sock.sendto(ipop_ver + tincan_packet + payload, dest)
+        return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_packet + payload, dest)
 
 def do_set_logging(sock, logging):
     return make_call(sock, m="set_logging", logging=logging)
@@ -142,23 +125,6 @@ def load_peer_ip_config(ip_config):
         logging.debug("MAP %s -> %s" % (ip, uid))
 
 
-tincan_control = "\x01"
-tincan_packet = "\x02"
-#tincan_sr6 = "\x03"
-#tincan_sr6_end = "\x04"
-#null_uid = "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-#null_uid += "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-#bc_mac = "\xff\xff\xff\xff\xff\xff"
-#null_mac = "\x00\x00\x00\x00\x00\x00"
-
-# server is cross-module(?) variable
-#server = None
-
-# server is assigned in each Social/GroupVPN controller and then should be
-# assigned in library module too.
-#def set_global_variable_server(s):
-#    global server
-#    server = s
 
 # # When proces killed or keyboard interrupted exit_handler runs then exit
 # def exit_handler(signum, frame):

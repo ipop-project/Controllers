@@ -2,7 +2,7 @@ import sys
 import time
 import math
 import json
-import controller.framework.ipoplib as ipoplib
+import controller.framework.fxlib as fxlib
 from controller.framework.ControllerModule import ControllerModule
 
 
@@ -54,7 +54,7 @@ class BaseTopologyManager(ControllerModule):
         for i in range(0, 255):
             for j in range(0, 255):
                 ip4 = ip_prefix + str(i) + "." + str(j)
-                uid = ipoplib.gen_uid(ip4)
+                uid = fxlib.gen_uid(ip4)
                 self.uid_ip4_table[uid] = ip4
                 self.ip4_uid_table[ip4] = uid
 

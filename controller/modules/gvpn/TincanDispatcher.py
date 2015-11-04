@@ -1,14 +1,8 @@
-import json
+﻿import json
 from controller.framework.ControllerModule import ControllerModule
-
+import controller.framework.ipoplib as ipoplib
 
 class TincanDispatcher(ControllerModule):
-
-    ipop_ver = "\x02"
-    tincan_control = "\x01"
-    tincan_packet = "\x02"
-    icc_control = "\x03"
-    icc_packet = "\x04"
 
     def __init__(self, CFxHandle, paramDict):
 
@@ -38,7 +32,7 @@ class TincanDispatcher(ControllerModule):
         # |      2       | Payload (JSON formatted control message)     |
         # ---------------------------------------------------------------
 
-        if data[0] != self.ipop_ver:
+        if data[0] != ipoplib.ipop_ver:
 
             logCBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
                                               recipient='Logger',
@@ -46,13 +40,13 @@ class TincanDispatcher(ControllerModule):
                                               data="ipop version mismatch:"
                                               "tincan:{0} controller: {1}"
                                               .format(data[0].encode("hex"),
-                                                      ipop_ver.encode("hex")))
+                                                      ipoplib.ipop_ver.encode("hex")))
             self.CFxHandle.submitCBT(logCBT)
             sys.exit()
 
         if "TINCAN_PKT" == cbt.action:
 
-            if data[1] == self.tincan_control:
+            if data[1] == ipoplib.tincan_control:
 
                 msg = json.loads(data[2:])
                 logCBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
@@ -68,7 +62,7 @@ class TincanDispatcher(ControllerModule):
                     # Reply to the echo_request
 
                     echo_data = {
-                       'm_type': tincan_control,
+                       'm_type': ipoplib.tincan_control,
                        'dest_addr': addr[0],
                        'dest_port': addr[1]
                     }
@@ -101,7 +95,7 @@ class TincanDispatcher(ControllerModule):
             # |     42       | Payload (Ethernet frame)                     |
             # |-------------------------------------------------------------|
 
-            elif data[1] == self.tincan_packet:
+            elif data[1] == ipoplib.tincan_packet:
 
                 # Send the Tincan Packet to BaseTopologyManager
 
@@ -112,7 +106,7 @@ class TincanDispatcher(ControllerModule):
                                                data=packet)
                 self.CFxHandle.submitCBT(CBT)
 
-            elif data[1] == self.icc_control:
+            elif data[1] == ipoplib.icc_control:
 
                 msg = json.loads(data[56:].split("\x00")[0])
 
@@ -122,7 +116,7 @@ class TincanDispatcher(ControllerModule):
                                                data=msg)
                 self.CFxHandle.submitCBT(CBT)
 
-            elif data[1] == self.icc_packet:
+            elif data[1] == ipoplib.icc_packet:
 
                 pass
 

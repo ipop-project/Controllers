@@ -6,7 +6,7 @@ import json
 import logging
 import urllib2
 
-#import controller.framework.ipoplib as il
+import controller.framework.ipoplib as il
 #from controller.framework.CFxHandle import CFxHandle
 from controller.framework.ControllerModule import ControllerModule
 
@@ -45,7 +45,7 @@ class StatReport(ControllerModule):
         xmpp_host = self.CFxHandle.queryParam("xmpp_host")
         xmpp_username = self.CFxHandle.queryParam("xmpp_username")
         controller = self.CFxHandle.queryParam("vpn_type")
-        version = self.CFxHandle.queryParam("ipop_ver")
+        version = il.ipop_ver
 
         data = json.dumps({
                 "xmpp_host" : hashlib.sha1(xmpp_host).hexdigest(),\

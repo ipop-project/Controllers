@@ -377,6 +377,6 @@ class CFX(object):
                 return self.CONFIG["CFx"][ParamName]
             elif ParamName == "vpn_type":
                 return self.CONFIG["CFx"][ParamName]
-            elif ParamName == "ipop_ver":
+            elif ParamName == "ipopVerRel":
                 return self.CONFIG["CFx"][ParamName]
             return None

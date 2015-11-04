@@ -9,8 +9,7 @@
     "stat_report": false
   },
   "Logger": {
-    "controller_logging": "ERROR",
-    "joinEnabled": true
+    "controller_logging": "ERROR"
   },
   "TincanSender": {
     "switchmode": 0,
@@ -32,27 +31,28 @@
     "timer_interval": 1,
     "interval_management": 15,
     "interval_central_visualizer": 5,
-    "joinEnabled": true,
     "dependencies": ["Logger", "CentralVisualizer"]
   },
   "LinkManager": {
-    "joinEnabled": true,
     "dependencies": ["Logger"]
   },
   "TincanDispatcher": {
-    "joinEnabled": true,
     "dependencies": ["Logger"]
   },
   "TincanListener" : {
     "socket_read_wait_time": 15,
-    "joinEnabled": true,
     "dependencies": ["Logger", "TincanDispatcher"]
+  },
+  "StatReport": {
+    "stat_report": False,
+    "stat_server": "metrics.ipop-project.org",
+    "stat_server_port": 5000,
+    "timer_interval": 200
   },
   "CentralVisualizer": {
     "central_visualizer": false,
     "central_visualizer_addr": "",
     "central_visualizer_port": 51234,
-    "joinEnabled": true,
     "dependencies": ["Logger"]
   }
 }
