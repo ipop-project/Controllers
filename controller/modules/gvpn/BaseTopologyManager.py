@@ -800,9 +800,6 @@ class BaseTopologyManager(ControllerModule):
             # manage topology
             self.manage_topology()
 
-            #XXX (may be removed; for debugging)
-#            self.report_connections()
-
             # update local state and peer list
             self.registerCBT('TincanSender', 'DO_GET_STATE', '')
 
@@ -814,18 +811,6 @@ class BaseTopologyManager(ControllerModule):
 
     def terminate(self):
         pass
-
-
-
-
-
-    ############################################################################
-    # visualization and debugging                                              #
-    ############################################################################
-
-    # XXX The functions below are intended for debugging (can be removed):
-    #   report conections - terminal-based report of connections
-    #   visual debugger - report information to centralized visualizer
 
     # visual debugger
     #   send information to the central visualizer
@@ -846,45 +831,4 @@ class BaseTopologyManager(ControllerModule):
                     new_msg[con_type].append(peer)
 
         self.registerCBT('CentralVisualizer', 'SEND_INFO', new_msg)
-
-    # report connections
-    def report_connections(self):
-
-        links = {
-            "peer": [],
-            "successor": [],
-            "chord": [],
-            "on_demand": [],
-            "inbound": []
-        }
-
-        current_time = time.time()
-
-        for peer in self.peers.values():
-            ele = str(peer["uid"][0:3])
-            if "ip4" in peer:
-                ele += "-" + str(peer["ip4"].split(".")[3])
-            if "fpr" in peer:
-                ele += "*"
-            ele += "(" + str(peer["ttl"] - current_time)[0:5] + ")"
-            links["peer"].append(ele)
-
-        for con_type in ["successor", "chord", "on_demand", "inbound"]:
-            for peer in self.links[con_type].keys():
-                ele = str(self.peers[peer]["uid"][0:3])
-                if "ip4" in self.peers[peer]:
-                    ele += "-" + str(self.peers[peer]["ip4"].split(".")[3])
-                if self.linked(peer):
-                    ele += "*"
-                ele += "(" + str(self.peers[peer]["ttl"] - current_time)[0:5] + ")"
-                links[con_type].append(ele)
-
-        dbg_msg =  "=============================================\n"
-        dbg_msg += " THIS:  " + str(self.uid[0:3]) + " - " + str(self.ip4)  + "\n"
-        dbg_msg += " PEERS: " + str([x for x in links["peer"]])      + "\n"
-        dbg_msg += " SUCCS: " + str([x for x in links["successor"]]) + "\n"
-        dbg_msg += " CHRDS: " + str([x for x in links["chord"]])     + "\n"
-        dbg_msg += " DMAND: " + str([x for x in links["on_demand"]]) + "\n"
-        dbg_msg += " INBND: " + str([x for x in links["inbound"]])   + "\n"
-        print(dbg_msg)
 

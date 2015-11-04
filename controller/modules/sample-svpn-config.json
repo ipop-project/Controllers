@@ -22,17 +22,17 @@
         "dependencies": ["Logger"]
     },
     "Monitor": {
-		"trigger_con_wait_time": 120,
+        "trigger_con_wait_time": 120,
         "dependencies": ["Logger"]
     },
     "BaseTopologyManager": {
-		"link_trimmer_wait_time": 30,
+        "link_trimmer_wait_time": 30,
         "on-demand_connection": false,
         "on-demand_inactive_timeout": 600,
         "multihop": false,
         "sec": true,
         "timer_interval": 15,
-		"dependencies": ["Logger"]
+        "dependencies": ["Logger"]
     },
     "LinkManager": {
         "dependencies": ["Logger"]
