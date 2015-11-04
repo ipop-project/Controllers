@@ -279,10 +279,10 @@ class CFX(object):
                 "xmpp_host" in self.CONFIG["CFx"]):
             raise ValueError("At least 'xmpp_username' and 'xmpp_host' "
                              "must be specified in config file or string")
-        keyring_isntalled = False
+        keyring_installed = False
         try:
+			import keyring
             keyring_installed = True
-            import keyring
         except:
             print("keyring module is not installed")
 
@@ -290,8 +290,8 @@ class CFX(object):
             xmpp_pswd = None
             if keyring_installed:
                 xmpp_pswd = keyring.get_password("ipop", 
-                                                 self.CONFIG["xmpp_username"])
-            elif not keyring_installed or (keyring_installed and xmpp_pswd == None):
+                                                 self.CONFIG["CFx"]["xmpp_username"])
+            if not keyring_installed or (keyring_installed and xmpp_pswd == None):
                 prompt = "\nPassword for %s:" % self.CONFIG["CFx"]["xmpp_username"]
                 if args.pwdstdout:
                     xmpp_pswd = getpass(prompt, stream=sys.stdout)
@@ -302,7 +302,7 @@ class CFX(object):
                 self.CONFIG["CFx"]["xmpp_password"] = xmpp_pswd
                 if keyring_installed:         
                     try:
-                           keyring.set_password("ipop", self.CONFIG["xmpp_username"], self.CONFIG["xmpp_password"])
+                           keyring.set_password("ipop", self.CONFIG["CFx"]["xmpp_username"], self.CONFIG["CFx"]["xmpp_password"])
                     except:
                         print("Unable to store password in keyring")
             else:
