@@ -48,8 +48,8 @@ class CFxHandle(object):
         self.CMThread.setDaemon(True)
 
         # Check whether CM requires join() or not
-        if(self.CMConfig['joinEnabled'] == 'True'):
-            self.joinEnabled = True
+        #if(self.CMConfig['joinEnabled'] == 'True'):
+        self.joinEnabled = True
 
         # Check if the CMConfig has timer_interval specified
         timer_enabled = False

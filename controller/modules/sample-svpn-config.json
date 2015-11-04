@@ -10,15 +10,12 @@
     },
     "TincanListener" : {
         "socket_read_wait_time": 15,
-        "joinEnabled": true,
         "dependencies": ["Logger", "TincanDispatcher"]
     },
     "Logger": {
-        "controller_logging": "DEBUG",
-        "joinEnabled": true
+        "controller_logging": "ERROR"
     },
     "TincanDispatcher": {
-        "joinEnabled": true,
         "dependencies": ["Logger"]
     },
     "TincanSender": {
@@ -26,7 +23,6 @@
     },
     "Monitor": {
 		"trigger_con_wait_time": 120,
-        "joinEnabled": true,
         "dependencies": ["Logger"]
     },
     "BaseTopologyManager": {
@@ -36,21 +32,23 @@
         "multihop": false,
         "sec": true,
         "timer_interval": 15,
-        "joinEnabled": true,
 		"dependencies": ["Logger"]
     },
     "LinkManager": {
-        "joinEnabled": true,
         "dependencies": ["Logger"]
     },
     "AddressMapper": {
         "ip4": "172.31.0.100",
-        "joinEnabled": true,
         "dependencies": ["Logger"]
     },
     "Watchdog": {
         "timer_interval": 10,
-        "joinEnabled": true,
         "dependencies": ["Logger"]
+    },
+    "StatReport": {
+        "stat_report": false,
+        "stat_server": "metrics.ipop-project.org",
+        "stat_server_port": 5000,
+        "timer_interval": 200
     }
 }

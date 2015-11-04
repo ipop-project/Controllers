@@ -6,16 +6,6 @@ from controller.framework.ControllerModule import ControllerModule
 
 
 class TincanSender(ControllerModule):
-    #FIXME
-    ipop_ver = "\x02"
-    tincan_control = "\x01"
-    tincan_packet = "\x03"
-    icc_control = "\x03"
-    icc_packet = "\x04"
-    icc_mac_control = "\x00\x69\x70\x6f\x70\x03"
-    icc_mac_packet = "\x00\x69\x70\x6f\x70\x04"
-    icc_ethernet_padding = "\x00\x00\x00\x00\x00\x00\x00\x00"
-    #FIXME
 
     def __init__(self, sock_list, CFxHandle, paramDict):
 
@@ -84,7 +74,7 @@ class TincanSender(ControllerModule):
             self.do_send_icc_msg(self.sock, src_uid, dst_uid, icc_type, msg)
 
         elif(cbt.action == 'DO_INSERT_DATA_PACKET'):
-            ipoplib.send_packet(self.sock, cbt.data.decode("hex"))
+            self.send_packet(self.sock, cbt.data.decode("hex"))
 
         else:
             logCBT = self.CFxHandle.createCBT(initiator='TincanSender',
@@ -102,10 +92,10 @@ class TincanSender(ControllerModule):
             dest = (self.CMConfig["localhost"], self.CMConfig["svpn_port"])
 
         if icc_type == "control":
-            return sock.sendto(self.ipop_ver + self.icc_control + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + self.icc_mac_control + self.icc_ethernet_padding + json.dumps(msg), dest)
+            return sock.sendto(ipoplib.ipop_ver + ipoplib.icc_control + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + ipoplib.icc_mac_control + ipoplib.icc_ethernet_padding + json.dumps(msg), dest)
 
         elif icc_type == "packet":
-            return sock.sendto(self.ipop_ver + self.icc_packet + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + self.icc_mac_packet + self.icc_ethernet_padding + json.dumps(msg), dest)
+            return sock.sendto(ipoplib.ipop_ver + ipoplib.icc_packet + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + ipoplib.icc_mac_packet + ipoplib.icc_ethernet_padding + json.dumps(msg), dest)
 
     def do_create_link(self, sock, uid, fpr, overlay_id, sec,
                        cas, stun=None, turn=None):
@@ -147,10 +137,10 @@ class TincanSender(ControllerModule):
         else:
             dest = (self.CMConfig["localhost"], self.CMConfig["svpn_port"])
         if payload is None:
-            return sock.sendto(self.ipop_ver + self.tincan_control +
+            return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_control +
                                json.dumps(params), dest)
         else:
-            return sock.sendto(self.ipop_ver + self.tincan_packet +
+            return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_packet +
                                payload, dest)
 
     def gen_ip6(self, uid, ip6=None):
@@ -163,12 +153,19 @@ class TincanSender(ControllerModule):
     def make_remote_call(self, sock, dest_addr, dest_port, m_type,
                          payload, **params):
         dest = (dest_addr, dest_port)
-        if m_type == self.tincan_control:
-            return sock.sendto(self.ipop_ver + m_type +
+        if m_type == ipoplib.tincan_control:
+            return sock.sendto(ipoplib.ipop_ver + m_type +
                                json.dumps(params), dest)
         else:
-            return sock.sendto(self.ipop_ver + m_type +
+            return sock.sendto(ipoplib.ipop_ver + m_type +
                                payload, dest)
+
+    def send_packet(self, sock, msg):
+        if socket.has_ipv6:
+            dest = (self.CMConfig["localhost6"], self.CMConfig["svpn_port"])
+        else:
+            dest = (self.CMConfig["localhost"], self.CMConfig["svpn_port"])
+        return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_packet + msg, dest)
 
     def timer_method(self):
         pass
