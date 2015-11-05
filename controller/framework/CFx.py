@@ -281,7 +281,7 @@ class CFX(object):
                              "must be specified in config file or string")
         keyring_installed = False
         try:
-			import keyring
+	    import keyring
             keyring_installed = True
         except:
             print("keyring module is not installed")

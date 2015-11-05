@@ -26,7 +26,11 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
 4. Run SocialVPN Controller.
 
-    ```python -m controller.Controller -c modules/svpn-config.json &> log.txt &```
+    Make sure you return to the xxx/controllers/ directory.
+    ```
+    cd ..
+    python -m controller.Controller -c modules/svpn-config.json &> log.txt &
+    ```
 
 5. Check status.
 
@@ -48,7 +52,11 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
 4. Run GroupVPN Controller.
 
-    ```python -m controller.Controller -c modules/gvpn-config.json &> log.txt &```
+    Make sure you return to the xxx/controllers/ directory.
+    ```
+    cd ..
+    python -m controller.Controller -c modules/gvpn-config.json &> log.txt &
+    ```
 
 5. Check status.
 
