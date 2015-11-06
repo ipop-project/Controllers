@@ -91,22 +91,13 @@ class CFX(object):
         fxlib.do_set_cb_endpoint(self.sock, self.sock.getsockname())
 
         # Configure the local node
-        if not self.CONFIG["CFx"]["router_mode"]:
-            fxlib.do_set_local_ip(self.sock, self.uid, self.ip4,
-                                    self.ip6,
-                                    self.CONFIG["CFx"]["ip4_mask"],
-                                    self.CONFIG["CFx"]["ip6_mask"],
-                                    self.CONFIG["CFx"]["subnet_mask"],
-                                    self.CONFIG["TincanSender"]["switchmode"])
 
-        else:
-            fxlib.do_set_local_ip(self.sock, self.uid,
-                                    self.CONFIG["CFx"]["router_ip"],
-                                    self.ip6,
-                                    self.CONFIG["CFx"]["router_ip4_mask"],
-                                    self.CONFIG["CFx"]["router_ip6_mask"],
-                                    self.CONFIG["CFx"]["subnet_mask"],
-                                    self.CONFIG["TincanSender"]["switchmode"])
+        fxlib.do_set_local_ip(self.sock, self.uid, self.ip4,
+                                self.ip6,
+                                self.CONFIG["CFx"]["ip4_mask"],
+                                self.CONFIG["CFx"]["ip6_mask"],
+                                self.CONFIG["CFx"]["subnet_mask"],
+                                self.CONFIG["TincanSender"]["switchmode"])
 
         # Register to the XMPP server
         fxlib.do_register_service(self.sock, self.user,
@@ -281,7 +272,7 @@ class CFX(object):
                              "must be specified in config file or string")
         keyring_installed = False
         try:
-			import keyring
+            import keyring
             keyring_installed = True
         except:
             print("keyring module is not installed")
