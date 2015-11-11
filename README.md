@@ -3,7 +3,7 @@
 ### Prerequisites
 
 Obtain **IPOP-Controllers** by downloading the latest archive from the releases or by cloning this repository:
-```git clone git@github.com:ipop-project/controllers.git```
+```git clone https://github.com/ipop-project/controllers.git```
 
 Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by building from source [2].
 
