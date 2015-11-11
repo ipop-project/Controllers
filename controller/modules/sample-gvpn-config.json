@@ -27,7 +27,7 @@
         "ttl_link_pulse": 30,
         "ttl_chord": 180,
         "ttl_on_demand": 60,
-        "on_demand_threshold": 128,
+        "threshold_on_demand": 128,
         "timer_interval": 1,
         "interval_management": 15,
         "interval_central_visualizer": 5,
