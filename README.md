@@ -16,13 +16,15 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
     ```cd controllers/controller/```
 
-2. Modify ```svpn-config.json``` to customize the controller's configuration [1].
+2. Copy ```sample-svpn-config.json``` to ```svpn-config.json``` and modify it as per your requirements to configure the controller [1].
 
     ```nano modules/svpn-config.json```
 
 3. Run IPOP-Tincan.
 
-    ```sudo ./ipop-tincan-x86_64 &> tin.log &```
+    ```cd ..  
+    sudo ./ipop-tincan-x86_64 &> tin.log &  
+    ```
 
 4. Run SocialVPN Controller.
 
@@ -42,13 +44,15 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
     ```cd controllers/controller/```
 
-2. Modify ```gvpn-config.json``` to customize the controller's configuration [1].
+2. Copy ```sample-gvpn-config.json``` to ```gvpn-config.json``` and modify it as per your requirements to configure the controller [1].
 
     ```nano modules/gvpn-config.json```
 
 3. Run IPOP-Tincan.
 
-    ```sudo ./ipop-tincan-x86_64 &> tin.log &```
+    ```cd ..  
+    sudo ./ipop-tincan-x86_64 &> tin.log &  
+    ```
 
 4. Run GroupVPN Controller.
 
