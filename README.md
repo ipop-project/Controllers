@@ -28,8 +28,8 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
 	Make sure you return to the <path to _controllers_>/controllers/ directory.
 	```
-	cd ..
-	python -m controller.Controller -c modules/svpn-config.json &> log.txt &
+	cd controllers
+	python -m controller.Controller -c controller/modules/svpn-config.json &> log.txt &
 	```
 
 5. Check status.
@@ -54,8 +54,8 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
 	Make sure you return to the <path to _controllers_>/controllers/ directory.
 	```
-	cd ..
-	python -m controller.Controller -c modules/gvpn-config.json &> log.txt &
+	cd controllers
+	python -m controller.Controller -c controller/modules/gvpn-config.json &> log.txt &
 	```
 
 5. Check status.
