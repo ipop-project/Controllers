@@ -355,7 +355,8 @@ class CFX(object):
         for handle in self.CFxHandleDict:
             if(self.CFxHandleDict[handle].joinEnabled):
                 self.CFxHandleDict[handle].CMThread.join()
-                self.CFxHandleDict[handle].timer_thread.join()
+                if (self.CFxHandleDict[handle].timer_thread):
+                    self.CFxHandleDict[handle].timer_thread.join()
 
         sys.exit(0)
 
