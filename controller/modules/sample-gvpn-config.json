@@ -16,7 +16,7 @@
         "dependencies": ["Logger"]
     },
         "BaseTopologyManager": {
-        "ip4": "172.31.0.16",
+        "ip4": "172.31.0.100",
         "sec": true,
         "multihop": false,
         "num_successors": 2,
