@@ -3,7 +3,7 @@
 ### Prerequisites
 
 Obtain **IPOP-Controllers** by downloading the latest archive from the releases or by cloning this repository:
-```git clone git@github.com:ipop-project/controllers.git```
+```git clone https://github.com/ipop-project/controllers.git```
 
 Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by building from source [2].
 
@@ -16,20 +16,20 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
     ```cd controllers/controller/```
 
-2. Modify ```svpn-config.json``` to customize the controller's configuration [1].
+2. Copy sample-svpn-config.json to svpn-config.json and modify it as per your requirements to configure the controller [1].
 
     ```nano modules/svpn-config.json```
 
 3. Run IPOP-Tincan.
 
-    ```sudo ./ipop-tincan-x86_64 &> tin.log &```
+    ```cd ../..;  sudo ./ipop-tincan-x86_64 &> tin.log &  ```
 
 4. Run SocialVPN Controller.
 
 	Make sure you return to the <path to _controllers_>/controllers/ directory.
 	```
-	cd ..
-	python -m controller.Controller -c modules/svpn-config.json &> log.txt &
+	cd controllers
+	python -m controller.Controller -c controller/modules/svpn-config.json &> log.txt &
 	```
 
 5. Check status.
@@ -42,20 +42,20 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
     ```cd controllers/controller/```
 
-2. Modify ```gvpn-config.json``` to customize the controller's configuration [1].
+2. Copy sample-gvpn-config.json to gvpn-config.json and modify it as per your requirements to configure the controller [1].
 
     ```nano modules/gvpn-config.json```
 
 3. Run IPOP-Tincan.
 
-    ```sudo ./ipop-tincan-x86_64 &> tin.log &```
+    ```cd ../.. ; sudo ./ipop-tincan-x86_64 &> tin.log &  ```
 
 4. Run GroupVPN Controller.
 
 	Make sure you return to the <path to _controllers_>/controllers/ directory.
 	```
-	cd ..
-	python -m controller.Controller -c modules/gvpn-config.json &> log.txt &
+	cd controllers
+	python -m controller.Controller -c controller/modules/gvpn-config.json &> log.txt &
 	```
 
 5. Check status.
