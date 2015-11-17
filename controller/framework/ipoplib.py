@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env python
 
-ipop_ver = "\x02"
+ipop_ver = "\x03"
 tincan_control = "\x01"
 tincan_packet = "\x02"
 icc_control = "\x03"

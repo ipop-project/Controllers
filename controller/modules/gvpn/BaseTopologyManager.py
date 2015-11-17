@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 import time
 import math
 import json
@@ -580,13 +580,21 @@ class BaseTopologyManager(ControllerModule):
 
             # handle connection request
             elif msg_type == "con_req":
-                msg["data"] = json.loads(msg["data"])
+                try:
+                    msg["data"] = json.loads(msg["data"])
 
-                log = "recv con_req (" + msg["data"]["con_type"] + "): " + str(msg["uid"][0:3])
-                self.registerCBT('Logger', 'debug', log)
+                    log = "recv con_req (" + msg["data"]["con_type"] + "): " + str(msg["uid"][0:3])
+                    self.registerCBT('Logger', 'debug', log)
 
-                self.add_inbound(msg["data"]["con_type"], msg["uid"],
-                                 msg["data"]["fpr"])
+                    self.add_inbound(msg["data"]["con_type"], msg["uid"],
+                                     msg["data"]["fpr"])
+                except ValueError:
+                    logCBT = self.CFxHandle.createCBT(initiator='BaseTopologyManager',
+                                                                  recipient='Logger',
+                                                                  action='warning',
+                                                                  data="BaseTopologyManager: Unrecognized connection request "
+                                                                  "data: " +  msg["data"])
+                    self.CFxHandle.submitCBT(logCBT)
 
             # handle connection acknowledgement
             elif msg_type == "con_ack":
