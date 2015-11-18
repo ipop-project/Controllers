@@ -1,7 +1,7 @@
 ﻿import Queue
 import logging
 import threading
-
+import traceback
 
 class CFxHandle(object):
 
@@ -88,7 +88,14 @@ class CFxHandle(object):
                 self.CMInstance.terminate()
                 break
             else:
-                self.CMInstance.processCBT(cbt)
+                try:
+                    self.CMInstance.processCBT(cbt)
+                except:
+                    logCBT = self.createCBT(initiator=self.CMInstance.__class__.__name__,
+                                                                  recipient='Logger',
+                                                                  action='warning',
+                                                                  data=traceback.format_exc())
+                    self.submitCBT(logCBT)
 
     def __timer_worker(self, interval):
 
@@ -100,7 +107,14 @@ class CFxHandle(object):
             if(self.terminateFlag):
                 break
             event.wait(interval)
-            self.CMInstance.timer_method()
+            try:
+                self.CMInstance.timer_method()
+            except:
+                logCBT = self.createCBT(initiator=self.CMInstance.__class__.__name__,
+                                                                recipient='Logger',
+                                                                action='warning',
+                                                                data=traceback.format_exc())
+                self.submitCBT(logCBT)
 
     def queryParam(self, ParamName=""):
         pv = self.__CFxObject.queryParam(ParamName)
