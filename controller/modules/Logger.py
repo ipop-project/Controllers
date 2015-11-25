@@ -14,7 +14,7 @@ class Logger(ControllerModule):
 
         if "controller_logging" in self.CMConfig:
             level = getattr(logging, self.CMConfig["controller_logging"])
-            logging.basicConfig(level=level)
+            logging.basicConfig(format='[%(asctime)s.%(msecs)03d] %(levelname)s:%(name)s:%(message)s',datefmt='%m/%d %H:%M:%S',level=level)
 
         logging.info("Logger Module Loaded")
 
