@@ -145,7 +145,12 @@ class CFX(object):
 
     def load_module(self, module_name):
 
-        if(module_name not in self.loaded_modules):
+        try:
+            module_enabled = self.json_data[module_name]['enabled']
+        except:
+            module_enabled = True
+
+        if(module_name not in self.loaded_modules) and module_enabled == True:
 
             # Load dependencies of the module
             self.load_dependencies(module_name)
@@ -360,15 +365,15 @@ class CFX(object):
 
         sys.exit(0)
 
-        def queryParam(self, ParamName=""):
-            if ParamName == "xmpp_host":
-                return self.CONFIG["CFx"][ParamName]
-            elif ParamName == "local_uid":
-                return self.CONFIG["CFx"][ParamName]
-            elif ParamName == "xmpp_username":
-                return self.CONFIG["CFx"][ParamName]
-            elif ParamName == "vpn_type":
-                return self.CONFIG["CFx"][ParamName]
-            elif ParamName == "ipopVerRel":
-                return self.CONFIG["CFx"][ParamName]
-            return None
+    def queryParam(self, ParamName=""):
+        if ParamName == "xmpp_host":
+            return self.CONFIG["CFx"][ParamName]
+        elif ParamName == "local_uid":
+            return self.CONFIG["CFx"][ParamName]
+        elif ParamName == "xmpp_username":
+            return self.CONFIG["CFx"][ParamName]
+        elif ParamName == "vpn_type":
+            return self.CONFIG["CFx"][ParamName]
+        elif ParamName == "ipopVerRel":
+            return self.CONFIG["CFx"][ParamName]
+        return None
