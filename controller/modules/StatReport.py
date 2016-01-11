@@ -25,8 +25,6 @@ class StatReport(ControllerModule):
                                           action='info',
                                           data="StatReport Loaded")
         self.CFxHandle.submitCBT(logCBT)
-        if self.CMConfig["stat_report"]:
-            self.report()
 
     def processCBT():
         pass
@@ -46,6 +44,7 @@ class StatReport(ControllerModule):
         xmpp_username = self.CFxHandle.queryParam("xmpp_username")
         controller = self.CFxHandle.queryParam("vpn_type")
         version = il.ipop_ver
+        res = None
 
         data = json.dumps({
                 "xmpp_host" : hashlib.sha1(xmpp_host).hexdigest(),\
@@ -66,19 +65,26 @@ class StatReport(ControllerModule):
                 logCBT = self.CFxHandle.createCBT(initiator='StatReport',
                                     recipient='Logger',
                                     action='info',
-                                    data="Succesfully reported status to the stat-server({0})."
-                                    ".\nHTTP response code:{1}, msg:{2}".format(url, res.getcode(),\
-                                    res.read()))
+                                    data="Succesfully reported status to the "
+                                    " stat-server({0}). \nHTTP response"
+                                    " code:{1}, msg:{2}".format(url,\
+                                    res.getcode(), res.read()))
                 self.CFxHandle.submitCBT(logCBT)
             else:
                 raise
+
         except:
+            logmsg = ""
+            if res != None:
+                logmsg = "Statistics report failed to the stat-server({0})."\
+                         ".\nHTTP response code:{1}, msg:{2}".format(url,\
+                         res.getcode(), res.read())
+            else:
+                logmsg = "Stat server report fails. HTTP Times out"
             logCBT = self.CFxHandle.createCBT(initiator='StatReport',
                                     recipient='Logger',
                                     action='warning',
-                                    data="Statistics report failed to the stat-server({0})."
-                                    ".\nHTTP response code:{1}, msg:{2}".format(url, res.getcode(),\
-                                    res.read()))
+                                    data=logmsg)
             self.CFxHandle.submitCBT(logCBT)
 
 
