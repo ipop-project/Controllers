@@ -30,8 +30,9 @@
         "threshold_on_demand": 128,
         "timer_interval": 1,
         "interval_management": 15,
+        "central_visualizer": false,
         "interval_central_visualizer": 5,
-        "dependencies": ["Logger", "CentralVisualizer"]
+        "dependencies": ["Logger"]
     },
         "LinkManager": {
         "dependencies": ["Logger"]

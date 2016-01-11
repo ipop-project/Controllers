@@ -804,11 +804,13 @@ class BaseTopologyManager(ControllerModule):
             # update local state and peer list
             self.registerCBT('TincanSender', 'DO_GET_STATE', '')
 
-        # every <interval_central_visualizer> seconds
-        if self.interval_counter % self.CMConfig["interval_central_visualizer"] == 0:
-            # send information to central visualizer
-            if self.p2p_state != "started":
-                self.visual_debugger()
+        # send information to the central visualizer, if enabled
+        if self.CMConfig["central_visualizer"]:
+            # every <interval_central_visualizer> seconds
+            if self.interval_counter % self.CMConfig["interval_central_visualizer"] == 0:
+                # send information to central visualizer
+                if self.p2p_state != "started":
+                    self.visual_debugger()
 
     def terminate(self):
         pass
