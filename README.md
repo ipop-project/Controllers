@@ -22,7 +22,7 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
 3. Run IPOP-Tincan.
 
-    ```cd ../..;  sudo ./ipop-tincan-x86_64 &> tin.log &  ```
+    ```cd ../..;  sudo ./ipop-tincan &> tin.log &  ```
 
 4. Run SocialVPN Controller.
 
@@ -48,7 +48,7 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
 3. Run IPOP-Tincan.
 
-    ```cd ../.. ; sudo ./ipop-tincan-x86_64 &> tin.log &  ```
+    ```cd ../.. ; sudo ./ipop-tincan &> tin.log &  ```
 
 4. Run GroupVPN Controller.
 
@@ -66,8 +66,8 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
 The following commands will search the PID of IPOP-Tincan and IPOP-Controller and dispatch a kill signal.
 ```
-ps aux | grep -v grep | grep ipop-tincan-x86_64 | awk '{print $2}' | xargs sudo kill -9
-ps aux | grep -v grep | grep controller.Controller.py | awk '{print $2}' | xargs sudo kill -9
+ps aux | grep -v grep | grep ipop-tincan | awk '{print $2}' | xargs sudo kill -9
+ps aux | grep -v grep | grep controller.Controller | awk '{print $2}' | xargs sudo kill -9
 ```
 
 ### Notes
