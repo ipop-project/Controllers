@@ -6,7 +6,7 @@
         "tincan_logging": 0,
         "vpn_type": "GroupVPN",
         "ip4_mask": 16,
-        "stat_report": false
+        "stat_report": true
     },
         "Logger": {
         "controller_logging": "ERROR"
@@ -44,9 +44,9 @@
         "dependencies": ["Logger", "TincanDispatcher"]
     },
         "StatReport": {
-        "stat_report": false,
+        "stat_report": true,
         "stat_server": "metrics.ipop-project.org",
-        "stat_server_port": 5000,
+        "stat_server_port": 8080,
         "timer_interval": 200
     },
         "CentralVisualizer": {

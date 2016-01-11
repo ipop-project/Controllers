@@ -360,15 +360,15 @@ class CFX(object):
 
         sys.exit(0)
 
-        def queryParam(self, ParamName=""):
-            if ParamName == "xmpp_host":
-                return self.CONFIG["CFx"][ParamName]
-            elif ParamName == "local_uid":
-                return self.CONFIG["CFx"][ParamName]
-            elif ParamName == "xmpp_username":
-                return self.CONFIG["CFx"][ParamName]
-            elif ParamName == "vpn_type":
-                return self.CONFIG["CFx"][ParamName]
-            elif ParamName == "ipopVerRel":
-                return self.CONFIG["CFx"][ParamName]
-            return None
+    def queryParam(self, ParamName=""):
+        if ParamName == "xmpp_host":
+            return self.CONFIG["CFx"][ParamName]
+        elif ParamName == "local_uid":
+            return self.CONFIG["CFx"][ParamName]
+        elif ParamName == "xmpp_username":
+            return self.CONFIG["CFx"][ParamName]
+        elif ParamName == "vpn_type":
+            return self.CONFIG["CFx"][ParamName]
+        elif ParamName == "ipopVerRel":
+            return self.CONFIG["CFx"][ParamName]
+        return None

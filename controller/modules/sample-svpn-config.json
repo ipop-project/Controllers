@@ -46,9 +46,9 @@
         "dependencies": ["Logger"]
     },
     "StatReport": {
-        "stat_report": false,
+        "stat_report": true,
         "stat_server": "metrics.ipop-project.org",
-        "stat_server_port": 5000,
+        "stat_server_port": 8080,
         "timer_interval": 200
     }
 }
