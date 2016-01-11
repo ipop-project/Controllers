@@ -90,6 +90,8 @@ class CFxHandle(object):
             else:
                 try:
                     self.CMInstance.processCBT(cbt)
+                except SystemExit:
+                    sys.exit()
                 except:
                     logCBT = self.createCBT(initiator=self.CMInstance.__class__.__name__,
                                                                   recipient='Logger',
@@ -109,6 +111,8 @@ class CFxHandle(object):
             event.wait(interval)
             try:
                 self.CMInstance.timer_method()
+            except SystemExit:
+                sys.exit()
             except:
                 logCBT = self.createCBT(initiator=self.CMInstance.__class__.__name__,
                                                                 recipient='Logger',
