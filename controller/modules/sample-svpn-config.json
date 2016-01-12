@@ -2,21 +2,20 @@
     "CFx": {
         "xmpp_username": "",
         "xmpp_password": "",
-        "ip4_mask": 24,
         "xmpp_host": "",
-        "stat_report": true,
         "tincan_logging": 0,
-        "vpn_type": "SocialVPN"
-    },
-    "TincanListener" : {
-        "socket_read_wait_time": 15,
-        "dependencies": ["Logger", "TincanDispatcher"]
+        "vpn_type": "SocialVPN",
+        "ip4_mask": 24
     },
     "Logger": {
         "controller_logging": "ERROR"
     },
     "TincanDispatcher": {
         "dependencies": ["Logger"]
+    },
+	"TincanListener" : {
+        "socket_read_wait_time": 15,
+        "dependencies": ["Logger", "TincanDispatcher"]
     },
     "TincanSender": {
         "dependencies": ["Logger"]
@@ -46,9 +45,9 @@
         "dependencies": ["Logger"]
     },
     "StatReport": {
-        "stat_report": false,
+        "enabled": true,
         "stat_server": "metrics.ipop-project.org",
-        "stat_server_port": 5000,
+        "stat_server_port": 8080,
         "timer_interval": 200
     }
 }

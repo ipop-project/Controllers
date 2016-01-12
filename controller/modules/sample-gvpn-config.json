@@ -5,11 +5,17 @@
         "xmpp_host": "",
         "tincan_logging": 0,
         "vpn_type": "GroupVPN",
-        "ip4_mask": 16,
-        "stat_report": false
+        "ip4_mask": 16
     },
         "Logger": {
         "controller_logging": "ERROR"
+    },
+        "TincanDispatcher": {
+        "dependencies": ["Logger"]
+    },
+        "TincanListener" : {
+        "socket_read_wait_time": 15,
+        "dependencies": ["Logger", "TincanDispatcher"]
     },
         "TincanSender": {
         "switchmode": 0,
@@ -19,10 +25,10 @@
         "ip4": "172.31.0.100",
         "sec": true,
         "multihop": false,
-        "num_successors": 2,
+        "num_successors": 20,
         "num_chords": 3,
         "num_on_demand": 2,
-        "num_inbound": 8,
+        "num_inbound": 25,
         "ttl_link_initial": 60,
         "ttl_link_pulse": 30,
         "ttl_chord": 180,
@@ -30,27 +36,21 @@
         "threshold_on_demand": 128,
         "timer_interval": 1,
         "interval_management": 15,
+        "use_central_visualizer": false,
         "interval_central_visualizer": 5,
-        "dependencies": ["Logger", "CentralVisualizer"]
+        "dependencies": ["Logger"]
     },
         "LinkManager": {
         "dependencies": ["Logger"]
     },
-        "TincanDispatcher": {
-        "dependencies": ["Logger"]
-    },
-        "TincanListener" : {
-        "socket_read_wait_time": 15,
-        "dependencies": ["Logger", "TincanDispatcher"]
-    },
         "StatReport": {
-        "stat_report": false,
+        "enabled": true,
         "stat_server": "metrics.ipop-project.org",
-        "stat_server_port": 5000,
+        "stat_server_port": 8080,
         "timer_interval": 200
     },
         "CentralVisualizer": {
-        "central_visualizer": false,
+        "enabled": false,
         "central_visualizer_addr": "",
         "central_visualizer_port": 51234,
         "dependencies": ["Logger"]
