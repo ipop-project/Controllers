@@ -16,7 +16,7 @@ class BaseTopologyManager(ControllerModule):
         self.ipop_state = None
         self.interval_counter = 0
         self.cv_interval = 5
-        use_visualizer = False
+        self.use_visualizer = False
 
         self.uid = ""
         self.ip4 = ""
