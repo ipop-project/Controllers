@@ -25,19 +25,15 @@ class StatReport(ControllerModule):
                                           action='info',
                                           data="StatReport Loaded")
         self.CFxHandle.submitCBT(logCBT)
-        if self.CMConfig["stat_report"]:
-            self.report()
 
     def processCBT():
         pass
 
     def timer_method(self):
-        if self.CMConfig["stat_report"]:
-            self.report()
+        self.report()
 
     def terminate(self):
-        if self.CMConfig["stat_report"]:
-            self.report()
+        pass
 
     def report(self):
         uid = self.CFxHandle.queryParam("local_uid")
@@ -66,8 +62,8 @@ class StatReport(ControllerModule):
                 logCBT = self.CFxHandle.createCBT(initiator='StatReport',
                                     recipient='Logger',
                                     action='info',
-                                    data="Succesfully reported status to the stat-server({0})."
-                                    ".\nHTTP response code:{1}, msg:{2}".format(url, res.getcode(),\
+                                    data="Succesfully reported status to the stat-server ({0})."
+                                    "\nHTTP response code:{1}, msg:{2}".format(url, res.getcode(),\
                                     res.read()))
                 self.CFxHandle.submitCBT(logCBT)
             else:
@@ -76,9 +72,7 @@ class StatReport(ControllerModule):
             logCBT = self.CFxHandle.createCBT(initiator='StatReport',
                                     recipient='Logger',
                                     action='warning',
-                                    data="Statistics report failed to the stat-server({0})."
-                                    ".\nHTTP response code:{1}, msg:{2}".format(url, res.getcode(),\
-                                    res.read()))
+                                    data="Statistics report failed to the stat-server ({0}).".format(url))
             self.CFxHandle.submitCBT(logCBT)
 
 

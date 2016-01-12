@@ -17,9 +17,7 @@ class CentralVisualizer(ControllerModule):
         )
 
     def initialize(self):
-
-        if self.CMConfig["central_visualizer"]:
-            self.vis_dbg_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.vis_dbg_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         logCBT = self.CFxHandle.createCBT(initiator='CentralVisualizer',
                                           recipient='Logger',
@@ -28,11 +26,9 @@ class CentralVisualizer(ControllerModule):
         self.CFxHandle.submitCBT(logCBT)
 
     def processCBT(self, cbt):
-
         if(cbt.action == 'SEND_INFO'):
-            if self.CMConfig["central_visualizer"]:
-                message = json.dumps(cbt.data).encode("utf8")
-                self.vis_dbg_sock.sendto(message, self.vis_address)
+            message = json.dumps(cbt.data).encode("utf8")
+            self.vis_dbg_sock.sendto(message, self.vis_address)
 
     def timer_method(self):
         pass
