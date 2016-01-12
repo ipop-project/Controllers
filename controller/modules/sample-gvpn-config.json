@@ -36,7 +36,7 @@
         "threshold_on_demand": 128,
         "timer_interval": 1,
         "interval_management": 15,
-		"use_central_visualizer": false,
+        "use_central_visualizer": false,
         "interval_central_visualizer": 5,
         "dependencies": ["Logger"]
     },

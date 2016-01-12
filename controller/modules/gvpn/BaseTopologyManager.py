@@ -15,6 +15,8 @@ class BaseTopologyManager(ControllerModule):
         self.CMConfig = paramDict
         self.ipop_state = None
         self.interval_counter = 0
+        self.cv_interval = 5
+        use_visualizer = False
 
         self.uid = ""
         self.ip4 = ""
@@ -57,6 +59,12 @@ class BaseTopologyManager(ControllerModule):
                 uid = fxlib.gen_uid(ip4)
                 self.uid_ip4_table[uid] = ip4
                 self.ip4_uid_table[ip4] = uid
+
+        if 'use_central_visualizer' in self.CMConfig:
+            self.use_visualizer = self.CMConfig["use_central_visualizer"]
+        if "interval_central_visualizer" in self.CMConfig:
+            self.cv_interval = self.CMConfig["interval_central_visualizer"]
+
 
     def initialize(self):
         self.registerCBT('Logger', 'info', "BaseTopologyManager Loaded")
@@ -805,13 +813,10 @@ class BaseTopologyManager(ControllerModule):
             self.registerCBT('TincanSender', 'DO_GET_STATE', '')
 
         # every <interval_central_visualizer> seconds
-        try:
-            if self.CMConfig["use_central_visualizer"] == True and self.interval_counter % self.CMConfig["interval_central_visualizer"] == 0:
-                # send information to central visualizer
-                if self.p2p_state != "started":
-                    self.visual_debugger()
-        except:
-            pass
+        if  self.use_visualizer and self.interval_counter % self.cv_interval == 0:
+            # send information to central visualizer
+            if self.p2p_state != "started":
+                self.visual_debugger()
 
     def terminate(self):
         pass

@@ -145,9 +145,9 @@ class CFX(object):
 
     def load_module(self, module_name):
 
-        try:
+        if 'enabled' in self.json_data[module_name]:
             module_enabled = self.json_data[module_name]['enabled']
-        except:
+        else:
             module_enabled = True
 
         if(module_name not in self.loaded_modules) and module_enabled == True:
