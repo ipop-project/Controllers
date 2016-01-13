@@ -20,8 +20,8 @@ import urllib2
 from threading import Timer
 import controller.framework.ipoplib as ipoplib
 
-ipopVerMjr = "15";
-ipopVerMnr = "11";
+ipopVerMjr = "16";
+ipopVerMnr = "01";
 ipopVerRev = "0";
 ipopVerRel = ipopVerMjr + "." + ipopVerMnr + "." + ipopVerRev
 
