@@ -75,7 +75,8 @@ class TincanDispatcher(ControllerModule):
                                                        data=echo_data)
                     self.CFxHandle.submitCBT(echoCBT)
 
-                elif msg_type in ["con_stat", "con_req", "con_ack", "con_resp", "peer_state", "local_state"]:
+                elif msg_type in ["con_stat", "con_req", "con_ack", "con_resp",
+                            "peer_state", "local_state", "ping", "ping_resp"]:
 
                     CBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
                                                    recipient='BaseTopologyManager',
