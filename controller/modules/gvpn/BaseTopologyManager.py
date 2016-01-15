@@ -39,6 +39,9 @@ class BaseTopologyManager(ControllerModule):
         self.log_chords = []
 
         # discovered nodes
+        #   self.discovered_nodes is the list of nodes used by the successors policy
+        #   self.discovered_nodes_srv is the list of nodes obtained from peer_state
+        #       notifications
         self.discovered_nodes = []
         self.discovered_nodes_srv = []
 
