@@ -38,6 +38,8 @@
         "interval_management": 15,
         "use_central_visualizer": false,
         "interval_central_visualizer": 5,
+        "num_pings": 5,
+        "interval_ping": 300,
         "dependencies": ["Logger"]
     },
         "LinkManager": {

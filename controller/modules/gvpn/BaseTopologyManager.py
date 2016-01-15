@@ -2,6 +2,7 @@
 import time
 import math
 import json
+import random
 import controller.framework.fxlib as fxlib
 from controller.framework.ControllerModule import ControllerModule
 
@@ -31,16 +32,18 @@ class BaseTopologyManager(ControllerModule):
         #   self.links["on_demand"] = { uid: {"ttl": ttl, "rate": rate} }
         #   self.links["inbound"]   = { uid: None }
 
-        self.links = {}
-        self.links["successor"] = {}
-        self.links["chord"] = {}
-        self.links["on_demand"] = {}
-        self.links["inbound"] = {}
+        self.links = {
+            "successor": {}, "chord": {}, "on_demand": {}, "inbound": {}
+        }
 
         self.log_chords = []
 
-        # discovered nodes (via initial peer_state messages or advertisement)
+        # discovered nodes
+        #   self.discovered_nodes is the list of nodes used by the successors policy
+        #   self.discovered_nodes_srv is the list of nodes obtained from peer_state
+        #       notifications
         self.discovered_nodes = []
+        self.discovered_nodes_srv = []
 
         # p2p overlay state
         self.p2p_state = "started"
@@ -124,7 +127,7 @@ class BaseTopologyManager(ControllerModule):
         self.send_msg_srv("con_req", uid, json.dumps(data))
 
         log = "sent CON_REQ (" + con_type + "): " + str(uid[0:3])
-        self.registerCBT('Logger', 'debug', log)
+        self.registerCBT('Logger', 'info', log)
 
     # respond connection
     #   create connection and return a connection acknowledgement and response
@@ -181,7 +184,7 @@ class BaseTopologyManager(ControllerModule):
                     del self.links[con_type][uid]
 
             log = "removed connection: " + str(uid[0:3])
-            self.registerCBT('Logger', 'debug', log)
+            self.registerCBT('Logger', 'info', log)
 
     # clean connections
     #   remove peers with expired time-to-live attributes
@@ -333,7 +336,7 @@ class BaseTopologyManager(ControllerModule):
     ############################################################################
     # successors policy                                                        #
     ############################################################################
-    # [1] A discovers nodes in the network (initially via XMPP; then via advertisements)
+    # [1] A discovers nodes in the network
     #     A requests to link to the closest successive node B as A's successor
     # [2] B accepts A's link request, with A as B's inbound link
     #     B responds to link to A
@@ -485,8 +488,6 @@ class BaseTopologyManager(ControllerModule):
             # extend time-to-live attribute
             self.links["chord"][uid]["ttl"] = time.time() + self.CMConfig["ttl_chord"]
 
-            return
-
     ############################################################################
     # on-demand links policy                                                   #
     ############################################################################
@@ -557,29 +558,25 @@ class BaseTopologyManager(ControllerModule):
 
             # update peer list
             elif msg_type == "peer_state":
-                # when starting, use peer_state for node discovery
-                if self.p2p_state == "started":
-                    self.discovered_nodes.append(msg["uid"])
+                self.discovered_nodes_srv.append(msg["uid"])
 
-                # otherwise, use peer_state to update peer state only
-                else:
-                    if msg["uid"] in self.peers:
-                        # preserve ttl and con_status attributes
-                        ttl = self.peers[msg["uid"]]["ttl"]
-                        con_status = self.peers[msg["uid"]]["con_status"]
+                if msg["uid"] in self.peers:
+                    # preserve ttl and con_status attributes
+                    ttl = self.peers[msg["uid"]]["ttl"]
+                    con_status = self.peers[msg["uid"]]["con_status"]
 
-                        # update ttl attribute
-                        if "online" == msg["status"]:
-                            ttl = time.time() + self.CMConfig["ttl_link_pulse"]
+                    # update ttl attribute
+                    if "online" == msg["status"]:
+                        ttl = time.time() + self.CMConfig["ttl_link_pulse"]
 
-                        # update peer state
-                        self.peers[msg["uid"]] = msg
-                        self.peers[msg["uid"]]["ttl"] = ttl
-                        self.peers[msg["uid"]]["con_status"] = con_status
+                    # update peer state
+                    self.peers[msg["uid"]] = msg
+                    self.peers[msg["uid"]]["ttl"] = ttl
+                    self.peers[msg["uid"]]["con_status"] = con_status
 
-                        if msg["uid"] in self.links["on_demand"].keys():
-                            if "stats" in msg:
-                                self.links["on_demand"][msg["uid"]]["rate"] = msg["stats"][0]["sent_bytes_second"]
+                    if msg["uid"] in self.links["on_demand"].keys():
+                        if "stats" in msg:
+                            self.links["on_demand"][msg["uid"]]["rate"] = msg["stats"][0]["sent_bytes_second"]
 
             elif msg_type == "con_stat":
 
@@ -592,7 +589,7 @@ class BaseTopologyManager(ControllerModule):
                 msg["data"] = json.loads(msg["data"])
 
                 log = "recv con_req (" + msg["data"]["con_type"] + "): " + str(msg["uid"][0:3])
-                self.registerCBT('Logger', 'debug', log)
+                self.registerCBT('Logger', 'info', log)
 
                 self.add_inbound(msg["data"]["con_type"], msg["uid"],
                                     msg["data"]["fpr"])
@@ -602,7 +599,7 @@ class BaseTopologyManager(ControllerModule):
                 msg["data"] = json.loads(msg["data"])
 
                 log = "recv con_ack (" + msg["data"]["con_type"] + "): " + str(msg["uid"][0:3])
-                self.registerCBT('Logger', 'debug', log)
+                self.registerCBT('Logger', 'info', log)
 
                 self.create_connection(msg["uid"], msg["data"]["fpr"])
 
@@ -611,7 +608,28 @@ class BaseTopologyManager(ControllerModule):
                 self.create_connection(msg["uid"], msg["data"])
 
                 log = "recv con_resp: " + str(msg["uid"][0:3])
-                self.registerCBT('Logger', 'debug', log)
+                self.registerCBT('Logger', 'info', log)
+
+            # handle ping message
+            elif msg_type == "ping":
+
+                # add source node to the list of discovered nodes
+                self.discovered_nodes.append(msg["uid"])
+
+                # reply with a ping response message
+                self.send_msg_srv("ping_resp", msg["uid"], self.uid)
+
+                log = "recv ping: " + str(msg["uid"][0:3])
+                self.registerCBT('Logger', 'info', log)
+
+            # handle ping response
+            elif msg_type == "ping_resp":
+
+                # add source node to the list of discovered nodes
+                self.discovered_nodes.append(msg["uid"])
+
+                log = "recv ping_resp: " + str(msg["uid"][0:3])
+                self.registerCBT('Logger', 'info', log)
 
         # handle and forward tincan data packets
         elif(cbt.action == "TINCAN_PACKET"):
@@ -649,7 +667,7 @@ class BaseTopologyManager(ControllerModule):
             self.forward_msg("exact", dst_uid, new_msg)
 
             log = "sent tincan_packet (exact): " + str(dst_uid[0:3])
-            self.registerCBT('Logger', 'debug', log)
+            self.registerCBT('Logger', 'info', log)
 
             # add on-demand link
             self.add_on_demand(dst_uid)
@@ -664,7 +682,7 @@ class BaseTopologyManager(ControllerModule):
                 self.discovered_nodes = list(set(self.discovered_nodes + msg["peer_list"]))
 
                 log = "recv advertisement: " + str(msg["src_uid"][0:3])
-                self.registerCBT('Logger', 'debug', log)
+                self.registerCBT('Logger', 'info', log)
 
             # handle forward packet
             elif msg_type == "forward":
@@ -673,13 +691,13 @@ class BaseTopologyManager(ControllerModule):
                     self.registerCBT('TincanSender', 'DO_INSERT_DATA_PACKET', msg["packet"])
 
                     log = "recv tincan_packet: " + str(msg["src_uid"][0:3])
-                    self.registerCBT('Logger', 'debug', log)
+                    self.registerCBT('Logger', 'info', log)
 
             # handle mark inbound
             elif msg_type == "mark_inbound":
 
                 log = "recv mark_inbound: " + str(msg["src_uid"][0:3])
-                self.registerCBT('Logger', 'debug', log)
+                self.registerCBT('Logger', 'info', log)
 
                 if msg["src_uid"] not in self.links["inbound"].keys():
                     self.add_inbound_link("inbound", msg["src_uid"], None)
@@ -688,7 +706,7 @@ class BaseTopologyManager(ControllerModule):
             elif msg_type == "unmark_inbound":
 
                 log = "recv unmark_inbound: " + str(msg["src_uid"][0:3])
-                self.registerCBT('Logger', 'debug', log)
+                self.registerCBT('Logger', 'info', log)
 
                 if msg["src_uid"] not in self.links["inbound"].keys():
                     self.remove_link("inbound", msg["src_uid"])
@@ -719,53 +737,64 @@ class BaseTopologyManager(ControllerModule):
     # manage topology                                                          #
     ############################################################################
 
+    def ping(self):
+
+        # send up to <num_pings> ping messages to random nodes to test if the
+        # node is available
+        rand_list = random.sample(range(0, len(self.discovered_nodes_srv)), 
+                min(len(self.discovered_nodes_srv), self.CMConfig["num_pings"]))
+
+        for i in rand_list:
+            self.send_msg_srv("ping", self.discovered_nodes_srv[i], self.uid)
+
+        # reset list of discovered nodes (from XMPP)
+        del self.discovered_nodes_srv[:]
+
     def manage_topology(self):
 
-        # this node has started; identify local state and discover nodes
+        # obtain local state
         if self.p2p_state == "started":
-
-            # identified local state and discovered nodes; transistion to the
-            # joining state
-            if self.local_state and self.discovered_nodes:
-
+            if not self.local_state:
+                self.registerCBT('Logger', 'info', "p2p state: started")
+                return
+            else:
+                self.p2p_state = "searching"
                 log = "identified local state: " + str(self.local_state["_uid"][0:3])
-                self.registerCBT('Logger', 'debug', log)
+                self.registerCBT('Logger', 'info', log)
 
-                log = "discovered nodes: " + str(self.discovered_nodes)
-                self.registerCBT('Logger', 'debug', log)
-
-                self.p2p_state = "joining"
-
+        # discover nodes (from XMPP)
+        if self.p2p_state == "searching":
+            if not self.discovered_nodes_srv:
+                self.registerCBT('Logger', 'info', "p2p state: searching")
+                return
             else:
-                self.registerCBT('Logger', 'info', "p2p state: STARTED")
+                self.p2p_state = "connecting"
+                self.discovered_nodes = self.discovered_nodes_srv
 
-        # this node is joining the IPOP peer-to-peer network; bootstrap to the
-        # initial successors to become a leaf node
-        if self.p2p_state == "joining":
+        # connecting to the peer-to-peer network
+        if self.p2p_state == "connecting":
 
-            # send connection requests to the successor nodes
-            if not self.links["successor"].keys():
+            # if there are no discovered nodes, ping nodes
+            if not self.peers and not self.discovered_nodes:
+                self.ping()
+                return
 
-                # bootstrap as a leaf node
-                self.add_successors()
+            log = "discovered nodes: " + str(self.discovered_nodes)
+            self.registerCBT('Logger', 'info', log)
 
-                log = "bootstrapped: " + str(self.links["successor"].keys())
-                self.registerCBT('Logger', 'debug', log)
+            # trim offline connections
+            self.clean_connections()
 
-                self.registerCBT('Logger', 'info', "p2p state: JOINING")
+            # attempt to bootstrap
+            self.add_successors()
 
-            # wait until at least one connection is established
-            elif self.links["successor"].keys():
+            # wait until connected
+            for peer in self.peers.keys():
+                if self.linked(peer):
+                    self.p2p_state = "connected"
+                    break
 
-                for successor in self.links["successor"].keys():
-                    if self.linked(successor):
-                        self.p2p_state = "connected"
-
-            else:
-                self.registerCBT('Logger', 'info', "p2p state: JOINING")
-
-        # this node is connected to the IPOP peer-to-peer network; manage the
-        # topology
+        # connecting or connected to the IPOP peer-to-peer network; manage local topology
         if self.p2p_state == "connected":
 
             # trim offline connections
@@ -782,22 +811,10 @@ class BaseTopologyManager(ControllerModule):
             self.advertise()
 
             if not self.peers:
-                self.p2p_state = "disconnected"
-
+                self.p2p_state = "connecting"
+                self.registerCBT('Logger', 'info', "p2p state: DISCONNECTED")
             else:
                 self.registerCBT('Logger', 'info', "p2p state: CONNECTED")
-
-        # TODO if there are no peers, transition to the 'disconnected' state
-        # If the peer_state notification contained information only about
-        # online peers, then this node could attempt to re-join the network.
-        # However, since peer_state notifications contain information about
-        # any online or offline node in the duration of this execution, it
-        # is unsafe for this node to bootstrap to nodes that are possibly no
-        # longer online.
-        if self.p2p_state == "disconnected":
-
-            print("p2p state: DISCONNECTED - exiting")
-            sys.exit()
 
     def timer_method(self):
 
@@ -809,11 +826,17 @@ class BaseTopologyManager(ControllerModule):
             # manage topology
             self.manage_topology()
 
-            # update local state and peer list
+            # update local state and update the list of discovered nodes (from XMPP)
             self.registerCBT('TincanSender', 'DO_GET_STATE', '')
 
+        # every <interval_ping> seconds
+        if self.interval_counter % self.CMConfig["interval_ping"] == 0:
+
+            # ping to repair potential network partitions
+            self.ping()
+
         # every <interval_central_visualizer> seconds
-        if  self.use_visualizer and self.interval_counter % self.cv_interval == 0:
+        if self.use_visualizer and self.interval_counter % self.cv_interval == 0:
             # send information to central visualizer
             if self.p2p_state != "started":
                 self.visual_debugger()
