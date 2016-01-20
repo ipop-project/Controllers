@@ -32,7 +32,8 @@ class CFX(object):
         self.user = self.CONFIG['CFx']["xmpp_username"]
         self.password = self.CONFIG['CFx']["xmpp_password"]
         self.host = self.CONFIG['CFx']["xmpp_host"]
-        
+        self.port = self.CONFIG['CFx']["xmpp_port"]
+		
         if(self.vpn_type == 'GroupVPN'):
             self.ip4 = self.CONFIG['BaseTopologyManager']["ip4"]
             self.uid = fxlib.gen_uid(self.ip4)  # SHA-1 Hash
@@ -101,7 +102,7 @@ class CFX(object):
 
         # Register to the XMPP server
         fxlib.do_register_service(self.sock, self.user,
-                                    self.password, self.host)
+                                    self.password, self.host, self.port)
         fxlib.do_set_trimpolicy(self.sock,
                                   self.CONFIG["CFx"]["trim_enabled"])
 
