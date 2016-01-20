@@ -3,6 +3,7 @@
         "xmpp_username": "",
         "xmpp_password": "",
         "xmpp_host": "",
+        "xmpp_port": 5222,
         "tincan_logging": 0,
         "vpn_type": "GroupVPN",
         "ip4_mask": 16
