@@ -16,7 +16,6 @@ class CFxHandle(object):
         self.joinEnabled = False
         self.timer_thread = None
         self.terminateFlag = False
-        self.syncLock = threading.Lock()
 
     def __getCBT(self):
 
