@@ -1,0 +1,60 @@
+{
+    "CFx": {
+        "xmpp_username": "sam_pop@dukgo.com",
+        "xmpp_password": "acis-ipop1",
+        "xmpp_host": "dukgo.com",
+        "tincan_logging": 2,
+        "vpn_type": "GroupVPN",
+        "ip4_mask": 16
+    },
+        "Logger": {
+        "controller_logging": "DEBUG"
+    },
+        "TincanDispatcher": {
+        "dependencies": ["Logger"]
+    },
+        "TincanListener" : {
+        "socket_read_wait_time": 15,
+        "dependencies": ["Logger", "TincanDispatcher"]
+    },
+        "TincanSender": {
+        "switchmode": 0,
+        "dependencies": ["Logger"]
+    },
+        "BaseTopologyManager": {
+        "ip4": "172.31.0.100",
+        "sec": true,
+        "multihop": false,
+        "num_successors": 20,
+        "num_chords": 3,
+        "num_on_demand": 2,
+        "num_inbound": 25,
+        "ttl_link_initial": 60,
+        "ttl_link_pulse": 30,
+        "ttl_chord": 180,
+        "ttl_on_demand": 60,
+        "threshold_on_demand": 128,
+        "timer_interval": 1,
+        "interval_management": 15,
+        "use_central_visualizer": false,
+        "interval_central_visualizer": 5,
+        "num_pings": 5,
+        "interval_ping": 300,
+        "dependencies": ["Logger"]
+    },
+        "LinkManager": {
+        "dependencies": ["Logger"]
+    },
+        "StatReport": {
+        "enabled": true,
+        "stat_server": "metrics.ipop-project.org",
+        "stat_server_port": 8080,
+        "timer_interval": 200
+    },
+        "CentralVisualizer": {
+        "enabled": false,
+        "central_visualizer_addr": "",
+        "central_visualizer_port": 51234,
+        "dependencies": ["Logger"]
+    }
+}

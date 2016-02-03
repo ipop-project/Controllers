@@ -87,7 +87,7 @@ class TincanDispatcher(ControllerModule):
                     CBT2 = self.CFxHandle.createCBT(initiator='TincanDispatcher',
                                                recipient='NetworkLeaderElector',
                                                action='TINCAN_MSG',
-                                               data=msg)
+                                               data=packet)
                     
                     self.CFxHandle.submitCBT(CBT2)
 
