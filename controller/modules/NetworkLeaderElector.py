@@ -92,7 +92,7 @@ class NetworkLeaderElector(ControllerModule):
                 }
         for uid in self.peers.keys():
             if (self.peers[uid] == "online"):
-                self.send_msg_icc(uid, my_msg)
+                self.send_msg_icc(uid, msg)
         # We also at this point check if any of the 
         # pings/Joins sent to the leader have timed out.
         if (self.MSM_State = "JOINING" and self.LCM_State == "REMOTE"):
