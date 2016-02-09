@@ -84,12 +84,12 @@ class NetworkLeaderElector(ControllerModule):
     def timer_method(self):
         # Send out LSA Binding's every iteration 
         # May be a issue in large all to all network.
-        payload = self.checkState()[1]
-        payload[2] = self.uid # change source to self.
+        Binding = self.checkState()[1]
+        Binding["source"] = self.uid # change source to self.
         msg = {
                 "msg_type": "LSA",
                 "src_uid": self.uid,
-                "payload": payload
+                "Binding": Binding
                 }
         for uid in self.peers.keys():
             if (self.peers[uid] == "online"):
@@ -289,8 +289,9 @@ class NetworkLeaderElector(ControllerModule):
             curr_state = self.checkState()[0]
             Binding = self.checkState()[1]
             if (msg_type == "LSA"):
+                msg_Binding = msg.get("Binding",none)
                 if (curr_state == "EMPTY"):
-                    if (msg.get("priority") > Binding.get("priority")):
+                    if (msg_Binding.get("priority") > Binding.get("priority")):
                         # set leader ping timeout
                         # set retry value
                         # start pinging leader
@@ -301,7 +302,7 @@ class NetworkLeaderElector(ControllerModule):
                     else:
                         self.changeState("LOCAL",msg)
                 elif (curr_state == "LOCAL"):
-                    if (msg.get("priority") > Binding.get("priority")):
+                    if (msg_Binding.get("priority") > Binding.get("priority")):
                         # set leader ping timeout
                         # set retry value
                         # start pinging leader
@@ -313,7 +314,7 @@ class NetworkLeaderElector(ControllerModule):
                         # Do nothing-stay in local state
                         pass
                 elif (curr_state == "REMOTE"):
-                    if (msg.get("priority") > Binding.get("priority")):
+                    if (msg_Binding.get("priority") > Binding.get("priority")):
                         # set leader ping timeout
                         # set retry value
                         # start pinging leader
@@ -327,7 +328,7 @@ class NetworkLeaderElector(ControllerModule):
                         # Do nothing stay in the same state.
                         pass
                 elif (curr_state == "PENDING"):
-                    if (msg.get("priority") > Binding.get("priority")):
+                    if (msg_Binding.get("priority") > Binding.get("priority")):
                         # set leader ping timeout
                         # set retry value
                         # start pinging leader

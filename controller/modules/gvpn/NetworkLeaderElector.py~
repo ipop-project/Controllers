@@ -84,12 +84,12 @@ class NetworkLeaderElector(ControllerModule):
     def timer_method(self):
         # Send out LSA Binding's every iteration 
         # May be a issue in large all to all network.
-        payload = self.checkState()[1]
-        payload[2] = self.uid # change source to self.
+        Binding = self.checkState()[1]
+        Binding["source"] = self.uid # change source to self.
         msg = {
                 "msg_type": "LSA",
                 "src_uid": self.uid,
-                "payload": payload
+                "Binding": Binding
                 }
         for uid in self.peers.keys():
             if (self.peers[uid] == "online"):
