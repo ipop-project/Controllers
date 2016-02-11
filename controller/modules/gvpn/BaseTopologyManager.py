@@ -655,7 +655,7 @@ class BaseTopologyManager(ControllerModule):
                 dst_uid = self.ip4_uid_table[dst_ip4]
             except KeyError: # FIXME
                 log = "recv illegal tincan_packet: src=" + str(src_ip4) + " dst=" + str(dst_ip4)
-                self.registerCBT('Logger', 'debug', log)
+                self.registerCBT('Logger', 'warning', log)
                 return
 
             # send forwarded message
