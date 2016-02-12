@@ -2,6 +2,7 @@
 import controller.framework.fxlib as fxlib
 from controller.framework.ControllerModule import ControllerModule
 import time
+import copy
 
 class NetworkLeaderElector(ControllerModule):
     def __init__(self, CFxHandle, paramDict):
@@ -84,16 +85,18 @@ class NetworkLeaderElector(ControllerModule):
     def timer_method(self):
         # Send out LSA Binding's every iteration 
         # May be a issue in large all to all network.
-        Binding = self.checkState()[1]
-        Binding["source"] = self.uid # change source to self.
+        binding_lsa = self.checkState()[1]
+        binding = copy.deepcopy(binding_lsa)
+        binding_lsa["source"] = self.uid # change source to self.
         msg = {
                 "msg_type": "LSA",
                 "src_uid": self.uid,
-                "Binding": Binding
+                "Binding": binding_lsa
                 }
         for uid in self.peers.keys():
             if (self.peers[uid] == "online"):
                 self.send_msg_icc(uid, msg)
+                self.log_msg("XXXXXXXXXXXXXXXXXXXXXXXXXXX")
         # We also at this point check if any of the 
         # pings/Joins sent to the leader have timed out.
         if (self.MSM_State == "JOINING" and self.LCM_State == "REMOTE"):
@@ -101,20 +104,21 @@ class NetworkLeaderElector(ControllerModule):
                 if (self.join_retry_counter > self.join_retries):
                     self.changeState("PENDING")
                 else:
-                    self.join_retry_counter+1
+                    self.join_retry_counter+=1
                     self.joinTimerStart = int(time.time())
-                    self.send_join()
+                    self.send_Join(binding)
         if (self.LCM_State == "REMOTE"):
+            self.log_msg("TIMER "+str(int(time.time()))+" "+str(self.pingTimerStart)+" "+str(self.ping_retry_counter))
             if ( int(time.time() - self.pingTimerStart) > self.timeout):
                 if (self.ping_retry_counter > self.ping_retries):
                     self.changeState("PENDING")
                 else:
-                    self.ping_retry_counter+1
+                    self.ping_retry_counter+=1
                     self.pingTimerStart = int(time.time())
-                    self.send_PingToLeader()
+                    self.send_PingToLeader(binding)
         self.log_msg("State "+self.LCM_State+ " "+self.MSM_State+" Binding "+str(self.Binding))
                 
-    def changeState(self,toState,msg):
+    def changeState(self,toState,msg=None):
         ####   LOCK HERE ######
         self.CFxHandle.syncLock.acquire()
         if (toState == "REMOTE"):
@@ -151,14 +155,22 @@ class NetworkLeaderElector(ControllerModule):
         state =  [self.LCM_State,self.Binding]
         #### UNLOCK ####
         self.CFxHandle.syncLock.release()
-        return state
+        return copy.deepcopy(state)
         
-    def send_PingToLeader(self,stack = []):
+    def send_PingToLeader(self,binding=None):
+        if (binding != None):
+            target_uid = binding.get("leader")
+            source = binding.get("source")
+        else:
+            target_uid = self.Binding.get("leader")
+            source = self.Binding.get("source")
+        stack = []
+        stack.append(self.uid)
         msg = {
                 "msg_type": "PING_LEADER",
                 "src_uid": self.uid,
-                "target_uid" : self.Binding.get("leader"),
-                "stack": stack.append(self.uid),
+                "target_uid" : target_uid,
+                "stack": stack,
                 "TTL": 0
                 }
         # payload is a stack, to help route ACK back
@@ -166,7 +178,7 @@ class NetworkLeaderElector(ControllerModule):
         # link might exist.
         # The ICC message has to be sent to the 
         # source in binding.
-        nexthop_uid = self.checkState()[1].get("source")
+        nexthop_uid = source
         if (self.peers[nexthop_uid] == "online"):
             self.send_msg_icc(nexthop_uid, msg)
             
@@ -180,16 +192,23 @@ class NetworkLeaderElector(ControllerModule):
         if (self.peers[nexthop_uid] == "online"):
             self.send_msg_icc(nexthop_uid, msg)
             
-    def send_Join(self,stack=[]):
-        Binding = self.checkState[1]
+    def send_Join(self,binding=None):
+        if (binding != None):
+            target_uid = binding.get("leader")
+            source = binding.get("source")
+        else:
+            target_uid = self.Binding.get("leader")
+            source = self.Binding.get("source")
+        stack = []
+        stack.append(self.uid)
         msg = {
                 "msg_type": "JOIN",
                 "src_uid": self.uid,
-                "target_uid" : Binding.get("leader"),
-                "stack": stack.append(self.uid),
+                "target_uid" : target_uid,
+                "stack": stack,
                 "TTL": 0
                 }
-        nexthop_uid = Binding.get("source")
+        nexthop_uid = source
         if (self.peers[nexthop_uid] == "online"):
             self.send_msg_icc(nexthop_uid, msg)
     
@@ -203,16 +222,24 @@ class NetworkLeaderElector(ControllerModule):
         if (self.peers[nexthop_uid] == "online"):
             self.send_msg_icc(nexthop_uid, msg)
             
-    def send_Leave(self,stack=[]):
+    def send_Leave(self,binding=None):
+        if (binding != None):
+            target_uid = binding.get("leader")
+            source = binding.get("source")
+        else:
+            target_uid = self.Binding.get("leader")
+            source = self.Binding.get("source")
+        stack = []
         Binding = self.checkState()[1]
+        stack.append(self.uid)
         msg = {
                 "msg_type": "LEAVE",
                 "src_uid": self.uid,
-                "target_uid" : Binding.get("leader"),
-                "stack": stack.append(self.uid),
+                "target_uid" : target_uid,
+                "stack": stack,
                 "TTL": 0
                 }
-        nexthop_uid = Binding.get("source")
+        nexthop_uid = source
         if (self.peers[nexthop_uid] == "online"):
             self.send_msg_icc(nexthop_uid, msg)
     # This method forwards messages using ICC 
@@ -221,19 +248,19 @@ class NetworkLeaderElector(ControllerModule):
     def forward_msg(self,msg):
         Binding = self.checkState()[1]
         if (msg.get("msg_type") == "PING_LEADER"):
-            msg["stack"] = msg["stack"].append(self.uid)
+            msg["stack"].append(self.uid)
             msg["TTL"] = msg["TTL"] + 1
             nexthop_uid = Binding.get("source")
         elif (msg.get("msg_type") == "PING_LEADER_ACK"):
             nexthop_uid = msg["stack"].pop()
         elif (msg.get("msg_type") == "JOIN"):
-            msg["stack"] = msg["stack"].append(self.uid)
+            msg["stack"].append(self.uid)
             msg["TTL"] = msg["TTL"] + 1
             nexthop_uid = Binding.get("source")
         elif (msg.get("msg_type") == "JOIN_ACK"):
             nexthop_uid = msg["stack"].pop()
         elif (msg.get("msg_type") == "LEAVE"):
-            msg["stack"] = msg["stack"].append(self.uid)
+            msg["stack"].append(self.uid)
             msg["TTL"] = msg["TTL"] + 1
             nexthop_uid = Binding.get("source")
         # Whatever be the type of msg above we 
@@ -253,6 +280,10 @@ class NetworkLeaderElector(ControllerModule):
             if msg_type == "local_state":
                 self.uid = msg["_uid"]
                 self.ip4 = msg["_ip4"]
+                # This happens before any ICC message is exchanged
+                # and can be regarded as part of initialization
+                if (self.LCM_State == "EMPTY"):
+                    self.Binding = {"priority":self.priority,"leader":self.uid,"source":self.uid}
                 
             elif msg_type == "peer_state":
                 peer_uid = msg["uid"]
@@ -268,6 +299,7 @@ class NetworkLeaderElector(ControllerModule):
         elif (cbt.action == "ICC_MSG"):
             msg = cbt.data
             msg_type = msg.get("msg_type", None)
+            self.log_msg("Received ICC Msg " + msg_type + "\n"+str(msg))
             
             if (msg_type == "nle1"):
                 log_cbt = self.CFxHandle.createCBT(initiator='NetworkLeaderElector',
@@ -289,31 +321,34 @@ class NetworkLeaderElector(ControllerModule):
             curr_state = self.checkState()[0]
             Binding = self.checkState()[1]
             if (msg_type == "LSA"):
+                self.log_msg("LSA----------------   "+str(msg))
+                msg_Binding = msg.get("Binding",None)
+                self.log_msg("msg_Binding----------------   "+str(msg_Binding))
                 if (curr_state == "EMPTY"):
-                    if (msg.get("priority") > Binding.get("priority")):
+                    if (msg_Binding.get("priority") > Binding.get("priority")):
                         # set leader ping timeout
                         # set retry value
                         # start pinging leader
                         # send join to leader
                         # clear membership table
                         # set state to REMOTE
-                        self.changeState("REMOTE",msg)
+                        self.changeState("REMOTE",msg_Binding)
                     else:
-                        self.changeState("LOCAL",msg)
+                        self.changeState("LOCAL",msg_Binding)
                 elif (curr_state == "LOCAL"):
-                    if (msg.get("priority") > Binding.get("priority")):
+                    if (msg_Binding.get("priority") > Binding.get("priority")):
                         # set leader ping timeout
                         # set retry value
                         # start pinging leader
                         # send join to leader
                         # clear membership table
                         # set state to REMOTE
-                        self.changeState("REMOTE",msg)
+                        self.changeState("REMOTE",msg_Binding)
                     else:
                         # Do nothing-stay in local state
                         pass
                 elif (curr_state == "REMOTE"):
-                    if (msg.get("priority") > Binding.get("priority")):
+                    if (msg_Binding.get("priority") > Binding.get("priority")):
                         # set leader ping timeout
                         # set retry value
                         # start pinging leader
@@ -322,21 +357,21 @@ class NetworkLeaderElector(ControllerModule):
                         # send join to new leader
                         # clear membership table
                         # set state to REMOTE
-                        self.changeState("REMOTE",msg)
+                        self.changeState("REMOTE",msg_Binding)
                     else:
                         # Do nothing stay in the same state.
                         pass
                 elif (curr_state == "PENDING"):
-                    if (msg.get("priority") > Binding.get("priority")):
+                    if (msg_Binding.get("priority") > Binding.get("priority")):
                         # set leader ping timeout
                         # set retry value
                         # start pinging leader
                         # send join to leader
                         # clear membership table
                         # set state to REMOTE
-                        self.changeState("REMOTE",msg)
+                        self.changeState("REMOTE",msg_Binding)
                     else:
-                        self.changeState("LOCAL",msg)
+                        self.changeState("LOCAL",msg_Binding)
             elif (msg_type == "PING_LEADER"):
                 # Am I the intended recepient, if not put my UID in the stack
                 # and forward to src_uid in my Binding.
@@ -345,6 +380,7 @@ class NetworkLeaderElector(ControllerModule):
                 else:
                     if (msg.get("target_uid")== self.uid and curr_state == "LOCAL"):
                         # Return a PING_LEADER_ACK message
+                        stack = msg.get("stack")
                         self.send_PingLeaderAck(stack)
             elif (msg_type == "JOIN"):
                 if (msg.get("target_uid") != self.uid and msg["TTL"]<10):
@@ -353,7 +389,8 @@ class NetworkLeaderElector(ControllerModule):
                     # Add member to member's list
                     self.members.append(msg.get("src_uid"))
                     # return JOIN_ACK message
-                    self.send_Join_Ack()
+                    stack = msg.get("stack")
+                    self.send_Join_Ack(stack)
             elif (msg_type == "LEAVE"):
                 if (msg.get("target_uid") != self.uid and msg["TTL"]<10):
                     self.forward_msg(msg)
@@ -386,7 +423,7 @@ class NetworkLeaderElector(ControllerModule):
                 else:
                     self.forward_msg(msg)
             
-            self.log_msg("Received ICC Msg " + msg_type + "\n"+str(msg))
+            self.log_msg("Processed ICC Msg " + msg_type + "\n"+str(msg))
                 
             
     def terminate(self):
