@@ -27,6 +27,9 @@ class NetworkLeaderElector(ControllerModule):
         self.join_retry_counter = 0
         self.ping_retry_counter = 0
         self.timeout = 30 # timeout in seconds -- to be read from config file.
+        # values for pending timer
+        self.pending_timeout = 30
+        self.pendingTimerStart = 0
         # Binding LSA <Leader-Priority,Leader-UID,Source-UID>
         self.Binding = {"priority":self.priority,"leader":self.uid,"source":self.uid}
     
@@ -85,7 +88,7 @@ class NetworkLeaderElector(ControllerModule):
     def timer_method(self):
         # Send out LSA Binding's every iteration 
         # May be a issue in large all to all network.
-        binding_lsa = self.checkState()[1]
+        LCM_State,binding_lsa,MSM_State = self.checkState()
         binding = copy.deepcopy(binding_lsa)
         binding_lsa["source"] = self.uid # change source to self.
         msg = {
@@ -94,12 +97,12 @@ class NetworkLeaderElector(ControllerModule):
                 "Binding": binding_lsa
                 }
         for uid in self.peers.keys():
-            if (self.peers[uid] == "online"):
+            if (self.peers[uid] == "online" and LCM_State != "PENDING"):
                 self.send_msg_icc(uid, msg)
                 self.log_msg("XXXXXXXXXXXXXXXXXXXXXXXXXXX")
         # We also at this point check if any of the 
         # pings/Joins sent to the leader have timed out.
-        if (self.MSM_State == "JOINING" and self.LCM_State == "REMOTE"):
+        if (MSM_State == "JOINING" and LCM_State == "REMOTE"):
             if ( int(time.time() - self.joinTimerStart) > self.timeout):
                 if (self.join_retry_counter > self.join_retries):
                     self.changeState("PENDING")
@@ -107,7 +110,7 @@ class NetworkLeaderElector(ControllerModule):
                     self.join_retry_counter+=1
                     self.joinTimerStart = int(time.time())
                     self.send_Join(binding)
-        if (self.LCM_State == "REMOTE"):
+        if (LCM_State == "REMOTE"):
             self.log_msg("TIMER "+str(int(time.time()))+" "+str(self.pingTimerStart)+" "+str(self.ping_retry_counter))
             if ( int(time.time() - self.pingTimerStart) > self.timeout):
                 if (self.ping_retry_counter > self.ping_retries):
@@ -116,6 +119,10 @@ class NetworkLeaderElector(ControllerModule):
                     self.ping_retry_counter+=1
                     self.pingTimerStart = int(time.time())
                     self.send_PingToLeader(binding)
+        if (LCM_State == "PENDING"):
+            if ( int(time.time() - self.pendingTimerStart) > self.pending_timeout):
+                self.changeState("LOCAL")
+                
         self.log_msg("State "+self.LCM_State+ " "+self.MSM_State+" Binding "+str(self.Binding))
                 
     def changeState(self,toState,msg=None):
@@ -142,8 +149,9 @@ class NetworkLeaderElector(ControllerModule):
             self.LCM_State = "LOCAL"
                
         elif (toState == "PENDING"):
-            self.Binding = {"priority":self.priority,"leader":self.uid,"source":self.uid}
+            #self.Binding = {"priority":self.priority,"leader":self.uid,"source":self.uid}
             self.LCM_State = "PENDING"
+            self.pendingTimerStart = int(time.time())
             
         self.log_msg("State Change "+self.LCM_State+ " "+self.MSM_State+" Binding "+str(self.Binding))
         #### UNLOCK HERE ######
@@ -152,7 +160,7 @@ class NetworkLeaderElector(ControllerModule):
     def checkState(self):
         #### LOCK ####
         self.CFxHandle.syncLock.acquire()
-        state =  [self.LCM_State,self.Binding]
+        state =  [self.LCM_State,self.Binding,self.MSM_State]
         #### UNLOCK ####
         self.CFxHandle.syncLock.release()
         return copy.deepcopy(state)
@@ -363,16 +371,22 @@ class NetworkLeaderElector(ControllerModule):
                         # Do nothing stay in the same state.
                         pass
                 elif (curr_state == "PENDING"):
-                    if (msg_Binding.get("priority") > Binding.get("priority")):
+                    if (msg_Binding.get("priority") > self.priority):
                         # set leader ping timeout
                         # set retry value
                         # start pinging leader
                         # send join to leader
                         # clear membership table
                         # set state to REMOTE
-                        self.changeState("REMOTE",msg_Binding)
-                    else:
-                        self.changeState("LOCAL",msg_Binding)
+                        # if I am in pending state beacause of
+                        # a unreachable leader, i should not accept
+                        # LSA's advertising the same node as leader
+                        # till i do a timeout, it's qiuite possible that
+                        # other node might have not realized that the leader is 
+                        # down.
+                        if (msg_Binding.get("leader") != Binding.get("leader")):
+                            self.changeState("REMOTE",msg_Binding)
+                    
             elif (msg_type == "PING_LEADER"):
                 # Am I the intended recepient, if not put my UID in the stack
                 # and forward to src_uid in my Binding.
