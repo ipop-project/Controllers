@@ -17,22 +17,26 @@ class NetworkLeaderElector(ControllerModule):
     #################################
         self.LCM_State = "EMPTY"
         self.MSM_State = "NONMEMBER"
-        self.priority = 10 # must later read from config file
+        self.priority = self.CMConfig.get("priority")
         self.members = []
         self.joinTimerStart = 0
         self.pingTimerStart = 0
         self.leaveTimerStart = 0
-        self.join_retries = 5 # must later read from config file.
-        self.ping_retries = 5
+        self.join_retries = self.CMConfig.get("join_retries")
+        self.ping_retries = self.CMConfig.get("ping_retries")
         self.join_retry_counter = 0
         self.ping_retry_counter = 0
-        self.timeout = 30 # timeout in seconds -- to be read from config file.
+        self.timeout = self.CMConfig.get("timeout")
         # values for pending timer
-        self.pending_timeout = 30
+        self.pending_timeout = self.CMConfig.get("pending_timeout")
         self.pendingTimerStart = 0
         # Binding LSA <Leader-Priority,Leader-UID,Source-UID>
         self.Binding = {"priority":self.priority,"leader":self.uid,"source":self.uid}
-    
+        self.log_msg("join_retries "+str(self.join_retries)+" ping_retries "+\
+            str(self.ping_retries)+" timeout "+str(self.timeout)+\
+                " pending_timeout "+str(self.pending_timeout)+\
+                " priority "+str(self.priority))
+                
     def initialize(self):
         logCBT = self.CFxHandle.createCBT(initiator='NetworkLeaderElector',
                                             recipient='Logger',
@@ -58,7 +62,7 @@ class NetworkLeaderElector(ControllerModule):
 	# Send message over XMPP
 	# - msg_type -> message type attribute    
 	# - uid -> UID of destination node
-	# - mag -> message
+	# - msg -> message
 	def send_msg_srv(self, msg_type,uid, msg):
 	    cbtdata = {"method": msg_type, "overlay_id":1, "uid":uid, "data": msg}
 	    self.registerCBT('TincanSender', 'DO_SEND_MSG', cbtdata)

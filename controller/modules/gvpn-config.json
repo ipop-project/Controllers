@@ -60,6 +60,11 @@
         "NetworkLeaderElector":{
         "enabled": true,
         "timer_interval": 3,
+        "priority": 10,
+        "join_retries": 1,
+        "ping_retries": 1,
+        "timeout": 30,
+        "pending_timeout": 30,
         "dependencies": ["BaseTopologyManager"]
     }
 }
