@@ -850,7 +850,9 @@ class BaseTopologyManager(ControllerModule):
 
         # list only connected links
         new_msg = {
+            "type": "BaseTopologyManager",
             "uid": self.uid,
+            "p2p_state": self.p2p_state,
             "successor": [],
             "chord": [],
             "on_demand": [],

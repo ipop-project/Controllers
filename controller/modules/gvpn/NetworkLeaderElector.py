@@ -12,6 +12,8 @@ class NetworkLeaderElector(ControllerModule):
         self.peers = {} # populated after notifcations from tincan.
         self.uid = "" 
         self.ip4 = ""
+        # visualizer_enabled/disabled
+        self.visualizer = True
     #################################
     #   NLE   Variables             #
     #################################
@@ -127,6 +129,9 @@ class NetworkLeaderElector(ControllerModule):
             if ( int(time.time() - self.pendingTimerStart) > self.pending_timeout):
                 self.changeState("LOCAL")
                 
+        # Call visualizer to update the state
+        if (self.visualizer):
+            self.visual_debugger(LCM_State,MSM_State)
         self.log_msg("State "+self.LCM_State+ " "+self.MSM_State+" Binding "+str(self.Binding))
                 
     def changeState(self,toState,msg=None):
@@ -447,6 +452,15 @@ class NetworkLeaderElector(ControllerModule):
             
     def terminate(self):
         pass
+        
+    def visual_debugger(self,LCM_State,MSM_State):
+        debug_msg = {
+                        "type": "NLE",
+                        "uid": self.uid,
+                        "LCM_State": LCM_State,
+                        "MSM_State": MSM_State
+                    }
+        self.registerCBT('CentralVisualizer', 'SEND_INFO', debug_msg)
             
         
 '''
