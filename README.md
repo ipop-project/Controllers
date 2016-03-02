@@ -22,7 +22,7 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
 3. Run IPOP-Tincan.
 
-    ```cd ../..;  sudo ./ipop-tincan &> tin.log &  ```
+    ```cd ../..;  sudo -b ./ipop-tincan &> tin.log ```
 
 4. Run SocialVPN Controller.
 
@@ -48,7 +48,7 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 
 3. Run IPOP-Tincan.
 
-    ```cd ../.. ; sudo ./ipop-tincan &> tin.log &  ```
+    ```cd ../.. ; sudo -b ./ipop-tincan &> tin.log ```
 
 4. Run GroupVPN Controller.
 
