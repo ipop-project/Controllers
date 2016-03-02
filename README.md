@@ -72,6 +72,6 @@ ps aux | grep -v grep | grep controller.Controller | awk '{print $2}' | xargs su
 
 ### Notes
 
-[1] See https://github.com/ipop-project/documentation/wiki/Configuration for a detailed description of options for controller configuartion.
+[1] See https://github.com/ipop-project/ipop-project.github.io/wiki/Configuration for a detailed description of options for controller configuartion.
 
-[2] See https://github.com/ipop-project/documentation/wiki under _Building the code_ for guides on building IPOP-Tincan from source.
+[2] See https://github.com/ipop-project/ipop-project.github.io/wiki/Building-the-Code for instructions on building IPOP-Tincan from source.
