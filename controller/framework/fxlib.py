@@ -104,9 +104,9 @@ def do_set_local_ip(sock, uid, ip4, ip6, ip4_mask, ip6_mask, subnet_mask,
                      ip4_mask=ip4_mask, ip6_mask=ip6_mask,
                      subnet_mask=subnet_mask, switchmode=switchmode)
 
-def do_register_service(sock, username, password, host):
+def do_register_service(sock, username, password, host, port):
     return make_call(sock, m="register_svc", username=username,
-                     password=password, host=host)
+                     password=password, host=host, port=port)
 
 def do_set_trimpolicy(sock, trim_enabled):
     return make_call(sock, m="set_trimpolicy", trim_enabled=trim_enabled)
