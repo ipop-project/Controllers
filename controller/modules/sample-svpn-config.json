@@ -49,6 +49,7 @@
         "enabled": true,
         "stat_server": "metrics.ipop-project.org",
         "stat_server_port": 8080,
-        "timer_interval": 200
+        "timer_interval": 200,
+        "dependencies": ["Logger"]
     }
 }
