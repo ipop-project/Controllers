@@ -1,55 +1,63 @@
 {
-    "CFx": {
-        "xmpp_username": "",
-        "xmpp_password": "",
-        "xmpp_host": "",
-        "xmpp_port": 5222,
-        "tincan_logging": 0,
-        "vpn_type": "SocialVPN",
-        "ip4_mask": 24
-    },
-        "Logger": {
-        "controller_logging": "ERROR"
-    },
-        "TincanDispatcher": {
-        "dependencies": ["Logger"]
-    },
-	    "TincanListener" : {
-        "socket_read_wait_time": 15,
-        "dependencies": ["Logger", "TincanDispatcher"]
-    },
-        "TincanSender": {
-        "dependencies": ["Logger"]
-    },
-        "Monitor": {
-        "trigger_con_wait_time": 120,
-        "dependencies": ["Logger"]
-    },
-        "BaseTopologyManager": {
-        "link_trimmer_wait_time": 30,
-        "on-demand_connection": false,
-        "on-demand_inactive_timeout": 600,
-        "multihop": false,
-        "sec": true,
-        "timer_interval": 15,
-        "dependencies": ["Logger"]
-    },
-        "LinkManager": {
-        "dependencies": ["Logger"]
-    },
-        "AddressMapper": {
-        "ip4": "172.31.0.100",
-        "dependencies": ["Logger"]
-    },
-        "Watchdog": {
-        "timer_interval": 10,
-        "dependencies": ["Logger"]
-    },
-        "StatReport": {
-        "enabled": true,
-        "stat_server": "metrics.ipop-project.org",
-        "stat_server_port": 8080,
-        "timer_interval": 200,
-        "dependencies": ["Logger"]
-    }
+  "CFx": {
+    "xmpp_username": "",
+    "xmpp_password": "",
+    "xmpp_host": "",
+    "xmpp_port": 5222,
+    "tincan_logging": 0,
+    "vpn_type": "SocialVPN",
+    "ip4_mask": 24
+  },
+  "Logger": {
+    "controller_logging": "ERROR"
+  },
+  "TincanDispatcher": {
+    "dependencies": ["Logger"]
+  },
+  "TincanListener" : {
+    "socket_read_wait_time": 15,
+    "dependencies": ["Logger", "TincanDispatcher"]
+  },
+  "TincanSender": {
+    "dependencies": ["Logger"]
+  },
+  "Monitor": {
+    "trigger_con_wait_time": 120,
+    "use_central_visualizer": false,
+    "dependencies": ["Logger"]
+  },
+  "BaseTopologyManager": {
+    "link_trimmer_wait_time": 30,
+    "on-demand_connection": false,
+    "on-demand_inactive_timeout": 600,
+    "multihop": false,
+    "sec": true,
+    "timer_interval": 15,
+    "dependencies": ["Logger"]
+  },
+  "LinkManager": {
+    "dependencies": ["Logger"]
+  },
+  "AddressMapper": {
+    "ip4": "172.31.0.100",
+    "dependencies": ["Logger"]
+  },
+  "Watchdog": {
+    "timer_interval": 10,
+    "dependencies": ["Logger"]
+  },
+  "StatReport": {
+    "enabled": true,
+    "stat_server": "metrics.ipop-project.org",
+    "stat_server_port": 8080,
+    "timer_interval": 200,
+    "dependencies": ["Logger"]
+  },
+  "CentralVisualizer": {
+    "enabled": false,
+    "name": "",
+    "central_visualizer_addr": "",
+    "central_visualizer_port": 51234,
+    "dependencies": ["Logger"]
+  }
 }

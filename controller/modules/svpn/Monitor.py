@@ -11,6 +11,10 @@ class Monitor(ControllerModule):
         self.CFxHandle = CFxHandle
         self.CMConfig = paramDict
 
+        self.use_visualizer = False
+        if 'use_central_visualizer' in self.CMConfig:
+            self.use_visualizer = self.CMConfig["use_central_visualizer"]
+
         self.peerlist = set()
         self.peers = {}
         self.peers_ip4 = {}
@@ -177,7 +181,26 @@ class Monitor(ControllerModule):
                             self.trigger_conn_request(msg)
 
     def timer_method(self):
-        pass
+        if self.use_visualizer and self.ipop_state is not None:
+            self.visual_debugger()
+
+    # visual debugger
+    #   send information to the central visualizer
+    def visual_debugger(self):
+
+        new_msg = {
+            "type": "Monitor",
+            "uid": self.ipop_state["_uid"],
+            "ip4": self.ipop_state["_ip4"],
+            "state": "connected",
+            "links": self.peers.keys()
+        }
+
+        TincanCBT = self.CFxHandle.createCBT(initiator='Monitor',
+                                             recipient='CentralVisualizer',
+                                             action='SEND_INFO',
+                                             data=new_msg)
+        self.CFxHandle.submitCBT(TincanCBT)
 
     def trigger_conn_request(self, peer):
         if "fpr" not in peer and peer["xmpp_time"] < \

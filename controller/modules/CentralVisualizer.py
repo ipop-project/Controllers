@@ -27,6 +27,9 @@ class CentralVisualizer(ControllerModule):
 
     def processCBT(self, cbt):
         if(cbt.action == 'SEND_INFO'):
+
+            cbt.data["name"] = self.CMConfig["name"]
+
             message = json.dumps(cbt.data).encode("utf8")
             self.vis_dbg_sock.sendto(message, self.vis_address)
 
