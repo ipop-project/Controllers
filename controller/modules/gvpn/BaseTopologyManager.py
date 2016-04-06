@@ -840,8 +840,7 @@ class BaseTopologyManager(ControllerModule):
         # every <interval_central_visualizer> seconds
         if self.use_visualizer and self.interval_counter % self.cv_interval == 0:
             # send information to central visualizer
-            if self.p2p_state != "started":
-                self.visual_debugger()
+            self.visual_debugger()
 
     def terminate(self):
         pass
@@ -854,16 +853,16 @@ class BaseTopologyManager(ControllerModule):
         new_msg = {
             "type": "BaseTopologyManager",
             "uid": self.uid,
-            "p2p_state": self.p2p_state,
-            "successor": [],
-            "chord": [],
-            "on_demand": [],
-            "inbound": []
+            "ip4": self.ip4,
+            "state": self.p2p_state,
+            "links": {
+                "successor": [], "chord": [], "on_demand": [], "inbound": []
+            }
         }
 
         for con_type in ["successor", "chord", "on_demand", "inbound"]:
             for peer in self.links[con_type].keys():
                 if self.linked(peer):
-                    new_msg[con_type].append(peer)
+                    new_msg["links"][con_type].append(peer)
 
         self.registerCBT('CentralVisualizer', 'SEND_INFO', new_msg)
