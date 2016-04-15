@@ -21,7 +21,6 @@ class BaseTopologyManager(ControllerModule):
 
         self.uid = ""
         self.ip4 = ""
-        self.local_state = {}
 
         # peers (linked nodes)
         self.peers = {}
@@ -30,10 +29,9 @@ class BaseTopologyManager(ControllerModule):
         #   self.links["successor"] = { uid: None }
         #   self.links["chord"]     = { uid: {"log_uid": log_uid, "ttl": ttl} }
         #   self.links["on_demand"] = { uid: {"ttl": ttl, "rate": rate} }
-        #   self.links["inbound"]   = { uid: None }
 
         self.links = {
-            "successor": {}, "chord": {}, "on_demand": {}, "inbound": {}
+            "successor": {}, "chord": {}, "on_demand": {}
         }
 
         self.log_chords = []
@@ -120,13 +118,13 @@ class BaseTopologyManager(ControllerModule):
 
         # send connection request
         data = {
-            "fpr": self.local_state["_fpr"],
+            "fpr": self.ipop_state["_fpr"],
             "con_type": con_type
         }
 
         self.send_msg_srv("con_req", uid, json.dumps(data))
 
-        log = "sent CON_REQ (" + con_type + "): " + str(uid[0:3])
+        log = "sent con_req ({0}): {1}".format(con_type, uid)
         self.registerCBT('Logger', 'info', log)
 
     # respond connection
@@ -138,7 +136,7 @@ class BaseTopologyManager(ControllerModule):
 
         # send con_ack message
         data = {
-            "fpr": self.local_state["_fpr"],
+            "fpr": self.ipop_state["_fpr"],
             "con_type": con_type
         }
 
@@ -151,7 +149,7 @@ class BaseTopologyManager(ControllerModule):
     def create_connection(self, uid, data):
 
         # FIXME check_collision was removed
-        fpr_len = len(self.local_state["_fpr"])
+        fpr_len = len(self.ipop_state["_fpr"])
         fpr = data[:fpr_len]
         nid = 1
         sec = self.CMConfig["sec"]
@@ -166,7 +164,6 @@ class BaseTopologyManager(ControllerModule):
 
     def linked(self, uid):
         if uid in self.peers:
-#            if self.peers[uid]["con_status"] == "online":
             if "fpr" in self.peers[uid]:
                 return True
         return False
@@ -179,11 +176,11 @@ class BaseTopologyManager(ControllerModule):
             self.registerCBT('LinkManager', 'TRIM_LINK', uid)
             del self.peers[uid]
 
-            for con_type in ["successor", "chord", "on_demand", "inbound"]:
+            for con_type in ["successor", "chord", "on_demand"]:
                 if uid in self.links[con_type].keys():
                     del self.links[con_type][uid]
 
-            log = "removed connection: " + str(uid[0:3])
+            log = "removed connection: {0}".format(uid)
             self.registerCBT('Logger', 'info', log)
 
     # clean connections
@@ -214,39 +211,25 @@ class BaseTopologyManager(ControllerModule):
             # add peer to peers list
             self.peers[uid] = {
                 "uid": uid,
-                "ttl": time.time() + self.CMConfig["ttl_link_initial"],
-                "con_status": "unknown"
+                "ttl": time.time() + self.CMConfig["ttl_link_initial"]
             }
 
-            # request connection
+            # connection request
             self.request_connection(con_type, uid)
-
-        else:
-
-            # forward mark_inbound message
-            new_msg = {
-                "msg_type": "mark_inbound",
-                "src_uid": self.uid,
-                "dst_uid": uid
-            }
-
-            self.send_msg_icc(uid, new_msg)
 
     # add inbound link
     def add_inbound_link(self, con_type, uid, fpr):
 
-        # add peer in inbound links
-        self.links["inbound"][uid] = None
-
-        # peer is not in the peers list
-        if uid not in self.peers.keys():
+        # peer is not in the peers list, or
+        # peer is in the list and this node's uid is smaller (race avoidance)
+        if (uid not in self.peers.keys()) or (uid in self.peers.keys() and self.uid < uid):
 
             self.peers[uid] = {
                 "uid": uid,
-                "ttl": time.time() + self.CMConfig["ttl_link_initial"],
-                "con_status": "unknown"
+                "ttl": time.time() + self.CMConfig["ttl_link_initial"]
             }
 
+            # connection response
             self.respond_connection(con_type, uid, fpr)
 
     # remove link
@@ -261,23 +244,8 @@ class BaseTopologyManager(ControllerModule):
                        self.links["chord"].keys() + \
                        self.links["on_demand"].keys()):
 
-            # this peer does not have any inbound links
-            if uid not in self.links["inbound"].keys():
-
-                # remove connection
-                self.remove_connection(uid)
-
-            # this peer has inbound links
-            else:
-
-                # forward unmark_inbound message
-                new_msg = {
-                    "msg_type": "unmark_inbound",
-                    "src_uid": self.uid,
-                    "dst_uid": uid
-                }
-
-                self.send_msg_icc(uid, new_msg)
+            # remove connection
+            self.remove_connection(uid)
 
     ############################################################################
     # packet forwarding policy                                                 #
@@ -419,7 +387,6 @@ class BaseTopologyManager(ControllerModule):
         # find chords closest to the approximate logarithmic nodes 
         if len(self.log_chords) == 0:
             for i in reversed(range(self.CMConfig["num_chords"])):
-                # log_uid = [self_uid + 2**(n-1-i)] % 2**n
                 log_num = (int(self.uid, 16) + int(math.pow(2, 160-1-i))) % int(math.pow(2, 160))
                 log_uid = "{0:040x}".format(log_num)
                 self.log_chords.append(log_uid)
@@ -530,14 +497,12 @@ class BaseTopologyManager(ControllerModule):
 
     def add_inbound(self, con_type, uid, fpr):
 
-        if uid not in self.links["inbound"].keys():
+        if con_type == "successor":
+            self.add_inbound_link(con_type, uid, fpr)
 
-            if con_type == "successor":
+        elif con_type in ["chord", "on_demand"]:
+            if len(self.peers.keys()) < self.CMConfig["num_inbound"]:
                 self.add_inbound_link(con_type, uid, fpr)
-
-            elif con_type in ["chord", "on_demand"]:
-                if len(self.links["inbound"].keys()) < self.CMConfig["num_inbound"]:
-                    self.add_inbound_link(con_type, uid, fpr)
 
     ############################################################################
     # service notifications                                                    #
@@ -552,7 +517,7 @@ class BaseTopologyManager(ControllerModule):
 
             # update local state
             if msg_type == "local_state":
-                self.local_state = msg
+                self.ipop_state = msg
                 self.uid = msg["_uid"]
                 self.ip4 = msg["_ip4"]
 
@@ -563,7 +528,6 @@ class BaseTopologyManager(ControllerModule):
                 if msg["uid"] in self.peers:
                     # preserve ttl and con_status attributes
                     ttl = self.peers[msg["uid"]]["ttl"]
-                    con_status = self.peers[msg["uid"]]["con_status"]
 
                     # update ttl attribute
                     if "online" == msg["status"]:
@@ -572,23 +536,17 @@ class BaseTopologyManager(ControllerModule):
                     # update peer state
                     self.peers[msg["uid"]] = msg
                     self.peers[msg["uid"]]["ttl"] = ttl
-                    self.peers[msg["uid"]]["con_status"] = con_status
 
                     if msg["uid"] in self.links["on_demand"].keys():
                         if "stats" in msg:
                             self.links["on_demand"][msg["uid"]]["rate"] = msg["stats"][0]["sent_bytes_second"]
-
-            elif msg_type == "con_stat":
-
-                if msg["uid"] in self.peers:
-                    self.peers[msg["uid"]]["con_status"] = msg["data"]
 
             # handle connection request
             elif msg_type == "con_req":
 
                 msg["data"] = json.loads(msg["data"])
 
-                log = "recv con_req (" + msg["data"]["con_type"] + "): " + str(msg["uid"][0:3])
+                log = "recv con_req ({0}): {1}".format(msg["data"]["con_type"], msg["uid"])
                 self.registerCBT('Logger', 'info', log)
 
                 self.add_inbound(msg["data"]["con_type"], msg["uid"],
@@ -598,7 +556,7 @@ class BaseTopologyManager(ControllerModule):
             elif msg_type == "con_ack":
                 msg["data"] = json.loads(msg["data"])
 
-                log = "recv con_ack (" + msg["data"]["con_type"] + "): " + str(msg["uid"][0:3])
+                log = "recv con_ack ({0}): {1}".format(msg["data"]["con_type"], msg["uid"])
                 self.registerCBT('Logger', 'info', log)
 
                 self.create_connection(msg["uid"], msg["data"]["fpr"])
@@ -607,7 +565,7 @@ class BaseTopologyManager(ControllerModule):
             elif msg_type == "con_resp":
                 self.create_connection(msg["uid"], msg["data"])
 
-                log = "recv con_resp: " + str(msg["uid"][0:3])
+                log = "recv con_resp: {0}".format(msg["uid"])
                 self.registerCBT('Logger', 'info', log)
 
             # handle ping message
@@ -619,7 +577,7 @@ class BaseTopologyManager(ControllerModule):
                 # reply with a ping response message
                 self.send_msg_srv("ping_resp", msg["uid"], self.uid)
 
-                log = "recv ping: " + str(msg["uid"][0:3])
+                log = "recv ping: {0}".format(msg["uid"])
                 self.registerCBT('Logger', 'info', log)
 
             # handle ping response
@@ -628,7 +586,7 @@ class BaseTopologyManager(ControllerModule):
                 # add source node to the list of discovered nodes
                 self.discovered_nodes.append(msg["uid"])
 
-                log = "recv ping_resp: " + str(msg["uid"][0:3])
+                log = "recv ping_resp: {0}".format(msg["uid"])
                 self.registerCBT('Logger', 'info', log)
 
         # handle and forward tincan data packets
@@ -654,7 +612,7 @@ class BaseTopologyManager(ControllerModule):
                 src_uid = self.ip4_uid_table[src_ip4]
                 dst_uid = self.ip4_uid_table[dst_ip4]
             except KeyError: # FIXME
-                log = "recv illegal tincan_packet: src=" + str(src_ip4) + " dst=" + str(dst_ip4)
+                log = "recv illegal tincan_packet: src={0} dst={1}".format(src_ip4, dst_ip4)
                 self.registerCBT('Logger', 'warning', log)
                 return
 
@@ -668,7 +626,7 @@ class BaseTopologyManager(ControllerModule):
 
             self.forward_msg("exact", dst_uid, new_msg)
 
-            log = "sent tincan_packet (exact): " + str(dst_uid[0:3])
+            log = "sent tincan_packet (exact): {0}".format(dst_uid)
             self.registerCBT('Logger', 'info', log)
 
             # add on-demand link
@@ -683,7 +641,7 @@ class BaseTopologyManager(ControllerModule):
             if msg_type == "advertise":
                 self.discovered_nodes = list(set(self.discovered_nodes + msg["peer_list"]))
 
-                log = "recv advertisement: " + str(msg["src_uid"][0:3])
+                log = "recv advertisement: {0}".format(msg["src_uid"])
                 self.registerCBT('Logger', 'info', log)
 
             # handle forward packet
@@ -692,26 +650,8 @@ class BaseTopologyManager(ControllerModule):
                 if self.forward_msg("exact", msg["dst_uid"], msg):
                     self.registerCBT('TincanSender', 'DO_INSERT_DATA_PACKET', msg["packet"])
 
-                    log = "recv tincan_packet: " + str(msg["src_uid"][0:3])
+                    log = "recv tincan_packet: {0}".format(msg["src_uid"])
                     self.registerCBT('Logger', 'info', log)
-
-            # handle mark inbound
-            elif msg_type == "mark_inbound":
-
-                log = "recv mark_inbound: " + str(msg["src_uid"][0:3])
-                self.registerCBT('Logger', 'info', log)
-
-                if msg["src_uid"] not in self.links["inbound"].keys():
-                    self.add_inbound_link("inbound", msg["src_uid"], None)
-
-            # handle unmark inbound
-            elif msg_type == "unmark_inbound":
-
-                log = "recv unmark_inbound: " + str(msg["src_uid"][0:3])
-                self.registerCBT('Logger', 'info', log)
-
-                if msg["src_uid"] not in self.links["inbound"].keys():
-                    self.remove_link("inbound", msg["src_uid"])
 
             # handle find chord
             elif msg_type == "find_chord":
@@ -739,29 +679,16 @@ class BaseTopologyManager(ControllerModule):
     # manage topology                                                          #
     ############################################################################
 
-    def ping(self):
-
-        # send up to <num_pings> ping messages to random nodes to test if the
-        # node is available
-        rand_list = random.sample(range(0, len(self.discovered_nodes_srv)), 
-                min(len(self.discovered_nodes_srv), self.CMConfig["num_pings"]))
-
-        for i in rand_list:
-            self.send_msg_srv("ping", self.discovered_nodes_srv[i], self.uid)
-
-        # reset list of discovered nodes (from XMPP)
-        del self.discovered_nodes_srv[:]
-
     def manage_topology(self):
 
         # obtain local state
         if self.p2p_state == "started":
-            if not self.local_state:
+            if not self.ipop_state:
                 self.registerCBT('Logger', 'info', "p2p state: started")
                 return
             else:
                 self.p2p_state = "searching"
-                log = "identified local state: " + str(self.local_state["_uid"][0:3])
+                log = "identified local state: ".format(self.ipop_state["_uid"])
                 self.registerCBT('Logger', 'info', log)
 
         # discover nodes (from XMPP)
@@ -781,7 +708,7 @@ class BaseTopologyManager(ControllerModule):
                 self.ping()
                 return
 
-            log = "discovered nodes: " + str(self.discovered_nodes)
+            log = "discovered nodes: ".format(self.discovered_nodes)
             self.registerCBT('Logger', 'info', log)
 
             # trim offline connections
@@ -842,6 +769,19 @@ class BaseTopologyManager(ControllerModule):
             # send information to central visualizer
             self.visual_debugger()
 
+    def ping(self):
+
+        # send up to <num_pings> ping messages to random nodes to test if the
+        # node is available
+        rand_list = random.sample(range(0, len(self.discovered_nodes_srv)), 
+                min(len(self.discovered_nodes_srv), self.CMConfig["num_pings"]))
+
+        for i in rand_list:
+            self.send_msg_srv("ping", self.discovered_nodes_srv[i], self.uid)
+
+        # reset list of discovered nodes (from XMPP)
+        del self.discovered_nodes_srv[:]
+
     def terminate(self):
         pass
 
@@ -856,11 +796,11 @@ class BaseTopologyManager(ControllerModule):
             "ip4": self.ip4,
             "state": self.p2p_state,
             "links": {
-                "successor": [], "chord": [], "on_demand": [], "inbound": []
+                "successor": [], "chord": [], "on_demand": []
             }
         }
 
-        for con_type in ["successor", "chord", "on_demand", "inbound"]:
+        for con_type in ["successor", "chord", "on_demand"]:
             for peer in self.links[con_type].keys():
                 if self.linked(peer):
                     new_msg["links"][con_type].append(peer)
