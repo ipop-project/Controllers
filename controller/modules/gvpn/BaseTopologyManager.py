@@ -36,6 +36,11 @@ class BaseTopologyManager(ControllerModule):
 
         self.log_chords = []
 
+        self.max_num_links = self.CMConfig["num_successors"] + \
+                             self.CMConfig["num_chords"] + \
+                             self.CMConfig["num_on_demand"] + \
+                             self.CMConfig["num_inbound"]
+
         # discovered nodes
         #   self.discovered_nodes is the list of nodes used by the successors policy
         #   self.discovered_nodes_srv is the list of nodes obtained from peer_state
@@ -501,7 +506,7 @@ class BaseTopologyManager(ControllerModule):
             self.add_inbound_link(con_type, uid, fpr)
 
         elif con_type in ["chord", "on_demand"]:
-            if len(self.peers.keys()) < self.CMConfig["num_inbound"]:
+            if len(self.peers.keys()) < self.max_num_links:
                 self.add_inbound_link(con_type, uid, fpr)
 
     ############################################################################
