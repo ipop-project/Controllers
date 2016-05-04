@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import json
 import socket
 from controller.framework.ControllerModule import ControllerModule

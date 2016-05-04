@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import logging
 from controller.framework.ControllerModule import ControllerModule
 

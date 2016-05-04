@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import sys
 
 py_ver = sys.version_info[0]

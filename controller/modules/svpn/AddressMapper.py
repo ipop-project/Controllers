@@ -1,4 +1,5 @@
-﻿import controller.framework.ipoplib as ipoplib
+﻿#!/usr/bin/env python
+import controller.framework.ipoplib as ipoplib
 from controller.framework.ControllerModule import ControllerModule
 
 
