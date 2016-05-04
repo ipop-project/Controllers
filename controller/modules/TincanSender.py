@@ -74,7 +74,7 @@ class TincanSender(ControllerModule):
             self.do_send_icc_msg(self.sock, src_uid, dst_uid, icc_type, msg)
 
         elif(cbt.action == 'DO_INSERT_DATA_PACKET'):
-            self.send_packet(self.sock, cbt.data.decode("hex"))
+            self.send_packet(self.sock, ipoplib.hexstr2b(cbt.data))
 
         else:
             logCBT = self.CFxHandle.createCBT(initiator='TincanSender',
@@ -92,10 +92,10 @@ class TincanSender(ControllerModule):
             dest = (self.CMConfig["localhost"], self.CMConfig["svpn_port"])
 
         if icc_type == "control":
-            return sock.sendto(ipoplib.ipop_ver + ipoplib.icc_control + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + ipoplib.icc_mac_control + ipoplib.icc_ethernet_padding + json.dumps(msg), dest)
+            return sock.sendto(ipoplib.ipop_ver + ipoplib.icc_control + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + ipoplib.icc_mac_control + ipoplib.icc_ethernet_padding + bytes(json.dumps(msg).encode('utf-8')), dest)
 
         elif icc_type == "packet":
-            return sock.sendto(ipoplib.ipop_ver + ipoplib.icc_packet + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + ipoplib.icc_mac_packet + ipoplib.icc_ethernet_padding + json.dumps(msg), dest)
+            return sock.sendto(ipoplib.ipop_ver + ipoplib.icc_packet + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + ipoplib.icc_mac_packet + ipoplib.icc_ethernet_padding + bytes(json.dumps(msg).encode('utf-8')), dest)
 
     def do_create_link(self, sock, uid, fpr, overlay_id, sec,
                        cas, stun=None, turn=None):
@@ -137,11 +137,9 @@ class TincanSender(ControllerModule):
         else:
             dest = (self.CMConfig["localhost"], self.CMConfig["svpn_port"])
         if payload is None:
-            return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_control +
-                               json.dumps(params), dest)
+            return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_control + bytes(json.dumps(params).encode('utf-8')), dest)
         else:
-            return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_packet +
-                               payload, dest)
+            return sock.sendto(bytes((ipoplib.ipop_ver + ipoplib.tincan_packet + payload).encode('utf-8')), dest)
 
     def gen_ip6(self, uid, ip6=None):
         if ip6 is None:

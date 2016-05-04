@@ -5,15 +5,16 @@ import sys
 import json
 import signal
 import socket
-import fxlib
+import controller.framework.fxlib as fxlib
+import controller.framework.ipoplib as ipoplib
 import argparse
 import binascii
 import threading
 import importlib
 from getpass import getpass
 from collections import OrderedDict
-from CBT import CBT as _CBT
-from CFxHandle import CFxHandle
+from controller.framework.CBT import CBT as _CBT
+from controller.framework.CFxHandle import CFxHandle
 
 
 class CFX(object):
@@ -159,7 +160,7 @@ class CFX(object):
             # Dynamically importing the modules
             try:
                 module = importlib.import_module("controller.modules."+module_name)
-            except:
+            except ImportError:
                 if(self.vpn_type == "GroupVPN"):
                     module = importlib.import_module("controller.modules.gvpn."+module_name)
                 elif(self.vpn_type == "SocialVPN"):
@@ -225,7 +226,7 @@ class CFX(object):
 
     def __handler(self, signum=None, frame=None):
 
-        print('Signal handler called with signal ' + str(signum))
+        print('Signal handler called with signal ', signum)
 
     def parse_config(self):
 
@@ -313,8 +314,7 @@ class CFX(object):
         changed.
         """
         if not config['CFx']['local_uid']:
-            uid = binascii.b2a_hex(os.urandom(self.CONFIG['CFx']
-                                              ['uid_size'] / 2))
+            uid = ipoplib.uid_b2a(os.urandom(self.CONFIG['CFx']['uid_size'] // 2))
             self.CONFIG['CFx']["local_uid"] = uid
             return True  # modified
         return False
@@ -333,7 +333,7 @@ class CFX(object):
             while(True):
                 try:
                     self.event.wait(1)
-                except KeyboardInterrupt, SystemExit:
+                except (KeyboardInterrupt, SystemExit) as e:
                     break
 
         else:
@@ -357,7 +357,7 @@ class CFX(object):
             self.submitCBT(terminateCBT)
 
         # Wait for the threads to process their current CBTs and exit
-        print "Waiting for timer threads to exit gracefully..."
+        print("Waiting for timer threads to exit gracefully...")
         for handle in self.CFxHandleDict:
             if(self.CFxHandleDict[handle].joinEnabled):
                 self.CFxHandleDict[handle].CMThread.join()

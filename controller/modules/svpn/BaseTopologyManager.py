@@ -142,7 +142,7 @@ class BaseTopologyManager(ControllerModule):
 
                         if self.CMConfig["multihop"]:
                             conn_cnt = 0
-                            for k, v in peer_list.iteritems():
+                            for k, v in peer_list.items(): #XXX iteritems
                                 if "fpr" in v and v["status"] == "online":
                                     conn_cnt += 1
                             if conn_cnt >= self.CMConfig["multihop_cl"]:
@@ -215,7 +215,7 @@ class BaseTopologyManager(ControllerModule):
             return True
 
     def __link_trimmer(self, peer_list):
-        for k, v in peer_list.iteritems():
+        for k, v in peer_list.items(): #XXX iteritems
             # Trim TinCan link if the peer is offline
             if "fpr" in v and v["status"] == "offline":
                 if v["last_time"] > self.CMConfig["link_trimmer_wait_time"]:
@@ -228,7 +228,7 @@ class BaseTopologyManager(ControllerModule):
 
             if self.CMConfig["multihop"]:
                 connection_count = 0
-                for k, v in peer_list.iteritems():
+                for k, v in peer_list.items(): #XXX iteritems
                     if "fpr" in v and v["status"] == "online":
                         connection_count += 1
                         if connection_count > self.CMConfig["multihop_cl"]:

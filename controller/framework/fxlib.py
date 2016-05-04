@@ -15,10 +15,10 @@ import socket
 import struct
 import sys
 import time
-import urllib2
 
 from threading import Timer
 import controller.framework.ipoplib as ipoplib
+
 
 ipopVerMjr = "16";
 ipopVerMnr = "01";
@@ -72,7 +72,7 @@ def gen_ip6(uid, ip6=None):
     return ip6
 
 def gen_uid(ip4):
-    return hashlib.sha1(ip4).hexdigest()[:CONFIG["CFx"]["uid_size"]]
+    return hashlib.sha1(ip4.encode('utf-8')).hexdigest()[:CONFIG["CFx"]["uid_size"]]
 
 def make_call(sock, payload=None, **params):
     if socket.has_ipv6:
@@ -82,9 +82,9 @@ def make_call(sock, payload=None, **params):
         dest = (CONFIG["TincanSender"]["localhost"],
                 CONFIG["TincanSender"]["svpn_port"])
     if payload is None:
-        return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_control + json.dumps(params), dest)
+        return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_control + bytes(json.dumps(params).encode('utf-8')), dest)
     else:
-        return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_packet + payload, dest)
+        return sock.sendto(bytes((ipoplib.ipop_ver + ipoplib.tincan_packet + payload).encode('utf-8')), dest)
 
 def do_set_logging(sock, logging):
     return make_call(sock, m="set_logging", logging=logging)

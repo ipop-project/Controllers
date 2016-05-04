@@ -1,14 +1,20 @@
 ﻿#!/usr/bin/env python
 
+import sys
 import datetime
 import hashlib
 import json
 import logging
-import urllib2
-
-import controller.framework.ipoplib as il
-#from controller.framework.CFxHandle import CFxHandle
+import controller.framework.ipoplib as ipoplib
 from controller.framework.ControllerModule import ControllerModule
+
+py_ver = sys.version_info[0]
+
+if py_ver == 3:
+    import urllib.request as urllib2
+else:
+    import urllib2
+
 
 class StatReport(ControllerModule):
 
@@ -41,12 +47,12 @@ class StatReport(ControllerModule):
         xmpp_host = self.CFxHandle.queryParam("xmpp_host")
         xmpp_username = self.CFxHandle.queryParam("xmpp_username")
         controller = self.CFxHandle.queryParam("vpn_type")
-        version = il.ipop_ver
+        version = ipoplib.ipop_ver
 
         data = json.dumps({
-                "xmpp_host" : hashlib.sha1(xmpp_host).hexdigest(),\
-                "uid": hashlib.sha1(uid).hexdigest(), "xmpp_username":\
-                hashlib.sha1(xmpp_username).hexdigest(),\
+                "xmpp_host" : hashlib.sha1(xmpp_host.encode('utf-8')).hexdigest(),\
+                "uid": hashlib.sha1(uid.encode('utf-8')).hexdigest(), "xmpp_username":\
+                hashlib.sha1(xmpp_username.encode('utf-8')).hexdigest(),\
                 "time": str(datetime.datetime.now()),\
                 "controller": controller,\
                 "version": ord(version)})
@@ -74,7 +80,3 @@ class StatReport(ControllerModule):
                                     action='warning',
                                     data="Statistics report failed to the stat-server ({0}).".format(url))
             self.CFxHandle.submitCBT(logCBT)
-
-
-
-

@@ -3,6 +3,9 @@ import sys
 from controller.framework.ControllerModule import ControllerModule
 import controller.framework.ipoplib as ipoplib
 
+py_ver = sys.version_info[0]
+
+
 class TincanDispatcher(ControllerModule):
 
     def __init__(self, CFxHandle, paramDict):
@@ -33,23 +36,29 @@ class TincanDispatcher(ControllerModule):
         # |      2       | Payload (JSON formatted control message)     |
         # ---------------------------------------------------------------
 
-        if data[0] != ipoplib.ipop_ver:
+        if py_ver == 3:
+            pkt_ver = data[0].to_bytes(1, byteorder='big')
+            pkt_type = data[1].to_bytes(1, byteorder='big')
+        else:
+            pkt_ver = data[0]
+            pkt_type = data[1]
+
+        if pkt_ver != ipoplib.ipop_ver:
 
             logCBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
                                               recipient='Logger',
-                                              action='debug',
+                                              action='error',
                                               data="ipop version mismatch:"
                                               "tincan:{0} controller: {1}"
-                                              .format(data[0].encode("hex"),
-                                                      ipoplib.ipop_ver.encode("hex")))
+                                              .format(hex(data[0]), ipoplib.ipop_ver))
             self.CFxHandle.submitCBT(logCBT)
-            sys.exit()
+#            sys.exit() #XXX
 
         if "TINCAN_PKT" == cbt.action:
 
-            if data[1] == ipoplib.tincan_control:
+            if pkt_type == ipoplib.tincan_control:
 
-                msg = json.loads(data[2:])
+                msg = json.loads(data[2:].decode('utf-8'))
                 logCBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
                                                   recipient='Logger',
                                                   action='debug',
@@ -75,8 +84,8 @@ class TincanDispatcher(ControllerModule):
                                                        data=echo_data)
                     self.CFxHandle.submitCBT(echoCBT)
 
-                elif msg_type in ["con_req", "con_ack", "con_resp", "peer_state",
-                                  "local_state", "ping", "ping_resp"]:
+                elif msg_type in ["con_stat", "con_req", "con_ack", "con_resp",
+                            "peer_state", "local_state", "ping", "ping_resp"]:
 
                     CBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
                                                    recipient='BaseTopologyManager',
@@ -97,20 +106,25 @@ class TincanDispatcher(ControllerModule):
             # |     42       | Payload (Ethernet frame)                     |
             # |-------------------------------------------------------------|
 
-            elif data[1] == ipoplib.tincan_packet:
+            elif pkt_type == ipoplib.tincan_packet:
 
                 # Send the Tincan Packet to BaseTopologyManager
 
-                packet = data[2:]
+                # ignore ipv6 packets
+                if data[56:58] == b'\x86\xdd':
+                    return
+
+                packet = ipoplib.b2hexstr(data[2:])
+
                 CBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
                                                recipient='BaseTopologyManager',
                                                action='TINCAN_PACKET',
                                                data=packet)
                 self.CFxHandle.submitCBT(CBT)
 
-            elif data[1] == ipoplib.icc_control:
+            elif pkt_type == ipoplib.icc_control:
 
-                msg = json.loads(data[56:].split("\x00")[0])
+                msg = json.loads(data[56:].decode('utf-8').split("\x00")[0])
 
                 CBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
                                                recipient='BaseTopologyManager',
@@ -118,7 +132,7 @@ class TincanDispatcher(ControllerModule):
                                                data=msg)
                 self.CFxHandle.submitCBT(CBT)
 
-            elif data[1] == ipoplib.icc_packet:
+            elif pkt_type == ipoplib.icc_packet:
 
                 pass
 
@@ -135,10 +149,9 @@ class TincanDispatcher(ControllerModule):
                 logCBT = self.CFxHandle.createCBT(initiator='TincanDispatcher',
                                                   recipient='Logger',
                                                   action='debug',
-                                                  data="{0}".format(data[0:].
-                                                                    encode("hex")))
+                                                  data="{0}".format(data[0:]))
                 self.CFxHandle.submitCBT(logCBT)
-                sys.exit()
+#                sys.exit() #XXX
 
     def timer_method(self):
         pass

@@ -5,6 +5,7 @@ import json
 import random
 import controller.framework.fxlib as fxlib
 from controller.framework.ControllerModule import ControllerModule
+import controller.framework.ipoplib as ipoplib #XXX
 
 
 class BaseTopologyManager(ControllerModule):
@@ -169,7 +170,7 @@ class BaseTopologyManager(ControllerModule):
 
     def linked(self, uid):
         if uid in self.peers:
-            if "fpr" in self.peers[uid]:
+            if self.peers[uid]["con_status"] == "online":
                 return True
         return False
 
@@ -192,7 +193,7 @@ class BaseTopologyManager(ControllerModule):
     #   remove peers with expired time-to-live attributes
     def clean_connections(self):
         # time-to-live attribute indicative of an offline link
-        for uid in self.peers.keys():
+        for uid in list(self.peers.keys()):
             if time.time() > self.peers[uid]["ttl"]:
                 self.remove_connection(uid)
 
@@ -216,7 +217,8 @@ class BaseTopologyManager(ControllerModule):
             # add peer to peers list
             self.peers[uid] = {
                 "uid": uid,
-                "ttl": time.time() + self.CMConfig["ttl_link_initial"]
+                "ttl": time.time() + self.CMConfig["ttl_link_initial"],
+                "con_status": "unknown"
             }
 
             # connection request
@@ -229,9 +231,11 @@ class BaseTopologyManager(ControllerModule):
         # peer is in the list and this node's uid is smaller (race avoidance)
         if (uid not in self.peers.keys()) or (uid in self.peers.keys() and self.uid < uid):
 
+            # add peer to peers list
             self.peers[uid] = {
                 "uid": uid,
-                "ttl": time.time() + self.CMConfig["ttl_link_initial"]
+                "ttl": time.time() + self.CMConfig["ttl_link_initial"],
+                "con_status": "unknown"
             }
 
             # connection response
@@ -245,9 +249,9 @@ class BaseTopologyManager(ControllerModule):
             del self.links[con_type][uid]
 
         # this peer does not have any outbound links
-        if uid not in (self.links["successor"].keys() + \
-                       self.links["chord"].keys() + \
-                       self.links["on_demand"].keys()):
+        if uid not in (list(self.links["successor"].keys()) + \
+                       list(self.links["chord"].keys()) + \
+                       list(self.links["on_demand"].keys())):
 
             # remove connection
             self.remove_connection(uid)
@@ -322,7 +326,7 @@ class BaseTopologyManager(ControllerModule):
     def add_successors(self):
 
         # sort nodes into rotary, unique list with respect to this UID
-        nodes = sorted(set(self.links["successor"].keys() + self.discovered_nodes))
+        nodes = sorted(set(list(self.links["successor"].keys()) + self.discovered_nodes))
         if self.uid in nodes:
             nodes.remove(self.uid)
         if max([self.uid] + nodes) != self.uid:
@@ -421,7 +425,7 @@ class BaseTopologyManager(ControllerModule):
         # chord is the same chord:
         # if they are the same then the chord is already the best one available
         # otherwise, remove the chord and link to the found chord
-        for chord in self.links["chord"].keys():
+        for chord in list(self.links["chord"].keys()):
             if self.links["chord"][chord]["log_uid"] == log_uid:
                 if chord == uid:
                     return
@@ -486,7 +490,7 @@ class BaseTopologyManager(ControllerModule):
                 self.add_outbound_link("on_demand", uid, attributes)
 
     def clean_on_demand(self):
-        for uid in self.links["on_demand"].keys():
+        for uid in list(self.links["on_demand"].keys()):
 
             # rate exceeds threshold: increase time-to-live attribute
             if self.links["on_demand"][uid]["rate"] >= self.CMConfig["threshold_on_demand"]:
@@ -533,6 +537,7 @@ class BaseTopologyManager(ControllerModule):
                 if msg["uid"] in self.peers:
                     # preserve ttl and con_status attributes
                     ttl = self.peers[msg["uid"]]["ttl"]
+                    con_status = self.peers[msg["uid"]]["con_status"]
 
                     # update ttl attribute
                     if "online" == msg["status"]:
@@ -541,10 +546,17 @@ class BaseTopologyManager(ControllerModule):
                     # update peer state
                     self.peers[msg["uid"]] = msg
                     self.peers[msg["uid"]]["ttl"] = ttl
+                    self.peers[msg["uid"]]["con_status"] = con_status
 
                     if msg["uid"] in self.links["on_demand"].keys():
                         if "stats" in msg:
                             self.links["on_demand"][msg["uid"]]["rate"] = msg["stats"][0]["sent_bytes_second"]
+
+            # handle connection status
+            elif msg_type == "con_stat":
+
+                if msg["uid"] in self.peers:
+                    self.peers[msg["uid"]]["con_status"] = msg["data"]
 
             # handle connection request
             elif msg_type == "con_req":
@@ -599,26 +611,23 @@ class BaseTopologyManager(ControllerModule):
 
             data = cbt.data
 
-            # ignore packets when not connected to the overlay and ipv6 packets
-            if self.p2p_state != "connected" or data[54:56] == "\x86\xdd":
+            # ignore packets when not connected to the overlay
+            if self.p2p_state != "connected":
                 return
-
-            # extract packet
-            pkt = data.encode("hex")
 
             # extract the source uid and destination uid
             # XXX src_uid and dst_uid should be obtained from the header, but
             # sometimes the dst_uid is the null uid
-            # FIXME sometimes an irrelevant ip4 address obtained (i.e. 65.242.74.60)
-            src_ip4 = '.'.join(str(int(i, 16)) for i in [pkt[132:140][i:i+2] for i in range(0, 8, 2)])
-            dst_ip4 = '.'.join(str(int(i, 16)) for i in [pkt[140:148][i:i+2] for i in range(0, 8, 2)])
+            # FIXME sometimes an irrelevant ip4 address obtained
+            src_ip4 = '.'.join(str(int(i, 16)) for i in [data[132:140][i:i+2] for i in range(0, 8, 2)])
+            dst_ip4 = '.'.join(str(int(i, 16)) for i in [data[140:148][i:i+2] for i in range(0, 8, 2)])
 
             try:
                 src_uid = self.ip4_uid_table[src_ip4]
                 dst_uid = self.ip4_uid_table[dst_ip4]
             except KeyError: # FIXME
                 log = "recv illegal tincan_packet: src={0} dst={1}".format(src_ip4, dst_ip4)
-                self.registerCBT('Logger', 'warning', log)
+                self.registerCBT('Logger', 'error', log)
                 return
 
             # send forwarded message
@@ -626,7 +635,7 @@ class BaseTopologyManager(ControllerModule):
                 "msg_type": "forward",
                 "src_uid": src_uid,
                 "dst_uid": dst_uid,
-                "packet": pkt
+                "packet": data
             }
 
             self.forward_msg("exact", dst_uid, new_msg)
@@ -693,7 +702,7 @@ class BaseTopologyManager(ControllerModule):
                 return
             else:
                 self.p2p_state = "searching"
-                log = "identified local state: ".format(self.ipop_state["_uid"])
+                log = "identified local state: {0}".format(self.ipop_state["_uid"])
                 self.registerCBT('Logger', 'info', log)
 
         # discover nodes (from XMPP)
@@ -713,7 +722,7 @@ class BaseTopologyManager(ControllerModule):
                 self.ping()
                 return
 
-            log = "discovered nodes: ".format(self.discovered_nodes)
+            log = "discovered nodes: {0}".format(self.discovered_nodes)
             self.registerCBT('Logger', 'info', log)
 
             # trim offline connections

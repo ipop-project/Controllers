@@ -193,7 +193,7 @@ class Monitor(ControllerModule):
             "uid": self.ipop_state["_uid"],
             "ip4": self.ipop_state["_ip4"],
             "state": "connected",
-            "links": self.peers.keys()
+            "links": list(self.peers.keys())
         }
 
         TincanCBT = self.CFxHandle.createCBT(initiator='Monitor',
