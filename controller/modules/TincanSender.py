@@ -7,26 +7,17 @@ from controller.framework.ControllerModule import ControllerModule
 
 class TincanSender(ControllerModule):
 
-    def __init__(self, sock_list, CFxHandle, paramDict):
+    def __init__(self, sock_list, CFxHandle, paramDict, ModuleName):
+        super(TincanSender, self).__init__(CFxHandle, paramDict, ModuleName)
 
-        super(TincanSender, self).__init__()
-        self.CFxHandle = CFxHandle
-        self.CMConfig = paramDict
         self.sock = sock_list[0]
         self.sock_svr = sock_list[1]
 
     def initialize(self):
-
-        logCBT = self.CFxHandle.createCBT(initiator='TincanSender',
-                                          recipient='Logger',
-                                          action='info',
-                                          data="TincanSender Loaded")
-        self.CFxHandle.submitCBT(logCBT)
+        self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
     def processCBT(self, cbt):
-
-        if(cbt.action == 'DO_CREATE_LINK'):
-
+        if cbt.action == 'DO_CREATE_LINK':
             uid = cbt.data.get('uid')
             fpr = cbt.data.get('fpr')
             nid = cbt.data.get('nid')
@@ -34,31 +25,26 @@ class TincanSender(ControllerModule):
             cas = cbt.data.get('cas')
             self.do_create_link(self.sock, uid, fpr, nid, sec, cas)
 
-        elif(cbt.action == 'DO_TRIM_LINK'):
+        elif cbt.action == 'DO_TRIM_LINK':
+            self.do_trim_link(self.sock, uid=cbt.data)
 
-            # cbt.data contains the UID of the peer
-            self.do_trim_link(self.sock, cbt.data)
-
-        elif(cbt.action == 'DO_GET_STATE'):
-
+        elif cbt.action == 'DO_GET_STATE':
             self.do_get_state(self.sock)
 
-        elif(cbt.action == 'DO_SEND_MSG'):
-
+        elif cbt.action == 'DO_SEND_MSG':
             method = cbt.data.get("method")
             overlay_id = cbt.data.get("overlay_id")
             uid = cbt.data.get("uid")
             data = cbt.data.get("data")
             self.do_send_msg(self.sock, method, overlay_id, uid, data)
 
-        elif(cbt.action == 'DO_SET_REMOTE_IP'):
-
+        elif cbt.action == 'DO_SET_REMOTE_IP':
             uid = cbt.data.get("uid")
             ip4 = cbt.data.get("ip4")
             self.do_set_remote_ip(self.sock,
                                   uid, ip4, self.gen_ip6(uid))
 
-        elif(cbt.action == 'ECHO_REPLY'):
+        elif cbt.action == 'ECHO_REPLY':
             m_type = cbt.data.get('m_type')
             dest_addr = cbt.data.get('dest_addr')
             dest_port = cbt.data.get('dest_port')
@@ -66,26 +52,22 @@ class TincanSender(ControllerModule):
                                   dest_addr=dest_addr, dest_port=dest_port,
                                   payload=None, type="echo_reply")
 
-        elif(cbt.action == 'DO_SEND_ICC_MSG'):
+        elif cbt.action == 'DO_SEND_ICC_MSG':
             src_uid = cbt.data.get('src_uid')
             dst_uid = cbt.data.get('dst_uid')
             icc_type = cbt.data.get('icc_type')
             msg = cbt.data.get('msg')
             self.do_send_icc_msg(self.sock, src_uid, dst_uid, icc_type, msg)
 
-        elif(cbt.action == 'DO_INSERT_DATA_PACKET'):
+        elif cbt.action == 'DO_INSERT_DATA_PACKET':
             self.send_packet(self.sock, ipoplib.hexstr2b(cbt.data))
 
         else:
-            logCBT = self.CFxHandle.createCBT(initiator='TincanSender',
-                                              recipient='Logger',
-                                              action='warning',
-                                              data="TincanSender: Unrecognized"
-                                              "CBT from " + cbt.initiator)
-            self.CFxHandle.submitCBT(logCBT)
+            log = '{0}: unrecognized CBT {1} received from {2}'\
+                    .format(cbt.recipient, cbt.action, cbt.initiator)
+            self.registerCBT('Logger', 'warning', log)
 
     def do_send_icc_msg(self, sock, src_uid, dst_uid, icc_type, msg):
-
         if socket.has_ipv6:
             dest = (self.CMConfig["localhost6"], self.CMConfig["svpn_port"])
         else:
@@ -93,7 +75,6 @@ class TincanSender(ControllerModule):
 
         if icc_type == "control":
             return sock.sendto(ipoplib.ipop_ver + ipoplib.icc_control + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + ipoplib.icc_mac_control + ipoplib.icc_ethernet_padding + bytes(json.dumps(msg).encode('utf-8')), dest)
-
         elif icc_type == "packet":
             return sock.sendto(ipoplib.ipop_ver + ipoplib.icc_packet + ipoplib.uid_a2b(src_uid) + ipoplib.uid_a2b(dst_uid) + ipoplib.icc_mac_packet + ipoplib.icc_ethernet_padding + bytes(json.dumps(msg).encode('utf-8')), dest)
 
@@ -124,7 +105,7 @@ class TincanSender(ControllerModule):
                               uid=uid, data=data)
 
     def do_set_remote_ip(self, sock, uid, ip4, ip6):
-        if (self.CMConfig["switchmode"] == 1):
+        if self.CMConfig["switchmode"] == 1:
             return self.make_call(sock, m="set_remote_ip", uid=uid,
                                   ip4="127.0.0.1", ip6="::1/128")
         else:
@@ -148,8 +129,7 @@ class TincanSender(ControllerModule):
             ip6 += ":" + uid[i:i+4]
         return ip6
 
-    def make_remote_call(self, sock, dest_addr, dest_port, m_type,
-                         payload, **params):
+    def make_remote_call(self, sock, dest_addr, dest_port, m_type, payload, **params):
         dest = (dest_addr, dest_port)
         if m_type == ipoplib.tincan_control:
             return sock.sendto(ipoplib.ipop_ver + m_type +

@@ -5,14 +5,13 @@ import json
 import random
 import controller.framework.fxlib as fxlib
 from controller.framework.ControllerModule import ControllerModule
-import controller.framework.ipoplib as ipoplib #XXX
 
 
 class BaseTopologyManager(ControllerModule):
 
-    def __init__(self, CFxHandle, paramDict):
+    def __init__(self, CFxHandle, paramDict, ModuleName):
 
-        super(BaseTopologyManager, self).__init__()
+        super(BaseTopologyManager, self).__init__(CFxHandle, paramDict, ModuleName)
         self.CFxHandle = CFxHandle
         self.CMConfig = paramDict
         self.ipop_state = None
@@ -30,7 +29,6 @@ class BaseTopologyManager(ControllerModule):
         #   self.links["successor"] = { uid: None }
         #   self.links["chord"]     = { uid: {"log_uid": log_uid, "ttl": ttl} }
         #   self.links["on_demand"] = { uid: {"ttl": ttl, "rate": rate} }
-
         self.links = {
             "successor": {}, "chord": {}, "on_demand": {}
         }
@@ -72,19 +70,8 @@ class BaseTopologyManager(ControllerModule):
         if "interval_central_visualizer" in self.CMConfig:
             self.cv_interval = self.CMConfig["interval_central_visualizer"]
 
-
     def initialize(self):
-        self.registerCBT('Logger', 'info', "BaseTopologyManager Loaded")
-
-    # self.CFxHandle.createCBT(...) and self.CFxHandle.submitCBT(...) mask
-    def registerCBT(self, _recipient, _action, _data=''):
-        cbt = self.CFxHandle.createCBT(
-            initiator='BaseTopologyManager',
-            recipient=_recipient,
-            action=_action,
-            data=_data
-        )
-        self.CFxHandle.submitCBT(cbt)
+        self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
     ############################################################################
     # send message functions                                                   #
@@ -520,7 +507,7 @@ class BaseTopologyManager(ControllerModule):
     def processCBT(self, cbt):
 
         # tincan control messages
-        if(cbt.action == "TINCAN_MSG"):
+        if cbt.action == "TINCAN_CONTROL":
             msg = cbt.data
             msg_type = msg.get("type", None)
 
@@ -607,7 +594,7 @@ class BaseTopologyManager(ControllerModule):
                 self.registerCBT('Logger', 'info', log)
 
         # handle and forward tincan data packets
-        elif(cbt.action == "TINCAN_PACKET"):
+        elif cbt.action == "TINCAN_PACKET":
 
             data = cbt.data
 
@@ -647,7 +634,7 @@ class BaseTopologyManager(ControllerModule):
             self.add_on_demand(dst_uid)
 
         # inter-controller communication (ICC) messages
-        elif(cbt.action == "ICC_MSG"):
+        elif cbt.action == "ICC_CONTROL":
             msg = cbt.data
             msg_type = msg.get("msg_type", None)
 
@@ -688,6 +675,11 @@ class BaseTopologyManager(ControllerModule):
                 if self.forward_msg("closest", msg["dst_uid"], msg):
 
                     self.add_chord(msg["src_uid"], msg["log_uid"])
+
+        else:
+            log = '{0}: unrecognized CBT {1} received from {2}'\
+                    .format(cbt.recipient, cbt.action, cbt.initiator)
+            self.registerCBT('Logger', 'warning', log)
 
     ############################################################################
     # manage topology                                                          #

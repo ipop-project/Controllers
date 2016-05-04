@@ -4,87 +4,40 @@ from controller.framework.ControllerModule import ControllerModule
 
 class AddressMapper(ControllerModule):
 
-    def __init__(self, CFxHandle, paramDict):
+    def __init__(self, CFxHandle, paramDict, ModuleName):
+        super(AddressMapper, self).__init__(CFxHandle, paramDict, ModuleName)
 
-        super(AddressMapper, self).__init__()
-        self.CFxHandle = CFxHandle
-        self.CMConfig = paramDict
         self.ip_map = {}
 
     def initialize(self):
-
-        logCBT = self.CFxHandle.createCBT(initiator='AddressMapper',
-                                          recipient='Logger',
-                                          action='info',
-                                          data="AddressMapper Loaded")
-        self.CFxHandle.submitCBT(logCBT)
+        self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
     def processCBT(self, cbt):
-
-        if(cbt.action == 'ADD_MAPPING'):
-
+        if cbt.action == 'ADD_MAPPING':
             try:
-                # cbt.data is a dict with uid and ip keys
+                # cbt.data contains a {'uid': <uid>, 'ip': <ip>} mapping
                 self.ip_map[cbt.data['uid']] = cbt.data['ip']
             except KeyError:
+                log = "invalid ADD_MAPPING configuration"
+                self.registerCBT('Logger', 'warning', log)
 
-                logCBT = self.CFxHandle.createCBT(initiator='AddressMapper',
-                                                  recipient='Logger',
-                                                  action='warning',
-                                                  data="Invalid ADD_MAPPING"
-                                                  " Configuration")
-                self.CFxHandle.submitCBT(logCBT)
+        elif cbt.action == 'DEL_MAPPING':
+            self.ip_map.pop(cbt.data)
 
-        elif(cbt.action == 'DEL_MAPPING'):
+        elif cbt.action == 'RESOLVE':
+            data = ipoplib.gen_ip4(cbt.data, self.ip_map, self.CMConfig["ip4"])
+            self.registerCBT(cbt.initiator, 'RESOLVE_RESP', data, cbt.uid)
 
-            self.ip_map.pop(cbt.data)  # Remove mapping if it exists
+        elif cbt.action == 'QUERY_IP_MAP':
+            self.registerCBT(cbt.initiator, 'QUERY_IP_MAP_RESP', self.ip_map, cbt.uid)
 
-        elif(cbt.action == 'RESOLVE'):
-
-            # Modify the CBT with the response data and send it back
-            cbt.action = 'RESOLVE_RESP'
-
-            # Compute the IP4 address
-            cbt.data = ipoplib.gen_ip4(cbt.data, self.ip_map, self.CMConfig["ip4"])
-
-            # Swap inititator and recipient
-            cbt.initiator, cbt.recipient = cbt.recipient, cbt.initiator
-
-            self.CFxHandle.submitCBT(cbt)
-
-        elif (cbt.action == 'QUERY_IP_MAP'):
-
-            cbt.action = 'QUERY_IP_MAP_RESP'
-
-            cbt.data = self.ip_map
-            cbt.initiator, cbt.recipient = cbt.recipient, cbt. initiator
-            self.CFxHandle.submitCBT(cbt)
-
-        elif(cbt.action == 'REVERSE_RESOLVE'):
-
-            # Modify the CBT with the response data and send it back
-            cbt.action = 'REVERSE_RESOLVE_RESP'
-            ip = cbt.data
-            cbt.data = None
-            # Iterate through all items in dict for reverse lookup
-            for key, value in self.ip_map.items():
-                if(value == ip):
-                    cbt.data = key
-                    break
-
-            # Swap inititator and recipient
-            cbt.initiator, cbt.recipient = cbt.recipient, cbt.initiator
-
-            self.CFxHandle.submitCBT(cbt)
+        elif cbt.action == 'REVERSE_RESOLVE':
+            self.registerCBT(cbt.initiator, 'REVERSE_RESOLVE_RESP', data, cbt.uid)
 
         else:
-            logCBT = self.CFxHandle.createCBT(initiator='AddressMapper',
-                                              recipient='Logger',
-                                              action='warning',
-                                              data="AddressMapper: "
-                                              "Invalid CBT received"
-                                              " from " + cbt.initiator)
-            self.CFxHandle.submitCBT(logCBT)
+            log = '{0}: unrecognized CBT {1} received from {2}'\
+                    .format(cbt.recipient, cbt.action, cbt.initiator)
+            self.registerCBT('Logger', 'warning', log)
 
     def timer_method(self):
         pass

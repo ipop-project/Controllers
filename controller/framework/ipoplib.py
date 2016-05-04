@@ -1,5 +1,3 @@
-﻿#!/usr/bin/env python
-
 import sys
 
 py_ver = sys.version_info[0]
@@ -83,16 +81,16 @@ def gen_ip4(uid, peer_map, ip4):
     except KeyError:
         pass
 
-    ips = set(peer_map.values()) #XXX itervalues
+    ips = set(peer_map.values())
     prefix, _ = ip4.rsplit(".", 1)
-    # We allocate to *.101 - *.254. This ensures a 3-digit suffix and avoids
-    # the broadcast address. *.100 is our IPv4 address.
+    # we allocate *.101 - *254 ensuring a 3-digit suffix and avoiding the
+    # broadcast address; *.100 is the IPv4 address of this node
     for i in range(101, 255):
         peer_map[uid] = "%s.%s" % (prefix, i)
         if peer_map[uid] not in ips:
             return peer_map[uid]
     del peer_map[uid]
-    raise OverflowError("Too many peers, out of IPv4 addresses")
+    raise OverflowError("too many peers, out of IPv4 addresses")
 
 def make_remote_call(sock, dest_addr, dest_port, m_type, payload, **params):
     dest = (dest_addr, dest_port)

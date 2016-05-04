@@ -18,19 +18,11 @@ else:
 
 class StatReport(ControllerModule):
 
-    def __init__(self, CFxHandle, paramDict):
-
-        super(StatReport, self).__init__()
-        self.CFxHandle = CFxHandle
-        self.CMConfig = paramDict
+    def __init__(self, CFxHandle, paramDict, ModuleName):
+        super(StatReport, self).__init__(CFxHandle, paramDict, ModuleName)
 
     def initialize(self):
-
-        logCBT = self.CFxHandle.createCBT(initiator='StatReport',
-                                          recipient='Logger',
-                                          action='info',
-                                          data="StatReport Loaded")
-        self.CFxHandle.submitCBT(logCBT)
+        self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
     def processCBT():
         pass
@@ -49,13 +41,16 @@ class StatReport(ControllerModule):
         controller = self.CFxHandle.queryParam("vpn_type")
         version = ipoplib.ipop_ver
 
-        data = json.dumps({
-                "xmpp_host" : hashlib.sha1(xmpp_host.encode('utf-8')).hexdigest(),\
-                "uid": hashlib.sha1(uid.encode('utf-8')).hexdigest(), "xmpp_username":\
-                hashlib.sha1(xmpp_username.encode('utf-8')).hexdigest(),\
-                "time": str(datetime.datetime.now()),\
-                "controller": controller,\
-                "version": ord(version)})
+        stat = {
+            "xmpp_host" : hashlib.sha1(xmpp_host.encode('utf-8')).hexdigest(),
+            "uid": hashlib.sha1(uid.encode('utf-8')).hexdigest(),
+            "xmpp_username": hashlib.sha1(xmpp_username.encode('utf-8')).hexdigest(),
+            "time": str(datetime.datetime.now()),
+            "controller": controller,
+            "version": ord(version)
+        }
+
+        data = json.dumps(stat)
 
         try:
             url="http://" + self.CMConfig["stat_server"] + ":" +\
@@ -65,18 +60,12 @@ class StatReport(ControllerModule):
             res = urllib2.urlopen(req)
 
             if res.getcode() == 200:
-                logCBT = self.CFxHandle.createCBT(initiator='StatReport',
-                                    recipient='Logger',
-                                    action='info',
-                                    data="Succesfully reported status to the stat-server ({0})."
-                                    "\nHTTP response code:{1}, msg:{2}".format(url, res.getcode(),\
-                                    res.read()))
-                self.CFxHandle.submitCBT(logCBT)
+                log = "succesfully reported status to the stat-server {0}\n"\
+                        "HTTP response code:{1}, msg:{2}"\
+                        .format(url, res.getcode(), res.read())
+                self.registerCBT('Logger', 'info', log)
             else:
                 raise
         except:
-            logCBT = self.CFxHandle.createCBT(initiator='StatReport',
-                                    recipient='Logger',
-                                    action='warning',
-                                    data="Statistics report failed to the stat-server ({0}).".format(url))
-            self.CFxHandle.submitCBT(logCBT)
+            log = "statistics report failed to the stat-server ({0})".format(url)
+            self.registerCBT('Logger', 'warning', log)
