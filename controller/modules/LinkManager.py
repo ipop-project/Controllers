@@ -1,65 +1,29 @@
+#!/usr/bin/env python
 from controller.framework.ControllerModule import ControllerModule
 
 
 class LinkManager(ControllerModule):
 
-    def __init__(self, CFxHandle, paramDict):
-
-        super(LinkManager, self).__init__()
-        self.CFxHandle = CFxHandle
-        self.CMConfig = paramDict
+    def __init__(self, CFxHandle, paramDict, ModuleName):
+        super(LinkManager, self).__init__(CFxHandle, paramDict, ModuleName)
 
     def initialize(self):
-
-        logCBT = self.CFxHandle.createCBT(initiator='LinkManager',
-                                          recipient='Logger',
-                                          action='info',
-                                          data="LinkManager Loaded")
-        self.CFxHandle.submitCBT(logCBT)
+        self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
     def processCBT(self, cbt):
+        if cbt.action == "CREATE_LINK":
+            # cbt.data contains DO_CREATE_LINK arguments
+            self.registerCBT('TincanSender', 'DO_CREATE_LINK', cbt.data)
+            self.registerCBT('Logger', 'info', 'creating link with peer')
 
-        if(cbt.action == "CREATE_LINK"):
-
-            # cbt.data is a dict containing all the required
-            # paramters to create a link
-
-            TincanCBT = self.CFxHandle.createCBT(initiator='LinkManager',
-                                                 recipient='TincanSender',
-                                                 action='DO_CREATE_LINK',
-                                                 data=cbt.data)
-            self.CFxHandle.submitCBT(TincanCBT)
-
-            logCBT = self.CFxHandle.createCBT(initiator='LinkManager',
-                                              recipient='Logger',
-                                              action='info',
-                                              data="Creating Link with peer")
-            self.CFxHandle.submitCBT(logCBT)
-
-        elif(cbt.action == "TRIM_LINK"):
-
-            # cbt.data is the  UID of the peer node, whose link has
-            # to be trim
-            TincanCBT = self.CFxHandle.createCBT(initiator='LinkManager',
-                                                 recipient='TincanSender',
-                                                 action='DO_TRIM_LINK',
-                                                 data=cbt.data)
-            self.CFxHandle.submitCBT(TincanCBT)
-
-            logCBT = self.CFxHandle.createCBT(initiator='LinkManager',
-                                              recipient='Logger',
-                                              action='info',
-                                              data="Trimming Link "
-                                              "with peer " + cbt.data)
-            self.CFxHandle.submitCBT(logCBT)
+        elif cbt.action == "TRIM_LINK":
+            # cbt.data contains the UID of the peer
+            self.registerCBT('TincanSender', 'DO_TRIM_LINK', cbt.data)
 
         else:
-            logCBT = self.CFxHandle.createCBT(initiator='LinkManager',
-                                              recipient='Logger',
-                                              action='warning',
-                                              data="LinkManager: Invalid CBT "
-                                              "received from " + cbt.initiator)
-            self.CFxHandle.submitCBT(logCBT)
+            log = '{0}: unrecognized CBT {1} received from {2}'\
+                    .format(cbt.recipient, cbt.action, cbt.initiator)
+            self.registerCBT('Logger', 'warning', log)
 
     def timer_method(self):
         pass

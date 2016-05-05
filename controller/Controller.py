@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from framework.CFx import CFX
+from controller.framework.CFx import CFX
 
 
 def main():

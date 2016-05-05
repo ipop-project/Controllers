@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import select
 from threading import Thread
 from controller.framework.ControllerModule import ControllerModule
@@ -5,27 +6,21 @@ from controller.framework.ControllerModule import ControllerModule
 
 class TincanListener(ControllerModule):
 
-    def __init__(self, sock_list, CFxHandle, paramDict):
+    def __init__(self, sock_list, CFxHandle, paramDict, ModuleName):
 
-        super(TincanListener, self).__init__()
-        self.CFxHandle = CFxHandle
-        self.CMConfig = paramDict
+        super(TincanListener, self).__init__(CFxHandle, paramDict, ModuleName)
+
         self.sock = sock_list[0]
         self.sock_svr = sock_list[1]
         self.sock_list = sock_list
 
     def initialize(self):
+        self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
-        # Create a thread to listen to Tincan Notifications
+        # create a listener thread (listens to tincan notifications
         self.TincanListenerThread = Thread(target=self.__tincan_listener)
         self.TincanListenerThread.setDaemon(True)
         self.TincanListenerThread.start()
-
-        logCBT = self.CFxHandle.createCBT(initiator='TincanListener',
-                                          recipient='Logger',
-                                          action='info',
-                                          data="TincanListener Loaded")
-        self.CFxHandle.submitCBT(logCBT)
 
     def processCBT(self, cbt):
         pass
@@ -34,20 +29,14 @@ class TincanListener(ControllerModule):
         pass
 
     def __tincan_listener(self):
-
-        while(True):
+        while True:
             socks, _, _ = select.select(self.sock_list, [], [],
                                         self.CMConfig["socket_read_wait_time"])
 
             for sock in socks:
-                if(sock == self.sock or sock == self.sock_svr):
+                if sock == self.sock or sock == self.sock_svr:
                     data,addr = sock.recvfrom(self.CMConfig["buf_size"])
-                    cbt = self.CFxHandle.createCBT(initiator='TincanListener',
-                                                   recipient='Tincan'
-                                                   'Dispatcher',
-                                                   action='TINCAN_PKT',
-                                                   data=[data, addr])
-                    self.CFxHandle.submitCBT(cbt)
+                    self.registerCBT('TincanDispatcher', 'TINCAN_PKT', [data, addr])
 
     def terminate(self):
         pass

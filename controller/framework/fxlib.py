@@ -1,5 +1,4 @@
-﻿#!/usr/bin/env python
-
+#!/usr/bin/env python
 import argparse
 import binascii
 import datetime
@@ -15,17 +14,17 @@ import socket
 import struct
 import sys
 import time
-import urllib2
 
 from threading import Timer
 import controller.framework.ipoplib as ipoplib
 
+
 ipopVerMjr = "16";
 ipopVerMnr = "01";
 ipopVerRev = "0";
-ipopVerRel = ipopVerMjr + "." + ipopVerMnr + "." + ipopVerRev
+ipopVerRel = "{0}.{1}.{2}".format(ipopVerMjr, ipopVerMnr, ipopVerRev)
 
-# Set default config values
+# set default config values
 CONFIG = {
     "CFx": {
         "ip4_mask": 24,
@@ -72,7 +71,7 @@ def gen_ip6(uid, ip6=None):
     return ip6
 
 def gen_uid(ip4):
-    return hashlib.sha1(ip4).hexdigest()[:CONFIG["CFx"]["uid_size"]]
+    return hashlib.sha1(ip4.encode('utf-8')).hexdigest()[:CONFIG["CFx"]["uid_size"]]
 
 def make_call(sock, payload=None, **params):
     if socket.has_ipv6:
@@ -82,9 +81,9 @@ def make_call(sock, payload=None, **params):
         dest = (CONFIG["TincanSender"]["localhost"],
                 CONFIG["TincanSender"]["svpn_port"])
     if payload is None:
-        return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_control + json.dumps(params), dest)
+        return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_control + bytes(json.dumps(params).encode('utf-8')), dest)
     else:
-        return sock.sendto(ipoplib.ipop_ver + ipoplib.tincan_packet + payload, dest)
+        return sock.sendto(bytes((ipoplib.ipop_ver + ipoplib.tincan_packet + payload).encode('utf-8')), dest)
 
 def do_set_logging(sock, logging):
     return make_call(sock, m="set_logging", logging=logging)
@@ -123,21 +122,3 @@ def load_peer_ip_config(ip_config):
         ip = peer_ip["ipv4"]
         IP_MAP[uid] = ip
         logging.debug("MAP %s -> %s" % (ip, uid))
-
-
-
-# # When proces killed or keyboard interrupted exit_handler runs then exit
-# def exit_handler(signum, frame):
-#     logging.info("Terminating Controller")
-#     if CONFIG["stat_report"]:
-#         if server != None:
-#             server.report()
-#         else:
-#             logging.debug("Controller socket is not created yet")
-#     sys.exit(0)
-
-# signal.signal(signal.SIGINT, exit_handler)
-# AFAIK, there is no way to catch SIGKILL
-# signal.signal(signal.SIGKILL, exit_handler)
-# signal.signal(signal.SIGQUIT, exit_handler)
-# signal.signal(signal.SIGTERM, exit_handler)
