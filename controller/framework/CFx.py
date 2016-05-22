@@ -104,7 +104,7 @@ class CFX(object):
         # ignore the network interfaces in the list
         if "network_ignore_list" in self.CONFIG["CFx"]:
             fxlib.make_call(self.sock, m="set_network_ignore_list",
-                              network_ignore_list=CONFIG["CFx"]
+                              network_ignore_list=self.CONFIG["CFx"]
                               ["network_ignore_list"])
 
         print("CFx initialized. Loading Controller Modules")
