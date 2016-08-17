@@ -304,7 +304,7 @@ class XmppClient(ControllerModule,sleekxmpp.ClientXMPP):
                 send_advt = False
                 # True indicates that peer node does not knows my UID.
                 # If I have recvd more than 10 correct advertisements from peer
-                # don't reply back. 
+                # reply back, may be my reply was lost. 
                 if (self.jid_uid[peer][1] == True and self.jid_uid[peer][2]%10==0):
                     send_advt = True
                     self.jid_uid[peer][2] = 1
