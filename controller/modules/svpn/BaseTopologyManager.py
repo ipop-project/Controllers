@@ -12,16 +12,29 @@ class BaseTopologyManager(ControllerModule):
 
     def initialize(self):
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
+        
+    # send message (through XMPP service)
+    #   - msg_type = message type attribute
+    #   - uid      = UID of the destination node
+    #   - msg      = message
+    def send_msg_srv(self, msg_type, uid, msg):
+        cbtdata = {"method": msg_type, "overlay_id": 0, "uid": uid, "data": msg} #TODO overlay_id
+        self.registerCBT('XmppClient', 'DO_SEND_MSG', cbtdata)
+        
+    def log(self,msg,severity='info'):
+        self.registerCBT('Logger',severity,msg)
 
     def processCBT(self, cbt):
         # new CBTs request for services from other modules by issuing CBTs; if no
-        # services are required, the CBT is processed here only
+        # services are required, the CBT is processed here.
+        # con_ack packages and moves cas over XMPP/Overlay
+        # con_resp is cas received from tin-can after transport allocation is done.
         if not self.checkMapping(cbt):
-            if cbt.action == "TINCAN_MSG":
+            if cbt.action in ["TINCAN_MSG", "XMPP_MSG"]:
                 msg = cbt.data
                 msg_type = msg.get("type", None)
 
-                if msg_type == "con_req" or msg_type == "con_resp":
+                if msg_type in ["con_req","con_resp","con_ack"]:
                     stateCBT = self.registerCBT('Watchdog', 'QUERY_IPOP_STATE')
                     self.CBTMappings[cbt.uid] = [stateCBT.uid]
 
@@ -38,6 +51,7 @@ class BaseTopologyManager(ControllerModule):
                     self.CBTMappings[cbt.uid].append(peer_list_CBT.uid)
 
                     self.pendingCBT[cbt.uid] = cbt
+                    self.log("put in cbt queue {0}".format(msg_type))
 
             elif cbt.action == "QUERY_PEER_LIST_RESP":
                 # cbt.data contains a dict of peers
@@ -56,10 +70,10 @@ class BaseTopologyManager(ControllerModule):
 
             # wait until all requested services are complete
             if self.allServicesCompleted(sourceCBT_uid):
-                if self.pendingCBT[sourceCBT_uid].action == 'TINCAN_MSG':
+                if self.pendingCBT[sourceCBT_uid].action in ['TINCAN_MSG', 'XMPP_MSG']:
                     msg = self.pendingCBT[sourceCBT_uid].data
                     msg_type = msg.get("type", None)
-                    if msg_type == "con_req" or msg_type == "con_resp":
+                    if msg_type in ["con_req","con_resp","con_ack"]:
                         for key in self.CBTMappings[sourceCBT_uid]:
                             if self.pendingCBT[key].action == 'QUERY_IPOP_STATE_RESP':
                                 self.ipop_state = self.pendingCBT[key].data
@@ -73,8 +87,7 @@ class BaseTopologyManager(ControllerModule):
                                 ip_map = self.pendingCBT[key].data
 
                         # process the original CBT when all values have been received
-                        log = "received connection request/response"
-                        self.registerCBT('Logger', 'info', log)
+                        self.log("Received {0} action of type {1}".format(self.pendingCBT[sourceCBT_uid].action,msg_type))
 
                         if self.CMConfig["multihop"]:
                             conn_cnt = 0
@@ -92,16 +105,26 @@ class BaseTopologyManager(ControllerModule):
                                 ip_map,
                                 self.ipop_state["_ip4"])
 
-                        self.create_connection(msg["uid"], fpr, 1,
-                                self.CMConfig["sec"], cas, ip4)
+                        if (msg_type == "con_resp"):
+                            # My cas recvd from tin-can, send it wrapped in a 
+                            # con_ack to peer
+                            target_uid = msg["uid"]
+                            data = msg["data"]
+                            self.send_msg_srv("con_ack",target_uid,data)
+                            log = "recv con_resp from Tincan for {0}".format(msg["uid"])
+                            self.registerCBT('Logger', 'info', log)
+                        else:
+                            self.create_connection(msg["uid"], fpr, 0,
+                                    self.CMConfig["sec"], cas, ip4)
 
 
     def create_connection(self, uid, data, nid, sec, cas, ip4):
-        conn_dict = {'uid': uid, 'fpr': data, 'nid': nid, 'sec': sec, 'cas': cas}
+        # nid needs to be 0, to program tin-can to send con_resp to controller.
+        conn_dict = {'uid': uid, 'fpr': data, 'nid': 0, 'sec': sec, 'cas': cas}
         self.registerCBT('LinkManager', 'CREATE_LINK', conn_dict)
-
         cbtdata = {"uid": uid, "ip4": ip4}
         self.registerCBT('TincanSender', 'DO_SET_REMOTE_IP', cbtdata)
+        self.log("{0} Initiated connection to {1}".format(self.ipop_state["_uid"],uid))
 
     # TODO appears to always return False
     def check_collision(self, msg_type, uid, conn_stat):
@@ -110,7 +133,7 @@ class BaseTopologyManager(ControllerModule):
                 self.registerCBT('LinkManager', 'TRIM_LINK', uid)
                 self.registerCBT('Monitor', 'DELETE_CONN_STAT', uid)
             return False
-        elif msg_type == "con_resp":
+        elif msg_type in ["con_resp","con_ack"]:
             cbtdata = {
                 'uid': uid,
                 'status': "resp_recv"

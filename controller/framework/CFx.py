@@ -28,13 +28,9 @@ class CFX(object):
         self.CFxHandleDict = {}
 
         self.vpn_type = self.CONFIG['CFx']['vpn_type']
-        self.user = self.CONFIG['CFx']["xmpp_username"]
-        self.password = self.CONFIG['CFx']["xmpp_password"]
-        self.host = self.CONFIG['CFx']["xmpp_host"]
-        self.port = self.CONFIG['CFx']["xmpp_port"]
         
         if self.vpn_type == 'GroupVPN':
-            self.ip4 = self.CONFIG['BaseTopologyManager']["ip4"]
+            self.ip4 = self.CONFIG['CFx']["ip4"]
             self.uid = fxlib.gen_uid(self.ip4)  # SHA-1 Hash
         elif self.vpn_type == 'SocialVPN':
             self.ip4 = self.CONFIG['AddressMapper']["ip4"]
@@ -92,9 +88,6 @@ class CFX(object):
                                 self.CONFIG["CFx"]["subnet_mask"],
                                 self.CONFIG["TincanSender"]["switchmode"])
 
-        # register to the XMPP server
-        fxlib.do_register_service(self.sock, self.user,
-                                    self.password, self.host, self.port)
         fxlib.do_set_trimpolicy(self.sock,
                                   self.CONFIG["CFx"]["trim_enabled"])
 
@@ -253,8 +246,8 @@ class CFX(object):
             with open(args.config_file, "w") as f:
                 json.dump(self.CONFIG, f, indent=4, sort_keys=True)
 
-        if not ("xmpp_username" in self.CONFIG["CFx"] and
-                "xmpp_host" in self.CONFIG["CFx"]):
+        if not ("xmpp_username" in self.CONFIG["XmppClient"] and
+                "xmpp_host" in self.CONFIG["XmppClient"]):
             raise ValueError("At least 'xmpp_username' and 'xmpp_host' "
                              "must be specified in config file or string")
         keyring_installed = False
@@ -264,23 +257,23 @@ class CFX(object):
         except:
             print("keyring module is not installed")
 
-        if "xmpp_password" not in self.CONFIG["CFx"]:
+        if "xmpp_password" not in self.CONFIG["XmppClient"]:
             xmpp_pswd = None
             if keyring_installed:
                 xmpp_pswd = keyring.get_password("ipop", 
-                                                 self.CONFIG["CFx"]["xmpp_username"])
+                                                 self.CONFIG["XmppClient"]["xmpp_username"])
             if not keyring_installed or (keyring_installed and xmpp_pswd == None):
-                prompt = "\nPassword for %s:" % self.CONFIG["CFx"]["xmpp_username"]
+                prompt = "\nPassword for %s:" % self.CONFIG["XmppClient"]["xmpp_username"]
                 if args.pwdstdout:
                     xmpp_pswd = getpass(prompt, stream=sys.stdout)
                 else:
                     xmpp_pswd = getpass(prompt)
             
             if xmpp_pswd != None:
-                self.CONFIG["CFx"]["xmpp_password"] = xmpp_pswd
+                self.CONFIG["XmppClient"]["xmpp_password"] = xmpp_pswd
                 if keyring_installed:         
                     try:
-                           keyring.set_password("ipop", self.CONFIG["CFx"]["xmpp_username"], self.CONFIG["CFx"]["xmpp_password"])
+                           keyring.set_password("ipop", self.CONFIG["XmppClient"]["xmpp_username"], self.CONFIG["XmppClient"]["xmpp_password"])
                     except:
                         print("unable to store password in keyring")
             else:
@@ -340,13 +333,15 @@ class CFX(object):
 
     def queryParam(self, ParamName=""):
         if ParamName == "xmpp_host":
-            return self.CONFIG["CFx"][ParamName]
+            return self.CONFIG["XmppClient"][ParamName]
         elif ParamName == "local_uid":
             return self.CONFIG["CFx"][ParamName]
         elif ParamName == "xmpp_username":
-            return self.CONFIG["CFx"][ParamName]
+            return self.CONFIG["XmppClient"][ParamName]
         elif ParamName == "vpn_type":
             return self.CONFIG["CFx"][ParamName]
         elif ParamName == "ipopVerRel":
+            return self.CONFIG["CFx"][ParamName]
+        elif ParamName == "ip4":
             return self.CONFIG["CFx"][ParamName]
         return None

@@ -118,12 +118,6 @@ class CFxHandle(object):
             except SystemExit:
                 sys.exit()
             except:
-                self.registerCBT('Logger', 'error', traceback.format_exc())
-
-                log = "timer_method exception:\n{0}".format(traceback.format_exc())
-                self.registerCBT('Logger', 'error', log)
-
-
                 logCBT = self.createCBT(
                     initiator=self.CMInstance.__class__.__name__,
                     recipient='Logger',

@@ -4,6 +4,7 @@ import time
 import math
 import json
 import random
+from collections import defaultdict
 import controller.framework.fxlib as fxlib
 from controller.framework.ControllerModule import ControllerModule
 
@@ -19,6 +20,9 @@ class BaseTopologyManager(ControllerModule):
         self.interval_counter = 0
         self.cv_interval = 5
         self.use_visualizer = False
+        # need this to query for peer state since it is no longer maintained 
+        # by tincan.
+        self.peer_uids = defaultdict(int)
 
         self.uid = ""
         self.ip4 = ""
@@ -57,7 +61,7 @@ class BaseTopologyManager(ControllerModule):
 
         # populate uid_ip4_table and ip4_uid_table with all UID and IPv4
         # mappings within the /16 subnet
-        parts = self.CMConfig["ip4"].split(".")
+        parts = self.CFxHandle.queryParam("ip4").split(".")
         ip_prefix = parts[0] + "." + parts[1] + "."
         for i in range(0, 255):
             for j in range(0, 255):
@@ -83,8 +87,8 @@ class BaseTopologyManager(ControllerModule):
     #   - uid      = UID of the destination node
     #   - msg      = message
     def send_msg_srv(self, msg_type, uid, msg):
-        cbtdata = {"method": msg_type, "overlay_id": 1, "uid": uid, "data": msg}
-        self.registerCBT('TincanSender', 'DO_SEND_MSG', cbtdata)
+        cbtdata = {"method": msg_type, "overlay_id": 0, "uid": uid, "data": msg} #TODO overlay_id
+        self.registerCBT('XmppClient', 'DO_SEND_MSG', cbtdata)
 
     # send message (through ICC)
     #   - uid = UID of the destination peer (a tincan link must exist)
@@ -115,8 +119,10 @@ class BaseTopologyManager(ControllerModule):
             "fpr": self.ipop_state["_fpr"],
             "con_type": con_type
         }
-
-        self.send_msg_srv("con_req", uid, json.dumps(data))
+        try:
+            self.send_msg_srv("con_req", uid, json.dumps(data))
+        except:
+            self.registerCBT('Logger', 'info', "Exception in send_msg_srv con_req") 
 
         log = "sent con_req ({0}): {1}".format(con_type, uid)
         self.registerCBT('Logger', 'info', log)
@@ -135,6 +141,8 @@ class BaseTopologyManager(ControllerModule):
         }
 
         self.send_msg_srv("con_ack", uid, json.dumps(data))
+        log = "sent con_ack to {0}".format(uid)
+        self.registerCBT('Logger','info', log)
 
     # create connection
     #   establish a tincan link
@@ -145,14 +153,15 @@ class BaseTopologyManager(ControllerModule):
         # FIXME check_collision was removed
         fpr_len = len(self.ipop_state["_fpr"])
         fpr = data[:fpr_len]
-        nid = 1
+        nid = 0 # need this to make tincan fwd con_resp to controller.
         sec = self.CMConfig["sec"]
         cas = data[fpr_len + 1:]
         ip4 = self.uid_ip4_table[uid]
 
         con_dict = {'uid': uid, 'fpr': data, 'nid': nid, 'sec': sec, 'cas': cas}
         self.registerCBT('LinkManager', 'CREATE_LINK', con_dict)
-
+        # Add uid to list for whom connection has been attempted.
+        self.peer_uids[uid] = 1
         cbtdata = {"uid": uid, "ip4": ip4}
         self.registerCBT('TincanSender', 'DO_SET_REMOTE_IP', cbtdata)
 
@@ -206,28 +215,80 @@ class BaseTopologyManager(ControllerModule):
             self.peers[uid] = {
                 "uid": uid,
                 "ttl": time.time() + self.CMConfig["ttl_link_initial"],
-                "con_status": "unknown"
+                "con_status": "sent_con_req"
             }
 
             # connection request
-            self.request_connection(con_type, uid)
+            try:
+                self.request_connection(con_type, uid)
+            except:
+                self.registerCBT('Logger', 'info', "Exception in request_connection") 
 
     # add inbound link
     def add_inbound_link(self, con_type, uid, fpr):
 
-        # peer is not in the peers list, or
-        # peer is in the list and this node's uid is smaller (race avoidance)
-        if (uid not in self.peers.keys()) or (uid in self.peers.keys() and self.uid < uid):
+        
+        # recvd con_req and sender is in peers_list - uncommon case
 
-            # add peer to peers list
+        if (uid in self.peers.keys()):
+            log_msg = "AIL: Recvd con_req for peer in list from {0} status {1}".format(uid,self.peers[uid]["con_status"])
+            self.registerCBT('Logger','info',log_msg)
+
+            # if node has received con_req, re-respond (in case it was lost)
+            if (self.peers[uid]["con_status"] == "recv_con_req"):
+                log_msg = "AIL: Resending respond_connection to {0}".format(uid)
+                self.registerCBT('Logger','info',log_msg)
+                self.respond_connection(con_type, uid, fpr)
+                return
+
+            # else if node has sent con_request concurrently
+            elif (self.peers[uid]["con_status"] == "sent_con_req"):
+                # peer with smaller UID sends a response 
+                if (self.uid < uid):
+                    log_msg = "AIL: SmallerUID respond_connection to {0}".format(uid)
+                    self.registerCBT('Logger','info',log_msg)
+                    self.peers[uid] = {
+                        "uid": uid,
+                        "ttl": time.time() + self.CMConfig["ttl_link_initial"],
+                        "con_status": "conc_sent_response"
+                    }
+                    self.respond_connection(con_type, uid, fpr)
+                # peer with larger UID ignores 
+                else:
+                    log_msg = "AIL: LargerUID ignores from {0}".format(uid)
+                    self.registerCBT('Logger','info',log_msg)
+                    self.peers[uid] = {
+                        "uid": uid,
+                        "ttl": time.time() + self.CMConfig["ttl_link_initial"],
+                        "con_status": "conc_no_response"
+                    }
+                return
+
+            # if node was in any other state:
+            # replied or ignored a concurrent send request:
+            #    conc_no_response, conc_sent_response
+            # or if status is online or offline, 
+            # remove link and wait to try again
+            else:
+                log_msg = "AIL: Giving up, remove_connection from {0}".format(uid)
+                self.registerCBT('Logger','info',log_msg)
+                self.remove_connection(uid)
+
+        # recvd con_req and sender is not in peers list - common case
+        else:
+            # add peer to peers list and set status as having received and
+            # responded to con_req
+            log_msg = "AIL: Recvd con_req for peer not in list {0}".format(uid)
+            self.registerCBT('Logger','info',log_msg)
             self.peers[uid] = {
                 "uid": uid,
                 "ttl": time.time() + self.CMConfig["ttl_link_initial"],
-                "con_status": "unknown"
+                "con_status": "recv_con_req"
             }
 
             # connection response
             self.respond_connection(con_type, uid, fpr)
+            
 
     # remove link
     def remove_link(self, con_type, uid):
@@ -312,7 +373,6 @@ class BaseTopologyManager(ControllerModule):
     #     discover nodes
 
     def add_successors(self):
-
         # sort nodes into rotary, unique list with respect to this UID
         nodes = sorted(set(list(self.links["successor"].keys()) + self.discovered_nodes))
         if self.uid in nodes:
@@ -324,7 +384,10 @@ class BaseTopologyManager(ControllerModule):
         # link to the closest <num_successors> nodes (if not already linked)
         for node in nodes[0:min(len(nodes), self.CMConfig["num_successors"])]:
             if node not in self.links["successor"].keys():
-                self.add_outbound_link("successor", node, None)
+                try:
+                    self.add_outbound_link("successor", node, None)
+                except:
+                   self.registerCBT('Logger', 'info', "Exception in add_outbound_link") 
 
         # reset list of discovered nodes
         del self.discovered_nodes[:]
@@ -520,7 +583,6 @@ class BaseTopologyManager(ControllerModule):
 
             # update peer list
             elif msg_type == "peer_state":
-                self.discovered_nodes_srv.append(msg["uid"])
 
                 if msg["uid"] in self.peers:
                     # preserve ttl and con_status attributes
@@ -546,54 +608,73 @@ class BaseTopologyManager(ControllerModule):
                 if msg["uid"] in self.peers:
                     self.peers[msg["uid"]]["con_status"] = msg["data"]
 
+            # handle connection response
+            elif msg_type == "con_resp":
+                fpr_len = len(self.ipop_state["_fpr"])
+                my_fpr = msg["data"][:fpr_len]
+                my_cas = msg["data"][fpr_len + 1:]
+                data = msg["data"]
+                target_uid = msg["uid"]
+                self.send_msg_srv("con_resp",target_uid,data)
+                log = "recv con_resp from Tincan for {0}".format(msg["uid"])
+                self.registerCBT('Logger', 'info', log)           
+                              
+                '''self.create_connection(msg["uid"], msg["data"])
+
+                log = "recv con_resp: {0}".format(msg["uid"])
+                self.registerCBT('Logger', 'info', log)'''
+
+            
+                
+        # handle CBT's from XmppClient
+        elif cbt.action == "XMPP_MSG":
+            msg = cbt.data
+            msg_type = msg.get("type", None)
+            
             # handle connection request
-            elif msg_type == "con_req":
-
+            if msg_type == "con_req":
                 msg["data"] = json.loads(msg["data"])
-
                 log = "recv con_req ({0}): {1}".format(msg["data"]["con_type"], msg["uid"])
                 self.registerCBT('Logger', 'info', log)
-
                 self.add_inbound(msg["data"]["con_type"], msg["uid"],
                                     msg["data"]["fpr"])
 
             # handle connection acknowledgement
             elif msg_type == "con_ack":
                 msg["data"] = json.loads(msg["data"])
-
                 log = "recv con_ack ({0}): {1}".format(msg["data"]["con_type"], msg["uid"])
                 self.registerCBT('Logger', 'info', log)
-
                 self.create_connection(msg["uid"], msg["data"]["fpr"])
-
-            # handle connection response
-            elif msg_type == "con_resp":
-                self.create_connection(msg["uid"], msg["data"])
-
-                log = "recv con_resp: {0}".format(msg["uid"])
-                self.registerCBT('Logger', 'info', log)
-
+                
             # handle ping message
             elif msg_type == "ping":
-
                 # add source node to the list of discovered nodes
                 self.discovered_nodes.append(msg["uid"])
-
                 # reply with a ping response message
                 self.send_msg_srv("ping_resp", msg["uid"], self.uid)
-
                 log = "recv ping: {0}".format(msg["uid"])
                 self.registerCBT('Logger', 'info', log)
 
             # handle ping response
             elif msg_type == "ping_resp":
-
                 # add source node to the list of discovered nodes
                 self.discovered_nodes.append(msg["uid"])
-
                 log = "recv ping_resp: {0}".format(msg["uid"])
                 self.registerCBT('Logger', 'info', log)
-
+                
+            # handle peer_con_resp sent by peer   
+            elif msg_type == "peer_con_resp":
+                self.create_connection(msg["uid"], msg["data"])
+                log = "recv con_resp: {0}".format(msg["uid"])
+                self.registerCBT('Logger', 'info', log)
+                
+            # Handle xmpp advertisements   
+            elif msg_type == "xmpp_advertisement":
+                self.discovered_nodes_srv.append(msg["data"])
+                self.discovered_nodes_srv = list(set(self.discovered_nodes_srv))
+                log = "recv xmpp_advt: {0}".format(msg["uid"])
+                self.registerCBT('Logger', 'info', log)
+                
         # handle and forward tincan data packets
         elif cbt.action == "TINCAN_PACKET":
 
@@ -722,7 +803,10 @@ class BaseTopologyManager(ControllerModule):
             self.clean_connections()
 
             # attempt to bootstrap
-            self.add_successors()
+            try:
+                self.add_successors()
+            except:
+                self.registerCBT('Logger', 'info', "Exception in add_succesors")
 
             # wait until connected
             for peer in self.peers.keys():
@@ -753,28 +837,39 @@ class BaseTopologyManager(ControllerModule):
                 self.registerCBT('Logger', 'info', "p2p state: CONNECTED")
 
     def timer_method(self):
+    
+        try:
+            self.interval_counter += 1
 
-        self.interval_counter += 1
+            # every <interval_management> seconds
+            if self.interval_counter % self.CMConfig["interval_management"] == 0:
 
-        # every <interval_management> seconds
-        if self.interval_counter % self.CMConfig["interval_management"] == 0:
+                # manage topology
+                try:
+                    self.manage_topology()
+                except:
+                    self.registerCBT('Logger', 'info', "Exception in MT BTM timer")
 
-            # manage topology
-            self.manage_topology()
+                # update local state and update the list of discovered nodes (from XMPP)
+                self.registerCBT('TincanSender', 'DO_GET_STATE', '')
+                for uid in self.peer_uids.keys():
+                    self.registerCBT('TincanSender', 'DO_GET_STATE', uid)
 
-            # update local state and update the list of discovered nodes (from XMPP)
-            self.registerCBT('TincanSender', 'DO_GET_STATE', '')
+            # every <interval_ping> seconds
+            if self.interval_counter % self.CMConfig["interval_ping"] == 0:
 
-        # every <interval_ping> seconds
-        if self.interval_counter % self.CMConfig["interval_ping"] == 0:
+                # ping to repair potential network partitions
+                try:
+                    self.ping()
+                except:
+                    self.registerCBT('Logger', 'info', "Exception in PING BTM timer")
 
-            # ping to repair potential network partitions
-            self.ping()
-
-        # every <interval_central_visualizer> seconds
-        if self.use_visualizer and self.interval_counter % self.cv_interval == 0:
-            # send information to central visualizer
-            self.visual_debugger()
+            # every <interval_central_visualizer> seconds
+            if self.use_visualizer and self.interval_counter % self.cv_interval == 0:
+                # send information to central visualizer
+                self.visual_debugger()
+        except:
+            self.registerCBT('Logger', 'info', "Exception in BTM timer")
 
     def ping(self):
 
