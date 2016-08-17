@@ -133,12 +133,12 @@ class Monitor(ControllerModule):
 
             cbtdata = {
                 "method": "con_req",
-                "overlay_id": 1,
+                "overlay_id": 0, # 0 for XMPP, 1 for tin-can.
                 "uid": peer["uid"],
                 "data": self.ipop_state["_fpr"]
             }
 
-            self.registerCBT('TincanSender', 'DO_SEND_MSG', cbtdata)
+            self.registerCBT('XmppClient', 'DO_SEND_MSG', cbtdata)
 
     def terminate(self):
         pass

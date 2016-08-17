@@ -1,15 +1,11 @@
 {
   "CFx": {
-    "xmpp_username": "",
-    "xmpp_password": "",
-    "xmpp_host": "",
-    "xmpp_port": 5222,
-    "tincan_logging": 0,
+    "tincan_logging": 2,
     "vpn_type": "SocialVPN",
     "ip4_mask": 24
   },
   "Logger": {
-    "controller_logging": "ERROR"
+    "controller_logging": "DEBUG"
   },
   "TincanDispatcher": {
     "dependencies": ["Logger"]
@@ -58,6 +54,18 @@
     "name": "",
     "central_visualizer_addr": "",
     "central_visualizer_port": 51234,
+    "dependencies": ["Logger"]
+  },
+  "XmppClient": {
+    "enabled": true,
+    "xmpp_username": "",
+    "xmpp_password": "",
+    "xmpp_host": "",
+    "xmpp_port": 5222,
+    "xmpp_authentication_method": "password",
+    "xmpp_accept_untrusted_server": false,
+    "truststore": "/etc/ssl/certs/ca-certificates.crt",
+    "timer_interval": 15,
     "dependencies": ["Logger"]
   }
 }
