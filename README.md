@@ -32,7 +32,7 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 	python -m controller.Controller -c controller/modules/svpn-config.json &> log.txt &
 	```
 
-5. Check status.
+5. Check status(works till 16.01.1).
 
     ```echo -e '\x02\x01{"m":"get_state"}' | netcat -q 1 -u 127.0.0.1 5800```
 
@@ -58,7 +58,7 @@ Obtain **IPOP-Tincan** by downloading the latest archive from the releases or by
 	python -m controller.Controller -c controller/modules/gvpn-config.json &> log.txt &
 	```
 
-5. Check status.
+5. Check status(works till 16.01.1).
 
     ```echo -e '\x02\x01{"m":"get_state"}' | netcat -q 1 -u 127.0.0.1 5800```
 
