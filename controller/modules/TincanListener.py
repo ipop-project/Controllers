@@ -12,7 +12,7 @@ class TincanListener(ControllerModule):
 
         self.sock = sock_list[0]
         self.sock_svr = sock_list[1]
-        self.sock_list = sock_list
+        self.sock_list = [self.sock_svr]
 
     def initialize(self):
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
@@ -31,12 +31,13 @@ class TincanListener(ControllerModule):
     def __tincan_listener(self):
         while True:
             socks, _, _ = select.select(self.sock_list, [], [],
-                                        self.CMConfig["socket_read_wait_time"])
+                                        self.CMConfig["SocketReadWaitTime"])
 
             for sock in socks:
-                if sock == self.sock or sock == self.sock_svr:
+                if sock == self.sock_svr:
+                #if sock == self.sock or sock == self.sock_svr:
                     data,addr = sock.recvfrom(self.CMConfig["buf_size"])
-                    self.registerCBT('TincanDispatcher', 'TINCAN_PKT', [data, addr])
+                    self.registerCBT('TincanDispatcher', 'TINCAN_PKT', data)
 
     def terminate(self):
         pass

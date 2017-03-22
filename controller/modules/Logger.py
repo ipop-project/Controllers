@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import logging
+import logging.handlers as lh
 from controller.framework.ControllerModule import ControllerModule
 
 
@@ -9,11 +10,27 @@ class Logger(ControllerModule):
         super(Logger, self).__init__(CFxHandle, paramDict, ModuleName)
 
     def initialize(self):
-        if "controller_logging" in self.CMConfig:
-            level = getattr(logging, self.CMConfig["controller_logging"])
-            logging.basicConfig(format='[%(asctime)s.%(msecs)03d] %(levelname)s:%(message)s',datefmt='%Y%m%d %H:%M:%S',level=level)
+        if "LogLevel" in self.CMConfig:
+            level = getattr(logging, self.CMConfig["LogLevel"])
+        else:
+            level = getattr(logging, "info")
 
-        logging.info("Logger Module Loaded")
+        if self.CMConfig["LogOption"] == "File":
+            self.logger = logging.getLogger("IPOP Rotating Log")
+            self.logger.setLevel(level)
+            if "LogFilePath" in self.CMConfig:
+                filepath = self.CMConfig["LogFilePath"]
+            else:
+                filepath = "./"
+            filepath+=self.CMConfig["LogFileName"]
+            handler = lh.RotatingFileHandler(filename=filepath,maxBytes=self.CMConfig["LogFileSize"],\
+                                   backupCount=self.CMConfig["BackupLogFileCount"])
+            self.logger.addHandler(handler)
+        else:
+
+            logging.basicConfig(format='[%(asctime)s.%(msecs)03d] %(levelname)s:%(message)s', datefmt='%Y%m%d %H:%M:%S',
+                                level=level)
+            logging.info("Logger Module Loaded")
 
         # PKTDUMP mode dumps packet information
         logging.addLevelName(5, "PKTDUMP")
@@ -21,13 +38,25 @@ class Logger(ControllerModule):
 
     def processCBT(self, cbt):
         if cbt.action == 'debug':
-            logging.debug(cbt.data)
+            if self.CMConfig["LogOption"] == "File":
+                self.logger.debug(cbt.data)
+            else:
+                logging.debug(cbt.data)
         elif cbt.action == 'info':
-            logging.info(cbt.data)
+            if self.CMConfig["LogOption"] == "File":
+                self.logger.info(cbt.data)
+            else:
+                logging.info(cbt.data)
         elif cbt.action == 'warning':
-            logging.warning(cbt.data)
+            if self.CMConfig["LogOption"] == "File":
+                self.logger.warning(cbt.data)
+            else:
+                logging.warning(cbt.data)
         elif cbt.action == 'error':
-            logging.error(cbt.data)
+            if self.CMConfig["LogOption"] == "File":
+                self.logger.error(cbt.data)
+            else:
+                logging.error(cbt.data)
         elif cbt.action == "pktdump":
             self.pktdump(message=cbt.data.get('message'),
                          dump=cbt.data.get('dump'))

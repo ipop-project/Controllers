@@ -1,15 +1,8 @@
 #!/usr/bin/env python
-import os
-import sys
-import json
-import signal
-import socket
+import os,sys,json,signal,socket,logging,time
 import controller.framework.fxlib as fxlib
 import controller.framework.ipoplib as ipoplib
-import argparse
-import binascii
-import threading
-import importlib
+import argparse,threading,importlib
 from getpass import getpass
 from collections import OrderedDict
 from controller.framework.CBT import CBT as _CBT
@@ -19,29 +12,33 @@ from controller.framework.CFxHandle import CFxHandle
 class CFX(object):
 
     def __init__(self):
+        self.CONFIG = {}
         self.parse_config()
-        fxlib.CONFIG = self.CONFIG
 
+        #fxlib.CONFIG = self.CONFIG
+        self.transaction_counter=0
         # CFxHandleDict is a dict containing the references to
         # CFxHandles of all CMs with key as the module name and
         # value as the CFxHandle reference
         self.CFxHandleDict = {}
 
-        self.vpn_type = self.CONFIG['CFx']['vpn_type']
-        
+        self.vpn_type = self.CONFIG['CFx']['Model']
+
         if self.vpn_type == 'GroupVPN':
-            self.ip4 = self.CONFIG['CFx']["ip4"]
-            self.uid = fxlib.gen_uid(self.ip4)  # SHA-1 Hash
+            self.vnetdetails = self.CONFIG["Tincan"]["Vnets"]
+            for k in range(len(self.vnetdetails)):
+                ip4 = self.vnetdetails[k]["IP4"]
+                self.vnetdetails[k]["uid"] = fxlib.gen_uid(ip4)
+                self.vnetdetails[k]["ip6"] = fxlib.gen_ip6(self.vnetdetails[k]["uid"])
         elif self.vpn_type == 'SocialVPN':
             self.ip4 = self.CONFIG['AddressMapper']["ip4"]
             self.uid = self.CONFIG['CFx']['local_uid']
-        self.ip6 = fxlib.gen_ip6(self.uid)
+            self.ip6 = fxlib.gen_ip6(self.uid)
 
         if socket.has_ipv6:
             self.sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
             self.sock_svr = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-            self.sock_svr.bind((self.CONFIG['TincanSender']["localhost6"],
-                                self.CONFIG['CFx']["contr_port"]))
+            self.sock_svr.bind(("::1", self.CONFIG['CFx']["contr_port"]))
         else:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock_svr = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -49,7 +46,7 @@ class CFX(object):
                                 self.CONFIG['CFx']["contr_port"]))
         self.sock.bind(("", 0))
         self.sock_list = [self.sock, self.sock_svr]
-
+        
     def submitCBT(self, CBT):
         recipient = CBT.recipient
         self.CFxHandleDict[recipient].CMQueue.put(CBT)
@@ -63,45 +60,100 @@ class CFX(object):
         # deallocate CBT (use python's automatic garbage collector)
         pass
 
+
     def initialize(self,):
         # issue tincan API calls for controller initialization
+        print("Creating Tincan inter-process link")
+        ep = ipoplib.ENDPT
+        if socket.has_ipv6 == False:
+            ep["IPOP"]["Request"]["AddressFamily"] = "af_inet"
+            ep["IPOP"]["Request"]["IP"] = self.CONFIG["TincanSender"]["localhost"]
+        self.transaction_counter += 1
+        ep["IPOP"]["TransactionId"] = self.transaction_counter
 
-        # set logging level
-        fxlib.do_set_logging(self.sock, self.CONFIG["CFx"]["tincan_logging"])
+        fxlib.send_msg(self.sock, json.dumps(ep))
+        time.sleep(1)
 
-        if self.vpn_type == "GroupVPN":
-            fxlib.do_set_translation(self.sock, 0)
-            fxlib.do_set_switchmode(self.sock,
-                                      self.CONFIG["TincanSender"]
-                                      ["switchmode"])
-        elif self.vpn_type == "SocialVPN":
-            fxlib.do_set_translation(self.sock, 1)
+        print("Setting Tincan log level to "+self.CONFIG["Tincan"]["LogLevel"])
+        self.transaction_counter += 1
+        lgl = ipoplib.LOGLVEL
+        lgl["IPOP"]["Request"]["LogLevel"] = self.CONFIG["Tincan"]["LogLevel"]
+        lgl["IPOP"]["TransactionId"] = self.transaction_counter
 
-        # set callback endpoint to receive notifications
-        fxlib.do_set_cb_endpoint(self.sock, self.sock.getsockname())
+        fxlib.send_msg(self.sock, json.dumps(lgl))
+        time.sleep(1)
 
-        # configure the local node
-        fxlib.do_set_local_ip(self.sock, self.uid, self.ip4,
-                                self.ip6,
-                                self.CONFIG["CFx"]["ip4_mask"],
-                                self.CONFIG["CFx"]["ip6_mask"],
-                                self.CONFIG["CFx"]["subnet_mask"],
-                                self.CONFIG["TincanSender"]["switchmode"])
+        for i in range(len(self.vnetdetails)):
+            vn = ipoplib.VNET
+            self.transaction_counter += 1
+            print("Creating Vnet {0}".format(self.vnetdetails[i]["TapName"]))
+            vn["IPOP"]["TransactionId"] = self.transaction_counter
+            vn["IPOP"]["Request"]["LocalUID"]       = self.vnetdetails[i]["uid"]
+            vn["IPOP"]["Request"]["LocalVirtIP6"]   = self.vnetdetails[i]["ip6"]
+            vn["IPOP"]["Request"]["LocalVirtIP4"]   = self.vnetdetails[i]["IP4"]
 
-        fxlib.do_set_trimpolicy(self.sock,
-                                  self.CONFIG["CFx"]["trim_enabled"])
+            vn["IPOP"]["Request"]["InterfaceName"]  = self.vnetdetails[i]["TapName"]
+            vn["IPOP"]["Request"]["Description"]    = self.vnetdetails[i]["Description"]
+            vn["IPOP"]["Request"]["StunAddress"]    = self.CONFIG["Tincan"]["Stun"][0]         # Currently configured to take the first stun address
+            vn["IPOP"]["Request"]["TurnAddress"]    = self.CONFIG["Tincan"]["Turn"][0]["Address"]
+            vn["IPOP"]["Request"]["TurnUser"]       = self.CONFIG["Tincan"]["Turn"][0]["User"]
+            vn["IPOP"]["Request"]["TurnPass"]       = self.CONFIG["Tincan"]["Turn"][0]["Password"]
 
-        # retrieve the state of the local node
-        fxlib.do_get_state(self.sock)
+            if "IP4Prefix" in self.vnetdetails[i]:
+                vn["IPOP"]["Request"]["LocalPrefix4"] = self.vnetdetails[i]["IP4Prefix"]
+            else:
+                vn["IPOP"]["Request"]["LocalPrefix4"] = self.CONFIG["CFx"]["LocalPrefix4"]
 
-        # ignore the network interfaces in the list
-        if "network_ignore_list" in self.CONFIG["CFx"]:
-            fxlib.make_call(self.sock, m="set_network_ignore_list",
-                              network_ignore_list=self.CONFIG["CFx"]
-                              ["network_ignore_list"])
+            if "IP6Mask" in self.vnetdetails[i]:
+                vn["IPOP"]["Request"]["LocalPrefix6"] = self.vnetdetails[i]["IP6Mask"]
+            else:
+                vn["IPOP"]["Request"]["LocalPrefix6"] = self.CONFIG["CFx"]["LocalPrefix6"]
 
-        print("CFx initialized. Loading Controller Modules")
+            if "MTU4" in self.vnetdetails[i]:
+                vn["IPOP"]["Request"]["MTU4"]         = self.vnetdetails[i]["MTU4"]
+            else:
+                vn["IPOP"]["Request"]["MTU4"]         = self.CONFIG["CFx"]["MTU4"]
 
+            if "MTU6" in self.vnetdetails[i]:
+                vn["IPOP"]["Request"]["MTU6"]         = self.vnetdetails[i]["MTU6"]
+            else:
+                vn["IPOP"]["Request"]["MTU6"]         = self.CONFIG["CFx"]["MTU6"]
+
+            if self.vnetdetails[i]["L2TunnellingEnabled"] == 1:
+                vn["IPOP"]["Request"]["L2TunnelEnabled"]         = True
+            else:
+                vn["IPOP"]["Request"]["L2TunnelEnabled"]         = False
+
+            if "TrimEnabled" in self.vnetdetails[i]:
+                vn["IPOP"]["Request"]["AutoTrimEnabled"]           = self.vnetdetails[i]["TrimEnabled"]
+
+            if self.vpn_type == "GroupVPN":
+                vn["IPOP"]["Request"]["IPMappingEnabled"] = False
+            else:
+                vn["IPOP"]["Request"]["IPMappingEnabled"] = True
+
+            fxlib.send_msg(self.sock,json.dumps(vn))
+
+            print("Ignoring interfaces {0}".format(self.vnetdetails[i]["IgnoredNetInterfaces"]))
+            if "IgnoredNetInterfaces" in self.vnetdetails[i]:
+                net_ignore_list = ipoplib.IGNORE
+                self.transaction_counter += 1
+                net_ignore_list["IPOP"]["TransactionId"]       = self.transaction_counter
+                net_ignore_list["IPOP"]["Request"]["IgnoredNetInterfaces"] = self.vnetdetails[i]["IgnoredNetInterfaces"]
+                net_ignore_list["IPOP"]["Request"]["InterfaceName"]       = self.vnetdetails[i]["TapName"]
+
+                fxlib.send_msg(self.sock, json.dumps(net_ignore_list))
+            time.sleep(1)
+
+            get_state_request = ipoplib.LSTATE
+            self.transaction_counter += 1
+            get_state_request["IPOP"]["TransactionId"]              = self.transaction_counter
+            get_state_request["IPOP"]["Request"]["InterfaceName"]   = self.vnetdetails[i]["TapName"]
+            get_state_request["IPOP"]["Request"]["UID"]             = self.vnetdetails[i]["uid"]
+
+            fxlib.send_msg(self.sock,json.dumps(get_state_request))
+
+        print("CFx initialized, proceeding to load modules")
         self.loaded_modules = ['CFx']  # list of modules already loaded
 
         # check for circular dependencies in the configuration file
@@ -129,12 +181,12 @@ class CFX(object):
                 self.CFxHandleDict[handle].timer_thread.start()
 
     def load_module(self, module_name):
-        if 'enabled' in self.json_data[module_name]:
-            module_enabled = self.json_data[module_name]['enabled']
+        if 'Enabled' in self.json_data[module_name]:
+            module_enabled = self.json_data[module_name]['Enabled']
         else:
             module_enabled = True
 
-        if (module_name not in self.loaded_modules) and module_enabled:
+        if (module_name not in self.loaded_modules) and module_enabled and module_name != "Tincan":
             # load the dependencies of the module
             self.load_dependencies(module_name)
 
@@ -158,8 +210,13 @@ class CFX(object):
             # instantiate the class with the CFxHandle reference and the
             # configuration parameter (additionally, pass the list of sockets to
             # the TincanListener and TincanSender modules
-            if module_name in ['TincanListener', 'TincanSender']:
-                instance = module_class(self.sock_list,
+            if module_name in ['TincanListener']:
+                instance = module_class([self.sock, self.sock_svr],
+                                        handle,
+                                        self.CONFIG[module_name],
+                                        module_name)
+            elif module_name in ['TincanSender']:
+                instance = module_class([self.sock],
                                         handle,
                                         self.CONFIG[module_name],
                                         module_name)
@@ -246,34 +303,35 @@ class CFX(object):
             with open(args.config_file, "w") as f:
                 json.dump(self.CONFIG, f, indent=4, sort_keys=True)
 
-        if not ("xmpp_username" in self.CONFIG["XmppClient"] and
-                "xmpp_host" in self.CONFIG["XmppClient"]):
-            raise ValueError("At least 'xmpp_username' and 'xmpp_host' "
+        if not ("Username" in self.CONFIG["XmppClient"] and
+                        "AddressHost" in self.CONFIG["XmppClient"]):
+            raise ValueError("At least XMPP 'Username' and 'AddressHost' "
                              "must be specified in config file or string")
         keyring_installed = False
         try:
             import keyring
             keyring_installed = True
         except:
-            print("keyring module is not installed")
+            print("Key-ring module is not installed")
 
-        if "xmpp_password" not in self.CONFIG["XmppClient"]:
+        if "Password" not in self.CONFIG["XmppClient"]:
             xmpp_pswd = None
             if keyring_installed:
-                xmpp_pswd = keyring.get_password("ipop", 
-                                                 self.CONFIG["XmppClient"]["xmpp_username"])
+                xmpp_pswd = keyring.get_password("ipop",
+                                                 self.CONFIG["XmppClient"]["Username"])
             if not keyring_installed or (keyring_installed and xmpp_pswd == None):
-                prompt = "\nPassword for %s:" % self.CONFIG["XmppClient"]["xmpp_username"]
+                prompt = "\nPassword for %s:" % self.CONFIG["XmppClient"]["Username"]
                 if args.pwdstdout:
                     xmpp_pswd = getpass(prompt, stream=sys.stdout)
                 else:
                     xmpp_pswd = getpass(prompt)
-            
+
             if xmpp_pswd != None:
-                self.CONFIG["XmppClient"]["xmpp_password"] = xmpp_pswd
-                if keyring_installed:         
+                self.CONFIG["XmppClient"]["Password"] = xmpp_pswd
+                if keyring_installed:
                     try:
-                           keyring.set_password("ipop", self.CONFIG["XmppClient"]["xmpp_username"], self.CONFIG["XmppClient"]["xmpp_password"])
+                        keyring.set_password("ipop", self.CONFIG["XmppClient"]["Username"],
+                                             self.CONFIG["XmppClient"]["Password"])
                     except:
                         print("unable to store password in keyring")
             else:
@@ -322,7 +380,7 @@ class CFX(object):
             self.submitCBT(terminateCBT)
 
         # wait for the threads to process their current CBTs and exit
-        print("waiting for timer threads to exit gracefully...")
+            print("waiting for timer threads to exit gracefully...")
         for handle in self.CFxHandleDict:
             if self.CFxHandleDict[handle].joinEnabled:
                 self.CFxHandleDict[handle].CMThread.join()
@@ -331,17 +389,15 @@ class CFX(object):
 
         sys.exit(0)
 
-    def queryParam(self, ParamName=""):
-        if ParamName == "xmpp_host":
-            return self.CONFIG["XmppClient"][ParamName]
-        elif ParamName == "local_uid":
-            return self.CONFIG["CFx"][ParamName]
-        elif ParamName == "xmpp_username":
-            return self.CONFIG["XmppClient"][ParamName]
-        elif ParamName == "vpn_type":
-            return self.CONFIG["CFx"][ParamName]
-        elif ParamName == "ipopVerRel":
-            return self.CONFIG["CFx"][ParamName]
-        elif ParamName == "ip4":
-            return self.CONFIG["CFx"][ParamName]
-        return None
+    def queryParam(self, ModuleName,ParamName=""):
+        if ModuleName in [None,""]:
+            return None
+        else:
+            if ParamName == "":
+                return None
+            else:
+                return self.CONFIG[ModuleName][ParamName]
+
+if __name__=="__main__":
+    cf = CFX()
+    cf.initialize()

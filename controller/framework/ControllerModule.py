@@ -62,3 +62,25 @@ class ControllerModule(object):
             cbt.uid = _uid
         self.CFxHandle.submitCBT(cbt)
         return cbt
+
+    def linkCBT(self, initialCBT, newCBT):
+        newcbtkey = str(newCBT.uid) + " " + str(newCBT.action) + " " + str(newCBT.initiator)
+        initcbtkey = str(initialCBT.uid) + " " + str(initialCBT.action) + " " + str(initialCBT.initiator)
+        self.CBTMappings[newcbtkey] = initcbtkey
+        self.pendingCBT[initcbtkey] = initialCBT
+
+    def retrieveBaseCBT(self, cbt):
+        dependentCBTKey = self.CBTMappings.get(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator))
+        if dependentCBTKey != None:
+            self.CBTMappings.pop(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator))
+            return self.pendingCBT.pop(dependentCBTKey)
+        return None
+
+    def retrievePendingCBT(self,cbt):
+        if self.pendingCBT.get(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator)) != None:
+            return self.pendingCBT.pop(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator))
+        return None
+
+    def insertPendingCBT(self,cbt):
+        cbtkey = str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator)
+        self.pendingCBT[cbtkey] = cbt

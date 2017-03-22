@@ -23,7 +23,7 @@ class StatReport(ControllerModule):
     def initialize(self):
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
-    def processCBT():
+    def processCBT(self):
         pass
 
     def timer_method(self):
@@ -35,9 +35,9 @@ class StatReport(ControllerModule):
     def report(self):
         uid = self.CFxHandle.queryParam("local_uid")
         if uid == None: return
-        xmpp_host = self.CFxHandle.queryParam("xmpp_host")
-        xmpp_username = self.CFxHandle.queryParam("xmpp_username")
-        controller = self.CFxHandle.queryParam("vpn_type")
+        xmpp_host = self.CFxHandle.queryParam("XmppClient","AddressHost")
+        xmpp_username = self.CFxHandle.queryParam("XmppClient","Username")
+        controller = self.CFxHandle.queryParam("CFx","Model")
         version = ipoplib.ipop_ver
 
         stat = {
@@ -52,8 +52,8 @@ class StatReport(ControllerModule):
         data = json.dumps(stat)
 
         try:
-            url="http://" + self.CMConfig["stat_server"] + ":" +\
-                str(self.CMConfig["stat_server_port"]) + "/api/submit"
+            url="http://" + self.CMConfig["StatServerAddress"] + ":" +\
+                str(self.CMConfig["StatServerPort"]) + "/api/submit"
             req = urllib2.Request(url=url, data=data)
             req.add_header("Content-Type", "application/json")
             res = urllib2.urlopen(req)
