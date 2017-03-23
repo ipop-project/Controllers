@@ -3,7 +3,6 @@ import sys
 import json, ssl
 import time
 from controller.framework.ControllerModule import ControllerModule
-import controller.framework.fxlib as fxlib
 import sleekxmpp
 from collections import defaultdict
 from sleekxmpp.xmlstream.stanzabase import ElementBase, ET, JID
@@ -11,7 +10,6 @@ from sleekxmpp.xmlstream import register_stanza_plugin
 from sleekxmpp.xmlstream.handler.callback import Callback
 from sleekxmpp.xmlstream.matcher import StanzaPath
 from sleekxmpp.stanza.message import Message
-from sleekxmpp.plugins.base import base_plugin
 
 py_ver = sys.version_info[0]
 
@@ -107,8 +105,11 @@ class XmppClient(ControllerModule, sleekxmpp.ClientXMPP):
 
     # Triggered at start of XMPP session
     def start(self, event):
-        self.get_roster()
-        self.send_presence()
+        try:
+            self.get_roster()
+            self.send_presence()
+        except Exception as err:
+            self.log("Exception in XMPPClient:".format(err), severity="error")
         # Add handler for incoming presence messages.
         self.add_event_handler("presence_available", self.handle_presence)
         self.add_event_handler("presence_unavailable", self.removepeerjid)
@@ -120,21 +121,34 @@ class XmppClient(ControllerModule, sleekxmpp.ClientXMPP):
             self.xmpp_peers[presence_sender] = [time.time(), True]
             self.log("presence received from {0}".format(presence_sender), severity=log_level)
 
-    # Call Remove connection once the Peer has been deleted from the friend list
+    # Call Remove connection once the Peer has been deleted from the friend list(Roster)
     def deletepeerjid(self,message):
-        for nodejid,data in message["roster"]["items"].items():
-            if data["subscription"] == "remove":
-                for ele in self.jid_uid.keys():
-                    if ele.find(nodejid) !=-1:
-                        node_uid = self.jid_uid[ele][0]
-                        del self.jid_uid[ele]
-                        del self.xmpp_peers[ele]
-                        if node_uid in self.uid_jid.keys():
-                            del self.uid_jid[node_uid]
-                            self.update_peerlist = True
-                            self.registerCBT("Logger","info","{0} has been deleted from the roster.".format(node_uid))
-                            self.registerCBT("ConnectionManager","remove_connection",\
-                                             {"interface_name":self.interface_name,"uid":node_uid})
+        try:
+            self.log("XMPP server Message::"+str(message))
+            for nodejid,data in message["roster"]["items"].items():
+                if data["subscription"] == "remove":
+                    for ele in self.jid_uid.keys():
+                        tempjid = JID(ele)
+                        jid = str(tempjid.user)+"@"+str(tempjid.domain)
+                        if jid.find(str(nodejid)) !=-1:
+                            node_uid = self.jid_uid[ele][0]
+                            del self.jid_uid[ele]
+                            del self.xmpp_peers[ele]
+                            if node_uid in self.uid_jid.keys():
+                                del self.uid_jid[node_uid]
+                                self.update_peerlist = True
+                                self.registerCBT("Logger","info","{0} has been deleted from the roster.".format(node_uid))
+                                self.registerCBT("ConnectionManager","remove_connection",\
+                                                 {"interface_name":self.interface_name,"uid":node_uid})
+                                msg = {
+                                    "uid": node_uid,
+                                    "type": "offline_peer",
+                                    "interface_name": self.interface_name
+                                }
+                                self.registerCBT("BaseTopologyManager", "XMPP_MSG", msg)
+
+        except Exception as err:
+            self.log("Exception in deletepeerjid method.{0}".format(err),severity="error")
 
     # Remove the Offline Peer from the internal dictionary
     def removepeerjid(self,message):
@@ -150,6 +164,12 @@ class XmppClient(ControllerModule, sleekxmpp.ClientXMPP):
                 del self.uid_jid[uid]
                 self.update_peerlist = True
                 self.log("Removed Peer JID: {0} UID: {1} from the JID-UID and UID-JID Table".format(peerjid,uid))
+                msg = {
+                    "uid" : uid,
+                    "type": "offline_peer",
+                    "interface_name":self.interface_name
+                }
+                self.registerCBT("BaseTopologyManager","XMPP_MSG",msg)
 
 
 

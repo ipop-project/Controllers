@@ -504,6 +504,15 @@ class BaseTopologyManager(ControllerModule,CFX):
                 log = "recv ping_resp from {0}".format(msg["uid"])
                 self.registerCBT('Logger', 'debug', log)
 
+            # Remove Offline peer node
+            elif msg_type == "offline_peer":
+                if msg["uid"] in interface_details["discovered_nodes"]:
+                    interface_details["discovered_nodes"].remove(msg["uid"])
+                if msg["uid"] in interface_details["discovered_nodes_srv"]:
+                    interface_details["discovered_nodes_srv"].remove(msg["uid"])
+                log = "removed peer from discovered node list {0}".format(msg["uid"])
+                self.registerCBT('Logger', 'debug', log)
+
             # handle peer_con_resp sent by peer
             elif msg_type == "peer_con_resp":
                 log = "recv con_resp: {0}".format(msg["uid"])
@@ -713,14 +722,21 @@ class BaseTopologyManager(ControllerModule,CFX):
 
         elif cbt.action == "get_visualizer_data":
             for interface_name in self.ipop_interface_details.keys():
+                local_uid = self.ipop_interface_details[interface_name]["ipop_state"]["_uid"]
+                local_ip  = self.ipop_interface_details[interface_name]["ipop_state"]["_ip4"]
+                unmanaged_node_list = []
+                for ip,uid in self.ipop_interface_details[interface_name]["ip_uid_table"].items():
+                    if ip!=local_ip and uid == local_uid:
+                        unmanaged_node_list.append(ip)
                 new_msg = {
                     "interface_name": interface_name,
-                    "uid": self.ipop_interface_details[interface_name]["ipop_state"]["_uid"],
-                    "ip4": self.ipop_interface_details[interface_name]["ipop_state"]["_ip4"],
+                    "uid": local_uid,
+                    "ip4": local_ip,
                     "GeoIP": self.getGeoIP(self.ipop_interface_details[interface_name]["cas"]),
                     "mac": self.ipop_interface_details[interface_name]["mac"],
                     "state": self.ipop_interface_details[interface_name]["p2p_state"],
                     "macuidmapping": self.ipop_interface_details[interface_name]["uid_mac_table"],
+                    "unmanagednodelist": unmanaged_node_list,
                     "sendcount": "",
                     "receivecount": "",
                 }
