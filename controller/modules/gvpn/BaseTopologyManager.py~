@@ -292,7 +292,7 @@ class BaseTopologyManager(ControllerModule,CFX):
                 self.add_outbound_link("successor", node, None, interface_name)
 
         # establishing link from the smallest UID node in the network to the biggest UID in the network
-        if min([uid] + nodes) == uid and len(nodes)>1:
+        if min([uid] + nodes) == uid:
             for node in list(reversed(nodes))[0:self.CMConfig["NumberOfSuccessors"]]:
                 #if node not in interface_details["online_peer_uid"]:
                 if self.linked(node, interface_name) == False:
