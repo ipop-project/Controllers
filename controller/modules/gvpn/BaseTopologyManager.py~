@@ -289,7 +289,7 @@ class BaseTopologyManager(ControllerModule,CFX):
         # link to the closest <num_successors> nodes (if not already linked)
         for node in nodes[0:min(len(nodes), self.CMConfig["NumberOfSuccessors"])]:
             #if node not in interface_details["online_peer_uid"]:
-            if self.linked(node,interface_name) == False and node not in requested_nodes:
+            if self.linked(node,interface_name) == False:
                 self.add_outbound_link("successor", node, None, interface_name)
 
         # establishing link from the smallest UID node in the network to the biggest UID in the network
