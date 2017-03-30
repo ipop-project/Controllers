@@ -74,12 +74,26 @@ class CFX(object):
         fxlib.send_msg(self.sock, json.dumps(ep))
         time.sleep(1)
 
-        print("Setting Tincan log level to "+self.CONFIG["Tincan"]["LogLevel"])
+        
         self.transaction_counter += 1
-        lgl = ipoplib.LOGLVEL
-        lgl["IPOP"]["Request"]["LogLevel"] = self.CONFIG["Tincan"]["LogLevel"]
-        lgl["IPOP"]["TransactionId"] = self.transaction_counter
+        lgl = ipoplib.LOGCFG
+        if "Level" in self.CONFIG["Tincan"]["Log"]:
+            lgl["IPOP"]["Request"]["Level"] = self.CONFIG["Tincan"]["Log"]["Level"]
+        if "Device" in self.CONFIG["Tincan"]["Log"]:
+            lgl["IPOP"]["Request"]["Device"] = self.CONFIG["Tincan"]["Log"]["Device"]
+        if "Directory" in self.CONFIG["Tincan"]["Log"]:
+            lgl["IPOP"]["Request"]["Directory"] = self.CONFIG["Tincan"]["Log"]["Directory"]
+        if "Filename" in self.CONFIG["Tincan"]["Log"]:
+            lgl["IPOP"]["Request"]["Filename"] = self.CONFIG["Tincan"]["Log"]["Filename"]
+        if "MaxArchives" in self.CONFIG["Tincan"]["Log"]:
+            lgl["IPOP"]["Request"]["MaxArchives"] = self.CONFIG["Tincan"]["Log"]["MaxArchives"]
+        if "MaxFileSize" in self.CONFIG["Tincan"]["Log"]:
+            lgl["IPOP"]["Request"]["MaxFileSize"] = self.CONFIG["Tincan"]["Log"]["MaxFileSize"]
+        if "ConsoleLevel" in self.CONFIG["Tincan"]["Log"]:
+            lgl["IPOP"]["Request"]["ConsoleLevel"] = self.CONFIG["Tincan"]["Log"]["ConsoleLevel"]
 
+        lgl["IPOP"]["TransactionId"] = self.transaction_counter
+        print("Setting Tincan log level to "+lgl["IPOP"]["Request"]["Level"])
         fxlib.send_msg(self.sock, json.dumps(lgl))
         time.sleep(1)
 
