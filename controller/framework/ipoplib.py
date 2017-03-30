@@ -16,14 +16,20 @@ ENDPT = {
             }
     }
 }
-LOGLVEL = {
+LOGCFG = {
     "IPOP": {
         "ProtocolVersion": 4,
         "TransactionId" : 0,
         "ControlType": "TincanRequest",
         "Request": {
-          "Command" : "SetLoggingLevel",
-          "LogLevel" : "INFO",
+          "Command" : "ConfigureLogging",
+          "Level" : "WARNING",
+          "Device" : "FILE",
+          "Directory" : "./logs/",
+          "Filename" : "tincan_log",
+          "MaxArchives" : 10,
+          "MaxFileSize" : 1048576,
+          "ConsoleLevel" : "ERROR"
         }
     }
 }
@@ -72,7 +78,6 @@ VNET = {
           "TurnUser" : "",
           "TurnPass" : "",
           "L2TunnelEnabled" : True,
-          "AutoTrimEnabled" : False,
           "IPMappingEnabled" : False
         }
     }
