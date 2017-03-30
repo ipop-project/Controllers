@@ -1,6 +1,6 @@
 from controller.framework.ControllerModule import ControllerModule
 from controller.framework.CFx import CFX
-import time,math,json,random
+import time,math,json,random,stun
 from threading import Lock
 
 global btmlock
@@ -289,7 +289,7 @@ class BaseTopologyManager(ControllerModule,CFX):
         # link to the closest <num_successors> nodes (if not already linked)
         for node in nodes[0:min(len(nodes), self.CMConfig["NumberOfSuccessors"])]:
             #if node not in interface_details["online_peer_uid"]:
-            if self.linked(node,interface_name) == False and node not in requested_nodes:
+            if self.linked(node,interface_name) == False:
                 self.add_outbound_link("successor", node, None, interface_name)
 
         # establishing link from the smallest UID node in the network to the biggest UID in the network
@@ -1001,10 +1001,9 @@ class BaseTopologyManager(ControllerModule,CFX):
             self.registerCBT('Logger', 'error', "Exception in BTM timer:" + str(err))
 
     def getGeoIP(self,cas):
-        caslist = cas.split("udp:")
-        for casele in caslist:
-            if casele.find("stun") !=-1:
-                return casele.split(":")[0]
+        stun_details =self.CFxHandle.queryParam("VirtualNetworkInitializer","Stun")[0].split(":")
+        nat_type, external_ip, external_port = stun.get_ip_info(stun_host=stun_details[0], stun_port=int(stun_details[1]))
+        return external_ip
         return " "
 
     def terminate(self):
