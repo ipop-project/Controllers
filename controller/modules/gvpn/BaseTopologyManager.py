@@ -1001,7 +1001,7 @@ class BaseTopologyManager(ControllerModule,CFX):
             self.registerCBT('Logger', 'error', "Exception in BTM timer:" + str(err))
 
     def getGeoIP(self,cas):
-        stun_details =self.CFxHandle.queryParam("VirtualNetworkInitializer","Stun")[0].split(":")
+        stun_details =self.CFxHandle.queryParam("Tincan","Stun")[0].split(":")
         nat_type, external_ip, external_port = stun.get_ip_info(stun_host=stun_details[0], stun_port=int(stun_details[1]))
         return external_ip
         return " "
