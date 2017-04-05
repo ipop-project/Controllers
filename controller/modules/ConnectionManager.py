@@ -32,7 +32,7 @@ class ConnectionManager(ControllerModule):
 
     def request_connection(self, con_type, uid,interface_name,data,ttl):
         # send connection request to larger nodes
-        self.connection_details[interface_name][con_type][uid] = { "ttl":ttl ,"status": "con_req"}
+        self.connection_details[interface_name][con_type][uid] = { "ttl":ttl ,"status": "con_req","mac":""}
         try:
             self.send_msg_srv("con_req", uid, json.dumps(data),interface_name)
         except:
@@ -56,15 +56,18 @@ class ConnectionManager(ControllerModule):
     def remove_connection(self, uid, interface_name):
         for con_type in ["successor", "chord", "on_demand"]:
             if uid in self.connection_details[interface_name][con_type].keys():
-                mac = self.connection_details[interface_name][con_type][uid]["mac"]
-                msg = {"interface_name": interface_name, "uid": uid, "MAC": mac}
-                self.registerCBT('TincanSender', 'DO_TRIM_LINK', msg)
+                if self.connection_details[interface_name][con_type][uid]["status"] in ["online", "offline"]:
+                    if "mac" in list(self.connection_details[interface_name][con_type][uid].keys()):
+                        mac = self.connection_details[interface_name][con_type][uid]["mac"]
+                        if mac != None and mac != "":
+                            msg = {"interface_name": interface_name, "uid": uid, "MAC": mac}
+                            self.registerCBT('TincanInterface', 'DO_TRIM_LINK', msg)
                 self.connection_details[interface_name][con_type].pop(uid)
                 message = {"uid": uid, "interface_name": interface_name, "msg_type": "remove_peer"}
                 self.registerCBT("BaseTopologyManager", "UpdateConnectionDetails", message)
 
-        log = "removed connection: {0}".format(uid)
-        self.registerCBT('Logger', 'info', log)
+                log = "removed connection: {0}".format(uid)
+                self.registerCBT('Logger', 'info', log)
 
     def update_connection(self,data):
         uid = data["uid"]

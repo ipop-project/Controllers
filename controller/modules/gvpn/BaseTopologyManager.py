@@ -36,6 +36,7 @@ class BaseTopologyManager(ControllerModule,CFX):
             interface_details["online_peer_uid"]      = []
             interface_details["cas"]                  = ""
             interface_details["mac"]                  = ""
+            interface_details["GeoIP"]                = ""
             interface_details["peers"]                = {}
             interface_details["ipop_state"]           = None
             interface_details["ip_uid_table"]         = {}
@@ -49,6 +50,7 @@ class BaseTopologyManager(ControllerModule,CFX):
         for interface_name in self.ipop_interface_details.keys():
             self.registerCBT(self.ipop_interface_details[interface_name]["xmpp_client_code"],"GetXMPPPeer","")
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
+        self.ipop_interface_details[interface_name]["GeoIP"] = self.getGeoIP()
 
     def send_msg_srv(self, msg_type, uid, msg, interface_name):
         cbtdata = {"method": msg_type, "overlay_id": 0, "uid": uid, "data": msg, "interface_name": interface_name}
@@ -729,11 +731,15 @@ class BaseTopologyManager(ControllerModule,CFX):
                 for ip,uid in self.ipop_interface_details[interface_name]["ip_uid_table"].items():
                     if ip!=local_ip and uid == local_uid:
                         unmanaged_node_list.append(ip)
+                if self.ipop_interface_details[interface_name]["GeoIP"] in [ "", None]:
+                    geoip = self.getGeoIP()
+                else:
+                    geoip = self.ipop_interface_details[interface_name]["GeoIP"]
                 new_msg = {
                     "interface_name": interface_name,
                     "uid": local_uid,
                     "ip4": local_ip,
-                    "GeoIP": self.getGeoIP(self.ipop_interface_details[interface_name]["cas"]),
+                    "GeoIP": geoip,
                     "mac": self.ipop_interface_details[interface_name]["mac"],
                     "state": self.ipop_interface_details[interface_name]["p2p_state"],
                     "macuidmapping": self.ipop_interface_details[interface_name]["uid_mac_table"],
@@ -1000,11 +1006,16 @@ class BaseTopologyManager(ControllerModule,CFX):
         except Exception as err:
             self.registerCBT('Logger', 'error', "Exception in BTM timer:" + str(err))
 
-    def getGeoIP(self,cas):
-        stun_details =self.CFxHandle.queryParam("Tincan","Stun")[0].split(":")
-        nat_type, external_ip, external_port = stun.get_ip_info(stun_host=stun_details[0], stun_port=int(stun_details[1]))
-        return external_ip
-        return " "
+
+    def getGeoIP(self):
+        try:
+            stun_details =self.CFxHandle.queryParam("Tincan","Stun")[0].split(":")
+            nat_type, external_ip, external_port = stun.get_ip_info(stun_host=stun_details[0], stun_port=int(stun_details[1]))
+            return external_ip
+        except Exception as err:
+            self.registerCBT("Logger","error","Error while retrieving GeoIP:{0}".format(err))
+            return ""
+
 
     def terminate(self):
         pass

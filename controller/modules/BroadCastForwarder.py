@@ -60,9 +60,7 @@ class BroadCastForwarder(ControllerModule):
                     self.sendPkt(data["dataframe"], data["init_uid"], data["peer_list"], messagetime,datype,data["interface_name"])
                     # Passing the message to itself.
                     self.recvPkt(data,data["message_type"],data["interface_name"])
-                else:
-                    self.registerCBT('Logger', 'warning',
-                                     "Duplicate Message !!!")
+
         else:
             self.registerCBT('Logger', 'warning', "No Available peerlist!!")
             self.registerCBT('BaseTopologyManager', 'TINCAN_CONTROL', {"interface_name":data["interface_name"],"type": "GetOnlinePeerList"})
