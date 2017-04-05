@@ -1006,6 +1006,7 @@ class BaseTopologyManager(ControllerModule,CFX):
         except Exception as err:
             self.registerCBT('Logger', 'error', "Exception in BTM timer:" + str(err))
 
+
     def getGeoIP(self):
         try:
             stun_details =self.CFxHandle.queryParam("Tincan","Stun")[0].split(":")
@@ -1014,6 +1015,7 @@ class BaseTopologyManager(ControllerModule,CFX):
         except Exception as err:
             self.registerCBT("Logger","error","Error while retrieving GeoIP:{0}".format(err))
             return ""
+
 
     def terminate(self):
         pass
