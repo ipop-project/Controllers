@@ -1,6 +1,6 @@
 from controller.framework.ControllerModule import ControllerModule
 from controller.framework.CFx import CFX
-import time,math,json,random,stun
+import time,math,json,random
 from threading import Lock
 
 global btmlock
@@ -50,7 +50,7 @@ class BaseTopologyManager(ControllerModule,CFX):
         for interface_name in self.ipop_interface_details.keys():
             self.registerCBT(self.ipop_interface_details[interface_name]["xmpp_client_code"],"GetXMPPPeer","")
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
-        self.ipop_interface_details[interface_name]["GeoIP"] = self.getGeoIP()
+        
 
     def send_msg_srv(self, msg_type, uid, msg, interface_name):
         cbtdata = {"method": msg_type, "overlay_id": 0, "uid": uid, "data": msg, "interface_name": interface_name}
@@ -154,7 +154,7 @@ class BaseTopologyManager(ControllerModule,CFX):
             "mac"      : self.ipop_interface_details[interface_name]["mac"],
             "peer_mac" : data["peer_mac"]
         }
-
+        self.ipop_interface_details[interface_name]["cas"] = data["cas"]
         remove_link_msg = {
             "uid"  : uid,
             "interface_name" : interface_name
@@ -286,7 +286,7 @@ class BaseTopologyManager(ControllerModule,CFX):
         if max([uid] + nodes) != uid:
             while nodes[0] < uid:
                 nodes.append(nodes.pop(0))
-	requested_nodes = []
+        requested_nodes = []
         self.registerCBT('Logger', 'info', "Peer Nodes:" + str(interface_details["peers"]))
         # link to the closest <num_successors> nodes (if not already linked)
         for node in nodes[0:min(len(nodes), self.CMConfig["NumberOfSuccessors"])]:
@@ -725,31 +725,41 @@ class BaseTopologyManager(ControllerModule,CFX):
 
         elif cbt.action == "get_visualizer_data":
             for interface_name in self.ipop_interface_details.keys():
-                local_uid = self.ipop_interface_details[interface_name]["ipop_state"]["_uid"]
-                local_ip  = self.ipop_interface_details[interface_name]["ipop_state"]["_ip4"]
-                unmanaged_node_list = []
-                for ip,uid in self.ipop_interface_details[interface_name]["ip_uid_table"].items():
-                    if ip!=local_ip and uid == local_uid:
-                        unmanaged_node_list.append(ip)
-                if self.ipop_interface_details[interface_name]["GeoIP"] in [ "", None]:
-                    geoip = self.getGeoIP()
-                else:
-                    geoip = self.ipop_interface_details[interface_name]["GeoIP"]
-                new_msg = {
-                    "interface_name": interface_name,
-                    "uid": local_uid,
-                    "ip4": local_ip,
-                    "GeoIP": geoip,
-                    "mac": self.ipop_interface_details[interface_name]["mac"],
-                    "state": self.ipop_interface_details[interface_name]["p2p_state"],
-                    "macuidmapping": self.ipop_interface_details[interface_name]["uid_mac_table"],
-                    "unmanagednodelist": unmanaged_node_list,
-                    "sendcount": "",
-                    "receivecount": "",
-                }
-                self.registerCBT("OverlayVisualizer","topology_details",new_msg)
+                # Check whether Local Node state is queried from Tincan
+                if "ipop_state" in self.ipop_interface_details[interface_name].keys():
+                    local_uid = self.ipop_interface_details[interface_name]["ipop_state"]["_uid"]
+                    local_ip  = self.ipop_interface_details[interface_name]["ipop_state"]["_ip4"]
+                    unmanaged_node_list = []
+                    for ip,uid in self.ipop_interface_details[interface_name]["ip_uid_table"].items():
+                        if ip!=local_ip and uid == local_uid:
+                            unmanaged_node_list.append(ip)
 
-            # handle and forward tincan data packets
+                    # Check whether GeoIP exists in BTM else query it
+                    if self.ipop_interface_details[interface_name]["GeoIP"] in [ "", None]:
+                        geoip = self.getGeoIP(self.ipop_interface_details[interface_name]["cas"])
+                        self.ipop_interface_details[interface_name]["GeoIP"] = geoip
+                    else:
+                        geoip = self.ipop_interface_details[interface_name]["GeoIP"]
+                    # Overlay Visualizer message
+                    new_msg = {
+                        "interface_name": interface_name,
+                        "uid": local_uid,
+                        "ip4": local_ip,
+                        "GeoIP": geoip,
+                        "mac": self.ipop_interface_details[interface_name]["mac"],
+                        "state": self.ipop_interface_details[interface_name]["p2p_state"],
+                        "macuidmapping": self.ipop_interface_details[interface_name]["uid_mac_table"],
+                        "unmanagednodelist": unmanaged_node_list,
+                        "sendcount": "",
+                        "receivecount": "",
+                    }
+                    self.registerCBT("OverlayVisualizer","topology_details",new_msg)
+                else:
+                    # Query Local node state from Tincan
+                    msg = {"interface_name": interface_name, "MAC": ""}
+                    self.registerCBT('TincanSender', 'DO_GET_STATE', msg)
+
+        # handle and forward tincan data packets
         elif cbt.action == "TINCAN_PACKET":
             reqdata = cbt.data
             interface_name = reqdata["interface_name"]
@@ -1007,11 +1017,22 @@ class BaseTopologyManager(ControllerModule,CFX):
             self.registerCBT('Logger', 'error', "Exception in BTM timer:" + str(err))
 
 
-    def getGeoIP(self):
+    def getGeoIP(self,cas):
         try:
-            stun_details =self.CFxHandle.queryParam("Tincan","Stun")[0].split(":")
-            nat_type, external_ip, external_port = stun.get_ip_info(stun_host=stun_details[0], stun_port=int(stun_details[1]))
-            return external_ip
+            casdetails = str(cas).split(":")
+            for i,ele in enumerate(casdetails):
+                if str(ele).count(".")==3 :
+                    if casdetails[i-1] == "udp" and casdetails[i+5] == "stun":
+                        ip_octet = str(ele).split(".")
+                        if ip_octet[0] == "10":
+                            return ""
+                        elif ip_octet[0] == "172" and ip_octet[1] in range(16,32,1):
+                            return ""
+                        elif ip_octet[0] == "192" and ip_octet == "168":
+                            return ""
+                        else:
+                            return ele
+            return ""
         except Exception as err:
             self.registerCBT("Logger","error","Error while retrieving GeoIP:{0}".format(err))
             return ""

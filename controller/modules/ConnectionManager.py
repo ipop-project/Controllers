@@ -61,7 +61,7 @@ class ConnectionManager(ControllerModule):
                         mac = self.connection_details[interface_name][con_type][uid]["mac"]
                         if mac != None and mac != "":
                             msg = {"interface_name": interface_name, "uid": uid, "MAC": mac}
-                            self.registerCBT('TincanInterface', 'DO_TRIM_LINK', msg)
+                            self.registerCBT('TincanSender', 'DO_TRIM_LINK', msg)
                 self.connection_details[interface_name][con_type].pop(uid)
                 message = {"uid": uid, "interface_name": interface_name, "msg_type": "remove_peer"}
                 self.registerCBT("BaseTopologyManager", "UpdateConnectionDetails", message)

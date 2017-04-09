@@ -62,7 +62,6 @@ class BroadCastForwarder(ControllerModule):
                     self.recvPkt(data,data["message_type"],data["interface_name"])
 
         else:
-            self.registerCBT('Logger', 'warning', "No Available peerlist!!")
             self.registerCBT('BaseTopologyManager', 'TINCAN_CONTROL', {"interface_name":data["interface_name"],"type": "GetOnlinePeerList"})
 
     def forwardMessage(self,msg_frame,init_id,suc_id,peer,peer_list,time,datype,interface_name):

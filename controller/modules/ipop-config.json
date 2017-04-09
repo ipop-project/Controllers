@@ -1,31 +1,43 @@
-{"CFx": {
+{
+  "CFx": {
     "Model": "GroupVPN"
   },
-  "Tincan": {
-    "LogLevel": "WARNING",
-    "Vnets": [{
-    "IP4": "172.31.0.1",
-    "IP4Prefix": 16,
-    "XMPPModuleName": "XmppClient",
-    "TapName": "ipop_tap0",
-    "Description": "Ethernet Device",
-    "IgnoredNetInterfaces": ["ipop_tap0", "ipop_tap1", "Bluetooth Network Connection", "VMware Network Adapter VMnet1", "VMware Network Adapter VMnet2"],
-    "L2TunnellingEnabled": 1
-
-  }],
-  "Stun": ["stun.l.google.com:19302"],
-  "Turn": [{
-    "Address": "*.*.*.*:19302",
-    "User": "***" ,
-    "Password": "***"
-  }]
-  },
   "Logger": {
-    "LogLevel": "WARNING",
+    "LogLevel": "ERROR",
     "LogOption": "Console",
     "BackupLogFileCount": 5,
     "LogFileName": "ctr.log",
     "LogFileSize": 10000
+  },
+  "Tincan": {
+    "Log": {
+      "Level": "ERROR",
+      "Device": "Console",
+      "Directory": "./logs/",
+      "Filename": "tincan_log",
+      "MaxArchives": 10,
+      "MaxFileSize": 1048576,
+      "ConsoleLevel": "NONE"
+    },
+    "Vnets": [
+      {
+        "IP4": "172.31.0.1",
+        "IP4Prefix": 16,
+        "XMPPModuleName": "XmppClient",
+        "TapName": "ipop_tap0",
+        "Description": "Ethernet Device",
+        "IgnoredNetInterfaces": [ "ipop_tap0", "ipop_tap1", "Bluetooth Network Connection", "VMware Network Adapter VMnet1", "VMware Network Adapter VMnet2" ],
+        "L2TunnellingEnabled": 1
+      }
+    ],
+    "Stun": [ "stun.l.google.com:19302" ],
+    "Turn": [
+      {
+        "Address": "*.*.*.*:19302",
+        "User": "***",
+        "Password": "***"
+      }
+    ]
   },
   "XmppClient": {
     "Enabled": true,
@@ -37,7 +49,7 @@
     "AuthenticationMethod": "password",
     "AcceptUntrustedServer": true,
     "TimerInterval": 15,
-    "dependencies": ["Logger"]
+    "dependencies": [ "Logger" ]
   },
   "BaseTopologyManager": {
     "NumberOfSuccessors": 2,
@@ -52,44 +64,44 @@
     "NumberOfPingsToPeer": 5,
     "PeerPingInterval": 300,
     "MaxConnRetry": 5,
-    "dependencies": ["Logger"]
+    "dependencies": [ "Logger" ]
   },
   "TincanDispatcher": {
-    "dependencies": ["Logger"]
+    "dependencies": [ "Logger" ]
   },
-  "TincanListener" : {
+  "TincanListener": {
     "SocketReadWaitTime": 15,
-    "dependencies": ["Logger", "TincanDispatcher"]
+    "dependencies": [ "Logger", "TincanDispatcher" ]
   },
   "TincanSender": {
-    "dependencies": ["Logger"]
+    "dependencies": [ "Logger" ]
   },
   "OverlayVisualizer": {
     "Enabled": false,
     "WebServiceAddress": "*:8080/insertdata",
-    "TopologyDataQueryInterval": 2,
-    "WebServiceDataPostInterval": 2,
-    "TimerInterval": 1,
+    "TopologyDataQueryInterval": 5,
+    "WebServiceDataPostInterval": 10,
+    "TimerInterval": 5,
     "NodeName": "*",
-    "dependencies": ["Logger"]
+    "dependencies": [ "Logger" ]
   },
   "BroadCastController": {
     "Enabled": true,
-    "dependencies": ["Logger"]
+    "dependencies": [ "Logger" ]
   },
   "BroadCastForwarder": {
     "Enabled": true,
-    "dependencies": ["Logger"]
+    "dependencies": [ "Logger" ]
   },
   "Multicast": {
     "Enabled": true,
     "OnDemandThreshold": 15,
-    "dependencies": ["Logger"]
+    "dependencies": [ "Logger" ]
   },
   "ConnectionManager": {
     "InitialLinkTTL": 120,
     "ChordLinkTTL": 180,
     "OndemandLinkRateThreshold": 128,
-    "dependencies": ["Logger"]
+    "dependencies": [ "Logger" ]
   }
 }
