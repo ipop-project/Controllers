@@ -5,14 +5,13 @@ import threading
 import traceback
 
 py_ver = sys.version_info[0]
-
 if py_ver == 3:
     import queue as Queue
 else:
     import Queue
 
-class CFxHandle(object):
 
+class CFxHandle(object):
     def __init__(self, CFxObject):
         self.CMQueue = Queue.Queue()  # CBT queue
         self.CMInstance = None
@@ -22,6 +21,7 @@ class CFxHandle(object):
         self.joinEnabled = False
         self.timer_thread = None
         self.terminateFlag = False
+        self.interval = 1
 
     def __getCBT(self):
         cbt = self.CMQueue.get()  # blocking call
@@ -55,7 +55,7 @@ class CFxHandle(object):
         timer_enabled = False
 
         try:
-            interval = int(self.CMConfig['TimerInterval'])
+            self.interval = int(self.CMConfig['TimerInterval'])
             timer_enabled = True
         except ValueError:
             logging.warning("Invalid timer configuration for {0}"
@@ -66,8 +66,11 @@ class CFxHandle(object):
         if timer_enabled:
             # create the timer worker thread, which is started by CFx
             self.timer_thread = threading.Thread(target=self.__timer_worker,
-                                                 args=(interval,))
+                                                 args=())
             self.timer_thread.setDaemon(False)
+
+    def updateTimerInterval(self, interval):
+        self.interval = interval
 
     def __worker(self):
         # get CBT from the local queue and call processCBT() of the 
@@ -104,14 +107,13 @@ class CFxHandle(object):
 
                     self.submitCBT(logCBT)
 
-    def __timer_worker(self, interval):
+    def __timer_worker(self):
         # call the timer_method of each CM every timer_interval seconds
         event = threading.Event()
-
         while True:
             if self.terminateFlag:
                 break
-            event.wait(interval)
+            event.wait(self.interval)
 
             try:
                 self.CMInstance.timer_method()

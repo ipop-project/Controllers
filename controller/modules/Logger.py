@@ -5,38 +5,45 @@ from controller.framework.ControllerModule import ControllerModule
 
 
 class Logger(ControllerModule):
-
     def __init__(self, CFxHandle, paramDict, ModuleName):
         super(Logger, self).__init__(CFxHandle, paramDict, ModuleName)
-
     def initialize(self):
+        # Extracts the controller Log Level from the ipop-config file, IF nothing is provided the default is INFO
         if "LogLevel" in self.CMConfig:
             level = getattr(logging, self.CMConfig["LogLevel"])
         else:
             level = getattr(logging, "info")
-
-        if self.CMConfig["LogOption"] == "File":
+        # Check whether the Logging is set to File by the User
+        if self.CMConfig["LogOption"] == "Console":
+            # Console logging
+            logging.basicConfig(format='[%(asctime)s.%(msecs)03d] %(levelname)s:\n%(message)s\n', datefmt='%H:%M:%S',
+                                level=level)
+            logging.info("Logger Module Loaded")
+        else:
+            
             self.logger = logging.getLogger("IPOP Rotating Log")
             self.logger.setLevel(level)
+            # Extracts the filepath for Logging else sets logs to the current working directory
             if "LogFilePath" in self.CMConfig:
                 filepath = self.CMConfig["LogFilePath"]
             else:
                 filepath = "./"
-            filepath+=self.CMConfig["LogFileName"]
-            handler = lh.RotatingFileHandler(filename=filepath,maxBytes=self.CMConfig["LogFileSize"],\
-                                   backupCount=self.CMConfig["BackupLogFileCount"])
+            filepath += self.CMConfig["LogFileName"]
+            # Creates rotating filehandler
+            handler = lh.RotatingFileHandler(filename=filepath, maxBytes=self.CMConfig["LogFileSize"],
+                                             backupCount=self.CMConfig["BackupLogFileCount"])
+            formatter = logging.Formatter(
+                "[%(asctime)s.%(msecs)03d] %(levelname)s:%(message)s", datefmt='%Y%m%d %H:%M:%S')
+            handler.setFormatter(formatter)
+            # Adds the filehandler to the Python logger module
             self.logger.addHandler(handler)
-        else:
-
-            logging.basicConfig(format='[%(asctime)s.%(msecs)03d] %(levelname)s:%(message)s', datefmt='%Y%m%d %H:%M:%S',
-                                level=level)
-            logging.info("Logger Module Loaded")
 
         # PKTDUMP mode dumps packet information
         logging.addLevelName(5, "PKTDUMP")
         logging.PKTDUMP = 5
 
     def processCBT(self, cbt):
+        # Extracting the logging level information from the CBT action tag
         if cbt.action == 'debug':
             if self.CMConfig["LogOption"] == "File":
                 self.logger.debug(cbt.data)

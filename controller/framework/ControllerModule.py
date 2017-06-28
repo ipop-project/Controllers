@@ -12,7 +12,6 @@ class ControllerModule(object):
     def __init__(self, CFxHandle, paramDict, ModuleName):
         self.pendingCBT = {}
         self.CBTMappings = {}
-
         self.CFxHandle = CFxHandle
         self.CMConfig = paramDict
         self.ModuleName = ModuleName
@@ -22,7 +21,7 @@ class ControllerModule(object):
         pass
 
     @abstractmethod
-    def processCBT(self):
+    def processCBT(self, cbt):
         pass
 
     @abstractmethod
@@ -71,16 +70,21 @@ class ControllerModule(object):
 
     def retrieveBaseCBT(self, cbt):
         dependentCBTKey = self.CBTMappings.get(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator))
-        if dependentCBTKey != None:
+        if dependentCBTKey is not None:
             self.CBTMappings.pop(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator))
             return self.pendingCBT.pop(dependentCBTKey)
         return None
 
-    def retrievePendingCBT(self,cbt):
-        if self.pendingCBT.get(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator)) != None:
-            return self.pendingCBT.pop(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator))
+    def retrievePendingCBT(self, searchstring):
+        pendingCBTList = []
+        for key, value in list(self.pendingCBT.items()):
+            if key.find(searchstring) != -1:
+                self.pendingCBT.pop(key)
+                pendingCBTList.append(value)
+        if len(pendingCBTList) > 0:
+            return pendingCBTList
         return None
 
-    def insertPendingCBT(self,cbt):
-        cbtkey = str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator)
+    def insertPendingCBT(self, cbt):
+        cbtkey = str(cbt.initiator) + " " + str(cbt.action) + " " + str(cbt.uid)
         self.pendingCBT[cbtkey] = cbt

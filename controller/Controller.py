@@ -1,15 +1,18 @@
 #!/usr/bin/env python
 from controller.framework.CFx import CFX
-import psutil,time
+import psutil
+import time
+
 
 # Function checks the system process table for Tincan process
-def checkTincanState():
+def checktincanstate():
+    # Iterates across process table to find Tincan process
     for process in psutil.process_iter():
         if type(process) is str:
-            if process.find("tincan")!=-1 or process == "ipop-tincan":
+            if process.find("tincan") != -1 or process == "ipop-tincan":
                 return True
         else:
-            if process.name().find("tincan")!=-1 or process.name() == "ipop-tincan":
+            if process.name().find("tincan") != -1 or process.name() == "ipop-tincan":
                 return True
     return False
 
@@ -17,16 +20,17 @@ def checkTincanState():
 def main():
     stime = time.time()
     # Loop till Tincan not in running state
-
-    while checkTincanState() == False:
+    while checktincanstate() is False:
+        # Print warning message to the console that the Tincan process has not been started every 10 sec interval
         if time.time()-stime > 10:
-            print("IPOP Tincan not started.!!")
+            print("Waiting on IPOP Tincan to start...")
             stime = time.time()
     time.sleep(10)
-    CFx = CFX()
-    CFx.initialize()
-    CFx.waitForShutdownEvent()
-    CFx.terminate()
+    # Create CFX object that initializes internal datastructure of all the controller modules
+    cfx = CFX()
+    cfx.initialize()
+    cfx.waitForShutdownEvent()
+    cfx.terminate()
 
 if __name__ == "__main__":
     main()
