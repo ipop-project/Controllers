@@ -18,9 +18,12 @@ CONFIG = {
       "Enabled": True,
       "LogLevel": "ERROR",      # Types of messages to log, <ERROR>/<WARNING>/<INFO>/<DEBUG>
       "LogOption": "File",      # Send logging output to <File> or <Console>
-      "LogFileName": "ctlr.log",
+      "LogFilePath": './logs/',
+      "CtrlLogFileName": "ctrl.log",
+      "TincanLogFileName": "tincan.log",
       "LogFileSize": 1000000,   # 1MB sized log files
-      "BackupLogFileCount": 5   # Keep up to 5 files of history
+      "BackupLogFileCount": 5,   # Keep up to 5 files of history
+      "ConsoleLevel": None
     },
     "VirtualNetworkInitializer": {
         "Enabled": True,

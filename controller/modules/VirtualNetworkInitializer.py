@@ -23,22 +23,16 @@ class VirtualNetworkInitializer(ControllerModule):
         self.registerCBT("TincanInterface", "DO_SEND_TINCAN_MSG", ep)
 
         # Set Tincan LogLevel
-        self.registerCBT("Logger", "info", "Setting Tincan log level to " + self.CONFIG["Log"]["Level"])
+        log_level = self.CFxHandle.queryParam("Logger", "LogLevel")
+        self.registerCBT("Logger", "info", "Setting Tincan log level to " + log_level)
         lgl = ipoplib.LOGCFG
-        if "Level" in self.CONFIG["Log"]:
-            lgl["IPOP"]["Request"]["Level"] = self.CONFIG["Log"]["Level"]
-        if "Device" in self.CONFIG["Log"]:
-            lgl["IPOP"]["Request"]["Device"] = self.CONFIG["Log"]["Device"]
-        if "Directory" in self.CONFIG["Log"]:
-            lgl["IPOP"]["Request"]["Directory"] = self.CONFIG["Log"]["Directory"]
-        if "Filename" in self.CONFIG["Log"]:
-            lgl["IPOP"]["Request"]["Filename"] = self.CONFIG["Log"]["Filename"]
-        if "MaxArchives" in self.CONFIG["Log"]:
-            lgl["IPOP"]["Request"]["MaxArchives"] = self.CONFIG["Log"]["MaxArchives"]
-        if "MaxFileSize" in self.CONFIG["Log"]:
-            lgl["IPOP"]["Request"]["MaxFileSize"] = self.CONFIG["Log"]["MaxFileSize"]
-        if "ConsoleLevel" in self.CONFIG["Log"]:
-            lgl["IPOP"]["Request"]["ConsoleLevel"] = self.CONFIG["Log"]["ConsoleLevel"]
+        lgl["IPOP"]["Request"]["Level"] = log_level
+        lgl["IPOP"]["Request"]["Device"] = self.CFxHandle.queryParam("Logger", "LogOption")
+        lgl["IPOP"]["Request"]["Directory"] = self.CFxHandle.queryParam("Logger", "LogFilePath")
+        lgl["IPOP"]["Request"]["Filename"] = self.CFxHandle.queryParam("Logger", "TincanLogFileName")
+        lgl["IPOP"]["Request"]["MaxArchives"] = self.CFxHandle.queryParam("Logger", "BackupLogFileCount")
+        lgl["IPOP"]["Request"]["MaxFileSize"] = self.CFxHandle.queryParam("Logger", "LogFileSize")
+        lgl["IPOP"]["Request"]["ConsoleLevel"] = self.CFxHandle.queryParam("Logger", "ConsoleLevel")
         self.registerCBT("TincanInterface", "DO_SEND_TINCAN_MSG", lgl)
 
         # Iterate across the virtual network details given the config file
