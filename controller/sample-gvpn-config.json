@@ -1,0 +1,51 @@
+{
+  "CFx": {
+    "Model": "GroupVPN"
+  },
+  "Logger": {
+    "Enabled": true,
+    "LogLevel": "INFO",
+    "LogOption": "File",
+    "BackupLogFileCount": 5,
+    "LogFileName": "logs/ctlr.log",
+    "LogFileSize": 3000000
+  },
+  "VirtualNetworkInitializer": {
+    "Log": {
+      "Level": "INFO",
+      "Device": "All",
+      "Directory": "./logs",
+      "Filename": "tincan",
+      "MaxArchives": 10,
+      "MaxFileSize": 3000000,
+      "ConsoleLevel": "WARNING"
+    },
+    "Vnets": [
+      {
+        "IP4": "10.254.0.1",
+        "IP4Prefix": 24,
+        "MTU4": 1200,
+        "XMPPModuleName": "XmppClient",
+        "TapName": "ipop_tap0",
+        "Description": "Beta 2 Test Network",
+        "IgnoredNetInterfaces": [ "ipop_tap0" ],
+        "L2TunnellingEnabled": 1
+      }
+    ],
+    "Stun": [ "stun.l.google.com:19302" ],
+  },
+  "XmppClient": {
+    "xmppdetails": [
+      {
+        "Username": "***",
+        "Password": "***",
+        "AddressHost": "***",
+        "Port": "5222",
+        "TapName": "ipop_tap0",
+        "AuthenticationMethod": "password",
+        "AcceptUntrustedServer": true
+      }
+    ],
+    "TimerInterval": 10
+  }
+}
