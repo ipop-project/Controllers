@@ -26,112 +26,14 @@ log_level = "info"
 class XmppClient(ControllerModule):
     def __init__(self, CFxHandle, paramDict, ModuleName):
         ControllerModule.__init__(self, CFxHandle, paramDict, ModuleName)
-        xmpp_details = self.CMConfig.get("xmppdetails")
         self.ipop_xmpp_details = {}
-        xmpp_password = None
-        keyring_installed = False
+        self.keyring_installed = False
         # Check whether the KeyRing Module has been installed
         try:
             import keyring
-            keyring_installed = True
+            self.keyring_installed = True
         except:
             self.registerCBT("Logger", "warning", "Key-ring module not installed.")
-
-        # Iterate over the XMPP credentials for different virtual networks configured in ipop-config.json
-        for i, xmpp_ele in enumerate(xmpp_details):
-            xmpp_ele = dict(xmpp_ele)
-            interface_name = xmpp_ele['TapName']
-            self.ipop_xmpp_details[interface_name] = {}
-            # Check whether the authentication mechanism is certifcate if YES then config file should not contain
-            # Password based authentication parameters
-            if xmpp_ele.get("AuthenticationMethod") == "x509" and (xmpp_ele.get("Username", None) is not None
-                                                                   or xmpp_ele.get("Password", None) is not None):
-                raise RuntimeError("x509 Authentication Error: Username/Password in IPOP configuration file.")
-
-            # Check the Authentication Method configured for the particular virtual network interface
-            if xmpp_ele.get("AuthenticationMethod") == "x509":
-                xmppobj = sleekxmpp.ClientXMPP(None, None, sasl_mech='EXTERNAL')
-                xmppobj.ssl_version = ssl.PROTOCOL_TLSv1
-                xmppobj.ca_certs = xmpp_ele["TrustStore"]
-                xmppobj.certfile = xmpp_ele["CertDirectory"] + xmpp_ele["CertFile"]
-                xmppobj.keyfile = xmpp_ele["CertDirectory"] + xmpp_ele["Keyfile"]
-                xmppobj.use_tls = True
-            else:
-                # Authentication method is Password based hence check whether XMPP username has been provided in the
-                # ipop configuration file
-                if xmpp_ele.get("Username", None) is None:
-                    raise RuntimeError("Authentication Error: Username not provided in IPOP configuration file.")
-                # Check whether the keyring module is installed if yes extract the Password
-                if keyring_installed is True:
-                    xmpp_password = keyring.get_password("ipop", xmpp_ele['Username'])
-                # Check whether the Password exists either in Config file or inside Keyring
-                if xmpp_ele.get("Password", None) is None and xmpp_password is None:
-                    print("Authentication Error: Password not provided for XMPP "
-                                                       "Username:{0}".format(xmpp_ele['Username']))
-                    # Prompt user to enter password
-                    print("Enter Password: ",)
-                    if py_ver == 3:
-                        xmpp_password = str(input())
-                    else:
-                        xmpp_password = str(raw_input())
-
-                    xmpp_ele['Password'] = xmpp_password   # Store the userinput in the internal table
-                    if keyring_installed is True:
-                        try:
-                            # Store the password inside the Keyring
-                            keyring.set_password("ipop", xmpp_ele['Username'], xmpp_password)
-                        except Exception as error:
-                            self.registerCBT("Logger", "error", "unable to store password in keyring.Error: {0}"
-                                             .format(error))
-                xmppobj = sleekxmpp.ClientXMPP(xmpp_ele['Username'], xmpp_ele['Password'], sasl_mech='PLAIN')
-                # Check whether Server SSL Authenication required
-                if xmpp_ele.get("AcceptUntrustedServer") is True:
-                    xmppobj.register_plugin("feature_mechanisms", pconfig={'unencrypted_plain': True})
-                    xmppobj.use_tls = False
-                else:
-                    xmppobj.ca_certs = xmpp_ele["TrustStore"]
-
-            # Register event handler for session start and Roster Update in case a user gets unfriended
-            xmppobj.add_event_handler("session_start", self.start)
-            xmppobj.add_event_handler("roster_update", self.updateroster)
-
-            self.ipop_xmpp_details[interface_name]["XMPPObj"] = xmppobj     # Store the Sleekxmpp object in the Table
-            # Store XMPP UserName (required to extract TapInterface from the XMPP server message)
-            self.ipop_xmpp_details[interface_name]["username"] = xmpp_ele["Username"]
-            # Store Online Peers as seen by the XMPP Server
-            self.ipop_xmpp_details[interface_name]["online_xmpp_peers"] = []
-            # Flag to indicate there is change in the Online Peer List
-            self.ipop_xmpp_details[interface_name]["update_xmpppeerlist_flag"] = False
-            # Store the JIDs seen by the node
-            # self.ipop_xmpp_details[interface_name]["xmpp_peers"] = {}
-            # Table to store Peer UID their corresponding JID (Needed while sending XMPP Message)
-            self.ipop_xmpp_details[interface_name]["uid_jid"] = {}
-            # Flag to check whether the XMPP Callback for various functionalities have been set
-            self.ipop_xmpp_details[interface_name]["callbackinit"] = False
-            # Stores the XMPP message limit after which the advrt delay is increased for Peer Nodes
-            self.ipop_xmpp_details[interface_name]["MessagePerIntervalDelay"] = \
-                xmpp_ele.get("MessagePerIntervalDelay", self.CMConfig.get("MessagePerIntervalDelay"))
-            # Initial interval between sending advertisements from ipop config file, else load from fxlib.py
-            self.ipop_xmpp_details[interface_name]["initialadvrtdelay"] = \
-                xmpp_ele.get("InitialAdvertismentDelay", self.CMConfig.get("InitialAdvertismentDelay"))
-            # Table to store Peer JID as key, Peer UID, xmpp advrt delay and xmpp advrt received as value
-            self.ipop_xmpp_details[interface_name]["jid_uid"] = defaultdict(lambda: ['', 0, 0,
-                                            self.ipop_xmpp_details[interface_name]["initialadvrtdelay"]])
-            # Steady state interval between sending advertisements from ipop config file, else load from fxlib.py
-            self.ipop_xmpp_details[interface_name]["advrtdelay"] = \
-                xmpp_ele.get("XmppAdvrtDelay", self.CMConfig.get("XmppAdvrtDelay"))
-            # Maximum delay between advertisements from ipop config file else, load from fxlib.py
-            self.ipop_xmpp_details[interface_name]["maxadvrtdelay"] = \
-                xmpp_ele.get("MaxAdvertismentDelay", self.CMConfig.get("MaxAdvertismentDelay"))
-            # Query VirtualNetwork Interface details from VirtualNetworkInitializer module
-            ipop_interfaces = self.CFxHandle.queryParam("VirtualNetworkInitializer", "Vnets")
-            # Iterate over the entire VirtualNetwork Interface List
-            for interface_details in ipop_interfaces:
-                # Check whether the TapName given in the XMPPClient and VirtualNetworkInitializer module if yes load UID
-                if interface_details["TapName"] == interface_name:
-                    self.ipop_xmpp_details[interface_name]["uid"] = interface_details["uid"]
-            # Connect to the XMPP server
-            self.xmpp_handler(xmpp_ele, xmppobj)
 
     # Triggered at start of XMPP session
     def start(self, event):
@@ -362,7 +264,104 @@ class XmppClient(ControllerModule):
         self.registerCBT('Logger', severity, msg)
 
     def initialize(self):
-        self.log("{0} module Loaded".format(self.ModuleName))
+      xmpp_details = self.CMConfig.get("XmppDetails")
+      xmpp_password = None
+      # Iterate over the XMPP credentials for different virtual networks configured in ipop-config.json
+      for i, xmpp_ele in enumerate(xmpp_details):
+          xmpp_ele = dict(xmpp_ele)
+          interface_name = xmpp_ele['TapName']
+          self.ipop_xmpp_details[interface_name] = {}
+          # Check whether the authentication mechanism is certifcate if YES then config file should not contain
+          # Password based authentication parameters
+          if xmpp_ele.get("AuthenticationMethod") == "x509" and (xmpp_ele.get("Username", None) is not None
+                                                                  or xmpp_ele.get("Password", None) is not None):
+              raise RuntimeError("x509 Authentication Error: Username/Password in IPOP configuration file.")
+
+          # Check the Authentication Method configured for the particular virtual network interface
+          if xmpp_ele.get("AuthenticationMethod") == "x509":
+              xmppobj = sleekxmpp.ClientXMPP(None, None, sasl_mech='EXTERNAL')
+              xmppobj.ssl_version = ssl.PROTOCOL_TLSv1
+              xmppobj.ca_certs = xmpp_ele["TrustStore"]
+              xmppobj.certfile = xmpp_ele["CertDirectory"] + xmpp_ele["CertFile"]
+              xmppobj.keyfile = xmpp_ele["CertDirectory"] + xmpp_ele["Keyfile"]
+              xmppobj.use_tls = True
+          else:
+              # Authentication method is Password based hence check whether XMPP username has been provided in the
+              # ipop configuration file
+              if xmpp_ele.get("Username", None) is None:
+                  raise RuntimeError("Authentication Error: Username not provided in IPOP configuration file.")
+              # Check whether the keyring module is installed if yes extract the Password
+              if self.keyring_installed is True:
+                  xmpp_password = keyring.get_password("ipop", xmpp_ele['Username'])
+              # Check whether the Password exists either in Config file or inside Keyring
+              if xmpp_ele.get("Password", None) is None and xmpp_password is None:
+                  print("Authentication Error: Password not provided for XMPP "
+                                                      "Username:{0}".format(xmpp_ele['Username']))
+                  # Prompt user to enter password
+                  print("Enter Password: ",)
+                  if py_ver == 3:
+                      xmpp_password = str(input())
+                  else:
+                      xmpp_password = str(raw_input())
+
+                  xmpp_ele['Password'] = xmpp_password   # Store the userinput in the internal table
+                  if self.keyring_installed is True:
+                      try:
+                          # Store the password inside the Keyring
+                          keyring.set_password("ipop", xmpp_ele['Username'], xmpp_password)
+                      except Exception as error:
+                          self.registerCBT("Logger", "error", "unable to store password in keyring.Error: {0}"
+                                            .format(error))
+              xmppobj = sleekxmpp.ClientXMPP(xmpp_ele['Username'], xmpp_ele['Password'], sasl_mech='PLAIN')
+              # Check whether Server SSL Authenication required
+              if xmpp_ele.get("AcceptUntrustedServer") is True:
+                  xmppobj.register_plugin("feature_mechanisms", pconfig={'unencrypted_plain': True})
+                  xmppobj.use_tls = False
+              else:
+                  xmppobj.ca_certs = xmpp_ele["TrustStore"]
+
+          # Register event handler for session start and Roster Update in case a user gets unfriended
+          xmppobj.add_event_handler("session_start", self.start)
+          xmppobj.add_event_handler("roster_update", self.updateroster)
+
+          self.ipop_xmpp_details[interface_name]["XMPPObj"] = xmppobj     # Store the Sleekxmpp object in the Table
+          # Store XMPP UserName (required to extract TapInterface from the XMPP server message)
+          self.ipop_xmpp_details[interface_name]["username"] = xmpp_ele["Username"]
+          # Store Online Peers as seen by the XMPP Server
+          self.ipop_xmpp_details[interface_name]["online_xmpp_peers"] = []
+          # Flag to indicate there is change in the Online Peer List
+          self.ipop_xmpp_details[interface_name]["update_xmpppeerlist_flag"] = False
+          # Store the JIDs seen by the node
+          # self.ipop_xmpp_details[interface_name]["xmpp_peers"] = {}
+          # Table to store Peer UID their corresponding JID (Needed while sending XMPP Message)
+          self.ipop_xmpp_details[interface_name]["uid_jid"] = {}
+          # Flag to check whether the XMPP Callback for various functionalities have been set
+          self.ipop_xmpp_details[interface_name]["callbackinit"] = False
+          # Stores the XMPP message limit after which the advrt delay is increased for Peer Nodes
+          self.ipop_xmpp_details[interface_name]["MessagePerIntervalDelay"] = \
+              xmpp_ele.get("MessagePerIntervalDelay", self.CMConfig.get("MessagePerIntervalDelay"))
+          # Initial interval between sending advertisements from ipop config file, else load from fxlib.py
+          self.ipop_xmpp_details[interface_name]["initialadvrtdelay"] = \
+              xmpp_ele.get("InitialAdvertismentDelay", self.CMConfig.get("InitialAdvertismentDelay"))
+          # Table to store Peer JID as key, Peer UID, xmpp advrt delay and xmpp advrt received as value
+          self.ipop_xmpp_details[interface_name]["jid_uid"] = defaultdict(lambda: ['', 0, 0,
+                                          self.ipop_xmpp_details[interface_name]["initialadvrtdelay"]])
+          # Steady state interval between sending advertisements from ipop config file, else load from fxlib.py
+          self.ipop_xmpp_details[interface_name]["advrtdelay"] = \
+              xmpp_ele.get("XmppAdvrtDelay", self.CMConfig.get("XmppAdvrtDelay"))
+          # Maximum delay between advertisements from ipop config file else, load from fxlib.py
+          self.ipop_xmpp_details[interface_name]["maxadvrtdelay"] = \
+              xmpp_ele.get("MaxAdvertismentDelay", self.CMConfig.get("MaxAdvertismentDelay"))
+          # Query VirtualNetwork Interface details from VirtualNetworkInitializer module
+          ipop_interfaces = self.CFxHandle.queryParam("VirtualNetworkInitializer", "Vnets")
+          # Iterate over the entire VirtualNetwork Interface List
+          for interface_details in ipop_interfaces:
+              # Check whether the TapName given in the XMPPClient and VirtualNetworkInitializer module if yes load UID
+              if interface_details["TapName"] == interface_name:
+                  self.ipop_xmpp_details[interface_name]["uid"] = interface_details["uid"]
+          # Connect to the XMPP server
+          self.xmpp_handler(xmpp_ele, xmppobj)
+      self.log("{0} module Loaded".format(self.ModuleName))
 
     def processCBT(self, cbt):
         message = cbt.data

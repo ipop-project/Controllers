@@ -8,8 +8,6 @@ class BaseTopologyManager(ControllerModule, CFX):
     def __init__(self, CFxHandle, paramDict, ModuleName):
         super(BaseTopologyManager, self).__init__(CFxHandle, paramDict, ModuleName)
         self.CFxHandle = CFxHandle
-        # Variable to store default BaseTopology parameters
-        self.CMConfig = paramDict
         # BTM internal Table
         self.ipop_vnets_details = {}
         # Limit for links that can be created by a node
@@ -322,8 +320,6 @@ class BaseTopologyManager(ControllerModule, CFX):
                 virtual_net_details["mac_uid_table"][msg["mac"]] = msg["_uid"]
                 if msg["_uid"] not in virtual_net_details["uid_mac_table"].keys():
                     virtual_net_details["uid_mac_table"][msg["_uid"]] = [msg["mac"]]
-                self.registerCBT("Logger", "info", "Local Node Info UID:{0} MAC:{1} IP4: {2}".format(msg["_uid"],
-                                msg["mac"], msg["_ip4"]))
             else:
                 self.setGeoIP(interface_name, msg["cas"])
         elif cbt.action == "UPDATE_MAC_UID_IP_TABLES":

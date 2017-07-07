@@ -18,20 +18,12 @@ CONFIG = {
       "Enabled": True,
       "LogLevel": "ERROR",      # Types of messages to log, <ERROR>/<WARNING>/<INFO>/<DEBUG>
       "LogOption": "File",      # Send logging output to <File> or <Console>
-      "LogFilePath": './logs/',
+      "LogFilePath": "./logs/",
       "CtrlLogFileName": "ctrl.log",
       "TincanLogFileName": "tincan.log",
       "LogFileSize": 1000000,   # 1MB sized log files
       "BackupLogFileCount": 5,   # Keep up to 5 files of history
       "ConsoleLevel": None
-    },
-    "VirtualNetworkInitializer": {
-        "Enabled": True,
-        "MTU4": 1200,   # Default MTU for IPv4 network
-        "MTU6": 1200,   # Default MTU for IPv6 network
-        "LocalPrefix6": 64,    # IPv6 prefix
-        "LocalPrefix4": 16,     # IPV4 Prefix
-        "dependencies": ["Logger", "TincanInterface"]
     },
     "TincanInterface": {
         "buf_size": 65507,      # Max buffer size for Tincan Messages
@@ -42,6 +34,14 @@ CONFIG = {
         "ctrl_send_port": 5800,     # Tincan UDP Listening Port
         "localhost6": "::1",
         "dependencies": ["Logger"]
+    },
+    "VirtualNetworkInitializer": {
+        "Enabled": True,
+        "MTU4": 1200,   # Default MTU for IPv4 network
+        "MTU6": 1200,   # Default MTU for IPv6 network
+        "LocalPrefix6": 64,    # IPv6 prefix
+        "LocalPrefix4": 16,     # IPV4 Prefix
+        "dependencies": ["Logger", "TincanInterface"]
     },
     "LinkManager": {
         "Enabled": True,

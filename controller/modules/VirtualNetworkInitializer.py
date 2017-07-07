@@ -8,7 +8,6 @@ class VirtualNetworkInitializer(ControllerModule):
     def __init__(self, CFxHandle, paramDict, ModuleName):
         super(VirtualNetworkInitializer, self).__init__(CFxHandle, paramDict, ModuleName)
         # Obtain the configuration details from the ipop-config file
-        self.CONFIG = paramDict
         self.vnetdetails = paramDict["Vnets"]
         # Query VPN Type from CFX Module
         self.vpn_type = self.CFxHandle.queryParam('CFx', 'Model')
@@ -45,7 +44,7 @@ class VirtualNetworkInitializer(ControllerModule):
                 self.vnetdetails[i]["uid"] = fxlib.gen_uid(ip4)
                 self.vnetdetails[i]["ip6"] = fxlib.gen_ip6(self.vnetdetails[i]["uid"])
             elif self.vpn_type == 'SocialVPN':
-                self.vnetdetails[i]["IP4"] = self.CONFIG['AddressMapper']["ip4"]
+                self.vnetdetails[i]["IP4"] = self.CMConfig['AddressMapper']["ip4"]
                 self.vnetdetails[i]["uid"] = self.CFxHandle.queryParam('CFx', 'local_uid')
                 self.vnetdetails[i]["ip6"] = fxlib.gen_ip6(self.vnetdetails[i]["uid"])
 
@@ -58,30 +57,35 @@ class VirtualNetworkInitializer(ControllerModule):
             vn["IPOP"]["Request"]["InterfaceName"] = self.vnetdetails[i]["TapName"]
             vn["IPOP"]["Request"]["Description"] = self.vnetdetails[i]["Description"]
             # Currently configured to take the first stun address
-            vn["IPOP"]["Request"]["StunAddress"] = self.CONFIG["Stun"][0]
-            vn["IPOP"]["Request"]["TurnAddress"] = self.CONFIG["Turn"][0]["Address"]
-            vn["IPOP"]["Request"]["TurnUser"] = self.CONFIG["Turn"][0]["User"]
-            vn["IPOP"]["Request"]["TurnPass"] = self.CONFIG["Turn"][0]["Password"]
+            vn["IPOP"]["Request"]["StunAddress"] = self.CMConfig["Stun"][0]
+
+            if "Turn" in self.CMConfig:
+              if self.CMConfig["Turn"][0]["Address"] is not None:
+                vn["IPOP"]["Request"]["TurnAddress"] = self.CMConfig["Turn"][0]["Address"]
+              if self.CMConfig["Turn"][0]["User"] is not None:
+                vn["IPOP"]["Request"]["TurnUser"] = self.CMConfig["Turn"][0]["User"]
+              if self.CMConfig["Turn"][0]["Password"] is not None:
+                vn["IPOP"]["Request"]["TurnPass"] = self.CMConfig["Turn"][0]["Password"]
 
             if "IP4Prefix" in self.vnetdetails[i]:
                 vn["IPOP"]["Request"]["LocalPrefix4"] = self.vnetdetails[i]["IP4Prefix"]
             else:
-                vn["IPOP"]["Request"]["LocalPrefix4"] = self.CONFIG["LocalPrefix4"]
+                vn["IPOP"]["Request"]["LocalPrefix4"] = self.CMConfig["LocalPrefix4"]
 
             if "IP6Prefix" in self.vnetdetails[i]:
                 vn["IPOP"]["Request"]["LocalPrefix6"] = self.vnetdetails[i]["IP6Prefix"]
             else:
-                vn["IPOP"]["Request"]["LocalPrefix6"] = self.CONFIG["LocalPrefix6"]
+                vn["IPOP"]["Request"]["LocalPrefix6"] = self.CMConfig["LocalPrefix6"]
 
             if "MTU4" in self.vnetdetails[i]:
                 vn["IPOP"]["Request"]["MTU4"] = self.vnetdetails[i]["MTU4"]
             else:
-                vn["IPOP"]["Request"]["MTU4"] = self.CONFIG["MTU4"]
+                vn["IPOP"]["Request"]["MTU4"] = self.CMConfig["MTU4"]
 
             if "MTU6" in self.vnetdetails[i]:
                 vn["IPOP"]["Request"]["MTU6"] = self.vnetdetails[i]["MTU6"]
             else:
-                vn["IPOP"]["Request"]["MTU6"] = self.CONFIG["MTU6"]
+                vn["IPOP"]["Request"]["MTU6"] = self.CMConfig["MTU6"]
 
             if self.vnetdetails[i]["L2TunnellingEnabled"] == 1:
                 vn["IPOP"]["Request"]["L2TunnelEnabled"] = True

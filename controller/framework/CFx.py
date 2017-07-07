@@ -28,23 +28,6 @@ class CFX(object):
         self.vpn_type = self.CONFIG['CFx']['Model']
         self.loaded_modules = ['CFx']  # list of modules already loaded
         self.event = None
-        # Check whether the logger module exists in the config file
-        if "Logger" in self.CONFIG.keys():
-            if "LogOption" in self.CONFIG["Logger"].keys():
-                # Check whether the Logging is set to file
-                if self.CONFIG['Logger']["LogOption"].lower() == "file":
-                    filepath = self.CONFIG['Logger'].get("LogFilePath", "./")
-                    filename = filepath + \
-                        self.CONFIG['Logger'].get("CtrlLogFileName", "ctrl.log")
-
-                    self.mklogdir(filepath)
-                    self.logfilehandle = open(filename, 'w+')
-                    sys.stderr = self.logfilehandle   # Set the standard error log to write to file
-                    sys.stdout = self.logfilehandle   # Set the standard output log to write to file
-        else:
-            print("Failed to load Controller Logger Module.")
-            sys.exit(0)
-
 
     def submitCBT(self, CBT):
         recipient = CBT.recipient
@@ -67,7 +50,7 @@ class CFX(object):
                 try:
                     dependency_graph[key] = self.CONFIG[key]['dependencies']
                 except Exception as error:
-                    print("Exception caught in CFX: {0}".format(str(error)))
+                    pass
 
         if self.detect_cyclic_dependency(dependency_graph):
             print("Circular dependency detected in config.json. Exiting")
@@ -218,7 +201,7 @@ class CFX(object):
                 try:
                     self.event.wait(1)
                 except (KeyboardInterrupt, SystemExit) as e:
-                    print("Exception caught in CFX: {0}".format(str(e)))
+                    print("Controller shutdown event: {0}".format(str(e)))
                     break
         else:
             for sig in [signal.SIGINT]:
@@ -244,13 +227,6 @@ class CFX(object):
                 self.CFxHandleDict[handle].CMThread.join()
                 if self.CFxHandleDict[handle].timer_thread:
                     self.CFxHandleDict[handle].timer_thread.join()
-
-        if "Logger" in self.CONFIG.keys():
-            if "LogOption" in self.CONFIG["Logger"].keys():
-                if self.CONFIG['Logger']["LogOption"].lower() == "file":
-                    sys.stderr.close()
-                    sys.stdout.close()
-                    self.logfilehandle.close()
         sys.exit(0)
 
     def queryParam(self, ModuleName, ParamName=""):
@@ -265,19 +241,6 @@ class CFX(object):
         except Exception as error:
             print("Exception occurred while querying data."+str(error))
             return None
-
-    def mklogdir(self, log_path):
-            try:
-                os.makedirs(log_path, exist_ok=True)
-            except TypeError:
-                try:
-                    os.makedirs(log_path)
-                except OSError as e:
-                    if e.errno == errno.EEXIST and os.path.isdir(log_path):
-                        pass
-                    else:
-                        raise
-
 
 if __name__ == "__main__":
     cf = CFX()

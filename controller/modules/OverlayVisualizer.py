@@ -14,7 +14,6 @@ else:
 class OverlayVisualizer(ControllerModule):
     def __init__(self, CFxHandle, paramDict, ModuleName):
         super(OverlayVisualizer, self).__init__(CFxHandle, paramDict, ModuleName)
-        self.CMConfig = paramDict
         # Counter to keep track of time lapsed
         self.interval_counter = 0
         # Visualizer webservice URL

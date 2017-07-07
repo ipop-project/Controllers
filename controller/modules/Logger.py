@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import logging
 import logging.handlers as lh
+import os
+import sys
 from controller.framework.ControllerModule import ControllerModule
 
 
@@ -22,17 +24,19 @@ class Logger(ControllerModule):
                                 level=level)
             logging.info("Logger Module Loaded")
         else:
-
+            # Extracts the filepath else sets logs to current working directory
+            filepath = self.CMConfig.get("LogFilePath", "./")
+            fqname = filepath + \
+                self.CMConfig.get("CtrlLogFileName", "ctrl.log")
+            if not os.path.isdir(filepath):
+              os.mkdir(filepath)
+            self.logfilehandle = open(fqname, 'w+')
+            sys.stderr = self.logfilehandle   # Set the standard error log to write to file
+            sys.stdout = self.logfilehandle   # Set the standard output log to write to file
             self.logger = logging.getLogger("IPOP Rotating Log")
             self.logger.setLevel(level)
-            # Extracts the filepath else sets logs to current working directory
-            if "LogFilePath" in self.CMConfig:
-                filepath = self.CMConfig["LogFilePath"]
-            else:
-                filepath = "./"
-            filepath += self.CMConfig["CtrlLogFileName"]
             # Creates rotating filehandler
-            handler = lh.RotatingFileHandler(filename=filepath, maxBytes=self.CMConfig["LogFileSize"],
+            handler = lh.RotatingFileHandler(filename=fqname, maxBytes=self.CMConfig["LogFileSize"],
                                              backupCount=self.CMConfig["BackupLogFileCount"])
             formatter = logging.Formatter(
                 "[%(asctime)s.%(msecs)03d] %(levelname)s:%(message)s", datefmt='%Y%m%d %H:%M:%S')
@@ -90,4 +94,5 @@ class Logger(ControllerModule):
             logging.log(5, message, *args, **argv)
 
     def terminate(self):
-        pass
+      self.logfilehandle.close()
+

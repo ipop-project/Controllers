@@ -8,7 +8,6 @@ class LinkManager(ControllerModule):
 
     def __init__(self, CFxHandle, paramDict, ModuleName):
         super(LinkManager, self).__init__(CFxHandle, paramDict, ModuleName)
-        self.CMConfig = paramDict
         self.link_details = {}
         # Query UID and Tap Interface from VirtualNetworkInitializer
         tincanparams = self.CFxHandle.queryParam("VirtualNetworkInitializer", "Vnets")
@@ -295,8 +294,8 @@ class LinkManager(ControllerModule):
             if msg_type == "local_state":
                 interface_details["ipop_state"] = msg
                 interface_details["mac"] = msg["mac"]
-                self.registerCBT("Logger", "info", "Local Node Info UID:\
-                {0} MAC:{1} IP4: {2}".format(msg["_uid"], msg["mac"], msg["_ip4"]))
+                self.registerCBT("Logger", "info","LM Local Node Info UID:{0} MAC:{1} IP4: {2}" \
+                  .format(msg["_uid"], msg["mac"], msg["_ip4"]))
                 # update peer list
             elif msg_type == "peer_state":
                 uid = msg["uid"]

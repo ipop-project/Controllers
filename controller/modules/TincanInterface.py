@@ -8,23 +8,22 @@ class TincanInterface(ControllerModule):
     def __init__(self, CFxHandle, paramDict, ModuleName):
         super(TincanInterface, self).__init__(CFxHandle, paramDict, ModuleName)
         self.trans_counter = 0  # Counter to send transaction number for every TINCAN request
-        self.CONFIG = paramDict  # Dictionary object containing configuration details loaded from the ipop-config file
         self.TincanListenerThread = None    # Class data member to hold UDP listener Thread object
         # Check whether the system supports IPv6
         if socket.has_ipv6:
             self.sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
             self.sock_svr = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
             # Attribute to hold Controller UDP listening socket
-            self.sock_svr.bind((self.CONFIG["localhost6"], self.CONFIG["ctrl_recv_port"]))
+            self.sock_svr.bind((self.CMConfig["localhost6"], self.CMConfig["ctrl_recv_port"]))
             # Attribute to hold Controller UDP sending socket
-            self.dest = (self.CONFIG["localhost6"], self.CONFIG["ctrl_send_port"])
+            self.dest = (self.CMConfig["localhost6"], self.CMConfig["ctrl_send_port"])
         else:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock_svr = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # Attribute to hold Controller UDP listening socket
-            self.sock_svr.bind((self.CONFIG["localhost"], self.CONFIG["ctrl_recv_port"]))
+            self.sock_svr.bind((self.CMConfig["localhost"], self.CMConfig["ctrl_recv_port"]))
             # Attribute to hold Controller UDP sending socket
-            self.dest = (self.CONFIG["localhost"], self.CONFIG["ctrl_send_port"])
+            self.dest = (self.CMConfig["localhost"], self.CMConfig["ctrl_send_port"])
         self.sock.bind(("", 0))
         self.sock_list = [self.sock_svr]
 
@@ -38,7 +37,7 @@ class TincanInterface(ControllerModule):
     def __tincan_listener(self):
         while True:
             socks, _, _ = select.select(self.sock_list, [], [],
-                                        self.CONFIG["SocketReadWaitTime"])
+                                        self.CMConfig["SocketReadWaitTime"])
             # Iterate across all socket list to obtain Tincan messages
             for sock in socks:
                 if sock == self.sock_svr:
