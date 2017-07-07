@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import errno
 import os
 import sys
 import json
@@ -32,8 +33,11 @@ class CFX(object):
             if "LogOption" in self.CONFIG["Logger"].keys():
                 # Check whether the Logging is set to file
                 if self.CONFIG['Logger']["LogOption"].lower() == "file":
-                    filename = self.CONFIG['Logger'].get("LogFilePath", "./") + \
-                                 self.CONFIG['Logger'].get("LogFileName", "ctr.log")
+                    filepath = self.CONFIG['Logger'].get("LogFilePath", "./")
+                    filename = filepath + \
+                        self.CONFIG['Logger'].get("CtrlLogFileName", "ctrl.log")
+
+                    self.mklogdir(filepath)
                     self.logfilehandle = open(filename, 'w+')
                     sys.stderr = self.logfilehandle   # Set the standard error log to write to file
                     sys.stdout = self.logfilehandle   # Set the standard output log to write to file
@@ -41,7 +45,7 @@ class CFX(object):
             print("Failed to load Controller Logger Module.")
             sys.exit(0)
 
-        
+
     def submitCBT(self, CBT):
         recipient = CBT.recipient
         self.CFxHandleDict[recipient].CMQueue.put(CBT)
@@ -249,7 +253,6 @@ class CFX(object):
                     self.logfilehandle.close()
         sys.exit(0)
 
-
     def queryParam(self, ModuleName, ParamName=""):
         try:
             if ModuleName in [None, ""]:
@@ -262,6 +265,19 @@ class CFX(object):
         except Exception as error:
             print("Exception occurred while querying data."+str(error))
             return None
+
+    def mklogdir(self, log_path):
+            try:
+                os.makedirs(log_path, exist_ok=True)
+            except TypeError:
+                try:
+                    os.makedirs(log_path)
+                except OSError as e:
+                    if e.errno == errno.EEXIST and os.path.isdir(log_path):
+                        pass
+                    else:
+                        raise
+
 
 if __name__ == "__main__":
     cf = CFX()

@@ -7,8 +7,10 @@ from controller.framework.ControllerModule import ControllerModule
 class Logger(ControllerModule):
     def __init__(self, CFxHandle, paramDict, ModuleName):
         super(Logger, self).__init__(CFxHandle, paramDict, ModuleName)
+
     def initialize(self):
-        # Extracts the controller Log Level from the ipop-config file, IF nothing is provided the default is INFO
+        # Extracts the controller Log Level from the ipop-config file,
+        # If nothing is provided the default is INFO
         if "LogLevel" in self.CMConfig:
             level = getattr(logging, self.CMConfig["LogLevel"])
         else:
@@ -20,15 +22,15 @@ class Logger(ControllerModule):
                                 level=level)
             logging.info("Logger Module Loaded")
         else:
-            
+
             self.logger = logging.getLogger("IPOP Rotating Log")
             self.logger.setLevel(level)
-            # Extracts the filepath for Logging else sets logs to the current working directory
+            # Extracts the filepath else sets logs to current working directory
             if "LogFilePath" in self.CMConfig:
                 filepath = self.CMConfig["LogFilePath"]
             else:
                 filepath = "./"
-            filepath += self.CMConfig["LogFileName"]
+            filepath += self.CMConfig["CtrlLogFileName"]
             # Creates rotating filehandler
             handler = lh.RotatingFileHandler(filename=filepath, maxBytes=self.CMConfig["LogFileSize"],
                                              backupCount=self.CMConfig["BackupLogFileCount"])
