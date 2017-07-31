@@ -30,9 +30,6 @@ class Logger(ControllerModule):
                 self.CMConfig.get("CtrlLogFileName", "ctrl.log")
             if not os.path.isdir(filepath):
               os.mkdir(filepath)
-            self.logfilehandle = open(fqname, 'w+')
-            sys.stderr = self.logfilehandle   # Set the standard error log to write to file
-            sys.stdout = self.logfilehandle   # Set the standard output log to write to file
             self.logger = logging.getLogger("IPOP Rotating Log")
             self.logger.setLevel(level)
             # Creates rotating filehandler
@@ -52,24 +49,24 @@ class Logger(ControllerModule):
         # Extracting the logging level information from the CBT action tag
         if cbt.action == 'debug':
             if self.CMConfig["LogOption"] == "File":
-                self.logger.debug(cbt.data)
+                self.logger.debug(cbt.initiator + ": " + cbt.data)
             else:
-                logging.debug(cbt.data)
+                logging.debug(cbt.initiator + ": " + cbt.data)
         elif cbt.action == 'info':
             if self.CMConfig["LogOption"] == "File":
-                self.logger.info(cbt.data)
+                self.logger.info(cbt.initiator + ": " + cbt.data)
             else:
-                logging.info(cbt.data)
+                logging.info(cbt.initiator + ": " + cbt.data)
         elif cbt.action == 'warning':
             if self.CMConfig["LogOption"] == "File":
-                self.logger.warning(cbt.data)
+                self.logger.warning(cbt.initiator + ": " + cbt.data)
             else:
-                logging.warning(cbt.data)
+                logging.warning(cbt.initiator + ": " + cbt.data)
         elif cbt.action == 'error':
             if self.CMConfig["LogOption"] == "File":
-                self.logger.error(cbt.data)
+                self.logger.error(cbt.initiator + ": " + cbt.data)
             else:
-                logging.error(cbt.data)
+                logging.error(cbt.initiator + ": " + cbt.data)
         elif cbt.action == "pktdump":
             self.pktdump(message=cbt.data.get('message'),
                          dump=cbt.data.get('dump'))
@@ -94,5 +91,4 @@ class Logger(ControllerModule):
             logging.log(5, message, *args, **argv)
 
     def terminate(self):
-      self.logfilehandle.close()
-
+      pass

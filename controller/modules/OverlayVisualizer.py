@@ -23,8 +23,8 @@ class OverlayVisualizer(ControllerModule):
 
     def initialize(self):
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
-        # Query VirtualNetwork Interface details from VirtualNetworkInitializer module
-        ipop_interfaces = self.CFxHandle.queryParam("VirtualNetworkInitializer", "Vnets")
+        # Query VirtualNetwork Interface details from TincanInterface module
+        ipop_interfaces = self.CFxHandle.queryParam("TincanInterface", "Vnets")
         # Create a dict of available net interfaces for collecting visualizer data
         for interface_details in ipop_interfaces:
           interface_name = interface_details["TapName"]

@@ -352,11 +352,11 @@ class XmppClient(ControllerModule):
           # Maximum delay between advertisements from ipop config file else, load from fxlib.py
           self.ipop_xmpp_details[interface_name]["maxadvrtdelay"] = \
               xmpp_ele.get("MaxAdvertismentDelay", self.CMConfig.get("MaxAdvertismentDelay"))
-          # Query VirtualNetwork Interface details from VirtualNetworkInitializer module
-          ipop_interfaces = self.CFxHandle.queryParam("VirtualNetworkInitializer", "Vnets")
+          # Query VirtualNetwork Interface details from TincanInterface module
+          ipop_interfaces = self.CFxHandle.queryParam("TincanInterface", "Vnets")
           # Iterate over the entire VirtualNetwork Interface List
           for interface_details in ipop_interfaces:
-              # Check whether the TapName given in the XMPPClient and VirtualNetworkInitializer module if yes load UID
+              # Check whether the TapName given in the XMPPClient and TincanInterface module if yes load UID
               if interface_details["TapName"] == interface_name:
                   self.ipop_xmpp_details[interface_name]["uid"] = interface_details["uid"]
           # Connect to the XMPP server

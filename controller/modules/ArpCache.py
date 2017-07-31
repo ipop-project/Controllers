@@ -1,11 +1,11 @@
 from controller.framework.ControllerModule import ControllerModule
 
 
-class UnmanagedNodeDiscovery(ControllerModule):
+class ArpCache(ControllerModule):
     def __init__(self, CFxHandle, paramDict, ModuleName):
-        super(UnmanagedNodeDiscovery, self).__init__(CFxHandle, paramDict, ModuleName)
+        super(ArpCache, self).__init__(CFxHandle, paramDict, ModuleName)
         # Query CFX to get properties of virtual networks configured by the user
-        self.tincanparams = self.CFxHandle.queryParam("VirtualNetworkInitializer", "Vnets")
+        self.tincanparams = self.CFxHandle.queryParam("TincanInterface", "Vnets")
         self.ipop_vnets_details = {}
         # Iterate across the virtual networks to get UID,IP4 and TAPName
         for k in range(len(self.tincanparams)):
@@ -111,14 +111,14 @@ class UnmanagedNodeDiscovery(ControllerModule):
 
             # Broadcast the ARP Message using the Overlay
             if destip != self.ipop_vnets_details[interface_name]["ip"]:
-                self.registerCBT('BroadCastForwarder', 'BroadcastPkt', cbt.data)
+                self.registerCBT('BroadcastForwarder', 'BroadcastPkt', cbt.data)
             elif destip == self.ipop_vnets_details[interface_name]["ip"] and srcip == "0.0.0.0":
-                self.registerCBT('BroadCastForwarder', 'BroadcastPkt', cbt.data)
+                self.registerCBT('BroadcastForwarder', 'BroadcastPkt', cbt.data)
             elif destmac in list(self.ipop_vnets_details[interface_name]["local_mac_ip_table"].keys()):
                 self.registerCBT('TincanInterface', 'DO_INSERT_DATA_PACKET', cbt.data)
             else:
                 self.registerCBT('TincanInterface', 'DO_INSERT_DATA_PACKET', cbt.data)
-                self.registerCBT('BroadCastForwarder', 'BroadcastPkt', cbt.data)
+                self.registerCBT('BroadcastForwarder', 'BroadcastPkt', cbt.data)
         # ARP Reply Packet: Send ARP Reply as unicast to the source and Broadcast local MAC-IP
         # Table for setting up routing rules in the Tincan
         else:
@@ -139,7 +139,7 @@ class UnmanagedNodeDiscovery(ControllerModule):
                         }
             }
             # Broadcast Unmanaged node details to all nodes in the network
-            self.registerCBT('BroadCastForwarder', 'BroadcastData', sendlocalmacdetails)
+            self.registerCBT('BroadcastForwarder', 'BroadcastData', sendlocalmacdetails)
 
     def terminate(self):
         pass

@@ -4,13 +4,17 @@ from controller.framework.ControllerModule import ControllerModule
 
 
 py_ver = sys.version_info[0]
-class BroadCastForwarder(ControllerModule):
+class BroadcastForwarder(ControllerModule):
     def __init__(self ,CFxHandle, paramDict, ModuleName):
-        super(BroadCastForwarder,self).__init__(CFxHandle,  paramDict,ModuleName)
+        super(BroadcastForwarder,self).__init__(CFxHandle,  paramDict,ModuleName)
         # Table to store VNet specific network information
         self.ipop_vnets_details = {}
+        # List to store timestamp of all messages seen by the node and drop any duplicate messages
+        self.prevtimestamp = []
+     
+    def initialize(self):
         # Query CFX to get properties of virtual networks configured by the user
-        tincanparams = self.CFxHandle.queryParam("VirtualNetworkInitializer", "Vnets")
+        tincanparams = self.CFxHandle.queryParam("TincanInterface", "Vnets")
         # Iterate across the virtual networks to get UID and TAPName
         for k in range(len(tincanparams)):
             interface_name = tincanparams[k]["TapName"]
@@ -20,10 +24,7 @@ class BroadCastForwarder(ControllerModule):
             # Stores local node's mac address obtained from LinkManager
             self.ipop_vnets_details[interface_name]["peerlist"] = []
         tincanparams = None
-        # List to store timestamp of all messages seen by the node and drop any duplicate messages
-        self.prevtimestamp = []
-     
-    def initialize(self):
+
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
     # Method to store timestamp of messages processed to avoid duplicates

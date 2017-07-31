@@ -25,7 +25,6 @@ def main():
         if time.time()-stime > 10:
             print("Waiting on IPOP Tincan to start...")
             stime = time.time()
-    time.sleep(10)
     # Create CFX object that initializes internal datastructure of all the controller modules
     cfx = CFX()
     cfx.initialize()

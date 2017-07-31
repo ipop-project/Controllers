@@ -4,38 +4,37 @@
   },
   "Logger": {
     "Enabled": true,
-    "LogLevel": "INFO",
+    "LogLevel": "WARNING",
     "LogOption": "File",
-    "BackupLogFileCount": 5,
-    "LogFileName": "logs/ctlr.log",
-    "LogFileSize": 3000000
+    "LogFilePath": "./logs/",
+    "CtrlLogFileName": "ctrl.log",
+    "TincanLogFileName": "tincan.log",
+    "LogFileSize": 5000000,
+    "BackupLogFileCount": 5
   },
-  "VirtualNetworkInitializer": {
-    "Log": {
-      "Level": "INFO",
-      "Device": "All",
-      "Directory": "./logs",
-      "Filename": "tincan",
-      "MaxArchives": 10,
-      "MaxFileSize": 3000000,
-      "ConsoleLevel": "WARNING"
-    },
+  "TincanInterface": {
+    "ctrl_recv_port": 5801,  
+    "localhost": "127.0.0.1",
+    "ctrl_send_port": 5800,  
+    "localhost6": "::1",
+    "dependencies": ["Logger"],
     "Vnets": [
       {
-        "IP4": "10.254.0.1",
-        "IP4Prefix": 24,
+        "Name" : "ipop_tap0",
+        "IP4": "10.254.0.10",
+        "IP4PrefixLen": 16,
         "MTU4": 1200,
         "XMPPModuleName": "XmppClient",
         "TapName": "ipop_tap0",
         "Description": "Beta 2 Test Network",
         "IgnoredNetInterfaces": [ "ipop_tap0" ],
-        "L2TunnellingEnabled": 1
+        "L2TunnellingEnabled": true
       }
     ],
     "Stun": [ "stun.l.google.com:19302" ],
   },
   "XmppClient": {
-    "xmppdetails": [
+    "XmppDetails": [
       {
         "Username": "***",
         "Password": "***",

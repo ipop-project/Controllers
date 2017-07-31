@@ -2,7 +2,7 @@
 import sys
 py_ver = sys.version_info[0]
 
-ENDPT = {
+RESPLINK = {
     "IPOP": {
         "ProtocolVersion": 4,
         "TransactionId": 0,
@@ -67,16 +67,12 @@ VNET = {
           "Description": "My Devices",
           "LocalVirtIP4": "",
           "LocalPrefix4": "",
-          "LocalPrefix6": "",
           "MTU4": "",
-          "MTU6": "",
           "LocalUID": "",
-          "LocalVirtIP6": "",
           "StunAddress": "",
           "TurnAddress": "",
           "TurnUser": "",
           "TurnPass": "",
-          "L2TunnelEnabled": True,
           "AutoTrimEnabled": False,
           "IPMappingEnabled": False
         }
@@ -85,7 +81,7 @@ VNET = {
 LCAS = {
     "IPOP": {
         "ProtocolVersion": 4,
-        "TransactionId": 100005,
+        "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
           "Command": "CreateTunnel",
@@ -103,7 +99,7 @@ LCAS = {
 CONCT = {
     "IPOP": {
         "ProtocolVersion": 4,
-        "TransactionId": 100006,
+        "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
           "Command": "ConnectTunnel",
@@ -121,7 +117,7 @@ CONCT = {
 IGNORE = {
     "IPOP": {
         "ProtocolVersion": 4,
-        "TransactionId": 100007,
+        "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
           "Command": "SetIgnoredNetInterfaces",
@@ -147,7 +143,7 @@ ICC = {
 PACKET = {
     "IPOP": {
         "ProtocolVersion": 4,
-        "TransactionId": 100030,
+        "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "UpdateRoutes",
@@ -159,7 +155,7 @@ PACKET = {
 INSERT_TAP_PACKET = {
     "IPOP": {
         "ProtocolVersion": 4,
-        "TransactionId": 100030,
+        "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "InjectFrame",
@@ -171,10 +167,10 @@ INSERT_TAP_PACKET = {
 REMOVE = {
     "IPOP": {
         "ProtocolVersion": 4,
-        "TransactionId": 100015,
+        "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-            "Command": "RemovePeer",
+            "Command": "TrimTunnel",
             "InterfaceName": "ipop_tap0",
             "MAC": ""
         }
@@ -183,7 +179,7 @@ REMOVE = {
 RESP = {
     "IPOP": {
         "ProtocolVersion": 4,
-        "TransactionId": 100000,
+        "TransactionId": 0,
         "ControlType": "TincanResponse",
         "Request": {
         },
@@ -197,7 +193,7 @@ RESP = {
 ADD_FORWARDING_RULE = {
         "IPOP": {
             "ProtocolVersion": 4,
-            "TransactionId": 102001,
+            "TransactionId": 0,
             "ControlType": "TincanRequest",
             "Request": {
                 "Command": "UpdateMap",
@@ -210,7 +206,7 @@ ADD_FORWARDING_RULE = {
 DELETE_FORWARDING_RULE = {
         "IPOP": {
             "ProtocolVersion": 4,
-            "TransactionId": 102001,
+            "TransactionId": 0,
             "ControlType": "TincanRequest",
             "Request": {
                 "Command": "RemoveRoutes",
@@ -222,7 +218,7 @@ DELETE_FORWARDING_RULE = {
 TUNNEL_STATS = {
     "IPOP": {
         "ProtocolVersion": 4,
-        "TransactionId" : 100202,
+        "TransactionId" : 0,
         "Owner" : "ModuleName",
         "ControlType": "TincanRequest",
         "Request": {
@@ -235,7 +231,7 @@ TUNNEL_STATS = {
 QUERY_CAS = {
     "IPOP": {
         "ProtocolVersion": 4,
-        "TransactionId" : 100202,
+        "TransactionId" : 0,
         "Owner" : "",
         "ControlType": "TincanRequest",
         "Request": {

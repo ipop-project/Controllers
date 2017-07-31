@@ -1,6 +1,7 @@
 from controller.framework.ControllerModule import ControllerModule
 import socket,select,json,ast
 import controller.framework.ipoplib as ipoplib
+import controller.framework.fxlib as fxlib
 from threading import Thread
 
 
@@ -26,6 +27,7 @@ class TincanInterface(ControllerModule):
             self.dest = (self.CMConfig["localhost"], self.CMConfig["ctrl_send_port"])
         self.sock.bind(("", 0))
         self.sock_list = [self.sock_svr]
+        self.model = self.CFxHandle.queryParam('CFx', 'Model')
 
     def initialize(self):
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
@@ -33,6 +35,10 @@ class TincanInterface(ControllerModule):
         self.TincanListenerThread = Thread(target=self.__tincan_listener)
         self.TincanListenerThread.setDaemon(True)
         self.TincanListenerThread.start()
+        self.create_control_link()
+        self.set_log_level()
+        self.create_virtual_networks()
+        self.set_ignored_interfaces()
 
     def __tincan_listener(self):
         while True:
@@ -138,8 +144,8 @@ class TincanInterface(ControllerModule):
             log = "Inserting Network Packet: {0}".format(str(packet["IPOP"]))
             self.registerCBT('Logger', 'debug', log)
         # CBT to retry any Tincan Request
-        elif cbt.action == 'DO_RETRY':
-            self.send_msg(json.dumps(cbt.data))
+        #elif cbt.action == 'DO_RETRY':
+        #    self.send_msg(json.dumps(cbt.data))
         # CBT to process request to insert Forwarding rule in Tincan
         elif cbt.action == "DO_INSERT_FORWARDING_RULES":
             add_routing = ipoplib.ADD_FORWARDING_RULE
@@ -161,7 +167,6 @@ class TincanInterface(ControllerModule):
             self.trans_counter += 1
             remove_routing["IPOP"]["Request"]["InterfaceName"] = cbt.data["interface_name"]
             remove_routing["IPOP"]["Request"]["Routes"] = [cbt.data["mac"]]
-
             log = "Routing Rule Removed: {0}".format(str(remove_routing["IPOP"]))
             self.registerCBT('Logger', 'debug', log)
             self.send_msg(json.dumps(remove_routing))
@@ -351,16 +356,16 @@ class TincanInterface(ControllerModule):
                                 dataframe = iccmsg["msg"]["dataframe"]
                                 # Check whether the Packet is ARP Packet
                                 if dataframe[24:28] == "0806":
-                                    self.registerCBT('UnmanagedNodeDiscovery', 'ARPPacket', iccmsg["msg"])
+                                    self.registerCBT('ArpCache', 'ARPPacket', iccmsg["msg"])
                                 # Check whether packet is IPv4 Multicast Packet
-                                elif dataframe[0:6] == "01005E":
-                                    self.registerCBT('IPMulticast', 'IPv4_MULTICAST', iccmsg["msg"])
+                                #elif dataframe[0:6] == "01005E":
+                                #    self.registerCBT('IPMulticast', 'IPv4_MULTICAST', iccmsg["msg"])
                                 # Check whether packet is IPv6 Multicast Packet
-                                elif dataframe[0:4] == "3300":
-                                    self.registerCBT('IPMulticast', 'IPv6_MULTICAST', iccmsg["msg"])
+                                #elif dataframe[0:4] == "3300":
+                                #    self.registerCBT('IPMulticast', 'IPv6_MULTICAST', iccmsg["msg"])
                                 else:
                                     # Broadcast other packets
-                                    self.registerCBT('BroadCastForwarder', 'BroadcastPkt', iccmsg["msg"])
+                                    self.registerCBT('BroadcastForwarder', 'BroadcastPkt', iccmsg["msg"])
                             # Check whether data is Control data
                             elif iccmsg["msg"]["message_type"] == "BroadcastData":
                                 # Convert string control data to dictionary
@@ -368,12 +373,12 @@ class TincanInterface(ControllerModule):
                                 iccmessage["interface_name"] = tincan_resp_msg["Request"]["InterfaceName"]
                                 # Check the control data message type so that it routes to appropriate module
                                 if iccmessage["message_type"] == "SendMacDetails":
-                                    self.registerCBT('UnmanagedNodeDiscovery', 'PeerMACIPDetails', iccmessage)
-                                self.registerCBT('BroadCastForwarder', 'BroadcastData', iccmsg["msg"])
+                                    self.registerCBT('ArpCache', 'PeerMACIPDetails', iccmessage)
+                                self.registerCBT('BroadcastForwarder', 'BroadcastData', iccmsg["msg"])
                             else:
                                 self.registerCBT('BaseTopologyManager', 'ICC_CONTROL', iccmsg["msg"])
                         else:
-                            self.registerCBT('BroadCastForwarder', 'BroadcastData', iccmsg["msg"])
+                            self.registerCBT('BroadcastForwarder', 'BroadcastData', iccmsg["msg"])
                     else:
                         # Pass all non routing messages to BTM
                         iccmsg["interface_name"] = tincan_resp_msg["Request"]["InterfaceName"]
@@ -398,11 +403,11 @@ class TincanInterface(ControllerModule):
                     # Check whether Packet is ARP message then route to ARPManager
                     elif str(msg[24:28]) == "0806":
                         datagram["m_type"] = "ARP"
-                        self.registerCBT('UnmanagedNodeDiscovery', 'ARPPacket', datagram)
+                        self.registerCBT('ArpCache', 'ARPPacket', datagram)
                     # Send all other Packets for Broadcast
                     else:
                         datagram["message_type"] = "BroadcastPkt"
-                        self.registerCBT('BroadCastForwarder', 'BroadcastPkt', datagram)
+                        self.registerCBT('BroadcastForwarder', 'BroadcastPkt', datagram)
                 else:
                     log = '{0}: unrecognized Data {1} received from {2}. Data:::{3}' \
                         .format(cbt.recipient, cbt.action, cbt.initiator, cbt.data)
@@ -420,3 +425,87 @@ class TincanInterface(ControllerModule):
 
     def terminate(self):
         pass
+    '''
+    Instructs Tincan to create the UDP control connection for sending message to the controller
+    '''
+    def create_control_link(self,):
+        self.registerCBT("Logger", "info", "Creating Tincan control response link")
+        ep = ipoplib.RESPLINK
+        if self.CMConfig["ctrl_recv_port"] is not None:
+          ep["IPOP"]["Request"]["Port"] = self.CMConfig["ctrl_recv_port"]
+        if socket.has_ipv6 is False:
+            ep["IPOP"]["Request"]["AddressFamily"] = "af_inet"
+            ep["IPOP"]["Request"]["IP"] = self.CMConfig["localhost"]
+        else:
+            ep["IPOP"]["Request"]["AddressFamily"] = "af_inetv6"
+            ep["IPOP"]["Request"]["IP"] = self.CMConfig["localhost6"]
+        ep["IPOP"]["TransactionId"] = self.trans_counter
+        self.trans_counter += 1
+        self.send_msg(json.dumps(ep))
+
+    '''
+    Set Tincan's Logging Level
+    '''
+    def set_log_level(self,):
+        log_level = self.CFxHandle.queryParam("Logger", "LogLevel")
+        self.registerCBT("Logger", "info", "Setting Tincan log level to " + log_level)
+        lgl = ipoplib.LOGCFG
+        lgl["IPOP"]["Request"]["Level"] = log_level
+        lgl["IPOP"]["Request"]["Device"] = self.CFxHandle.queryParam("Logger", "LogOption")
+        lgl["IPOP"]["Request"]["Directory"] = self.CFxHandle.queryParam("Logger", "LogFilePath")
+        lgl["IPOP"]["Request"]["Filename"] = self.CFxHandle.queryParam("Logger", "TincanLogFileName")
+        lgl["IPOP"]["Request"]["MaxArchives"] = self.CFxHandle.queryParam("Logger", "BackupLogFileCount")
+        lgl["IPOP"]["Request"]["MaxFileSize"] = self.CFxHandle.queryParam("Logger", "LogFileSize")
+        lgl["IPOP"]["Request"]["ConsoleLevel"] = self.CFxHandle.queryParam("Logger", "ConsoleLevel")
+        lgl["IPOP"]["TransactionId"] = self.trans_counter
+        self.trans_counter += 1
+        self.send_msg(json.dumps(lgl))
+
+    '''
+    Create the virtual network specfied in the config 
+    '''
+    def create_virtual_networks(self,):
+        for i in range(len(self.CMConfig["Vnets"])):
+            vnetdetails = self.CMConfig["Vnets"][i]
+            vn = ipoplib.VNET
+            # Create VNET Request Message
+            self.registerCBT("Logger", "info", "Creating Vnet {0}".format(vnetdetails["TapName"]))
+            vn["IPOP"]["Request"]["InterfaceName"] = vnetdetails["TapName"]
+            vn["IPOP"]["Request"]["Description"] = vnetdetails["Description"]
+            vn["IPOP"]["Request"]["LocalVirtIP4"] = vnetdetails["IP4"]
+            vn["IPOP"]["Request"]["LocalPrefix4"] = vnetdetails["IP4PrefixLen"]
+            if "MTU4" in vnetdetails:
+                vn["IPOP"]["Request"]["MTU4"] = vnetdetails["MTU4"]
+            vnetdetails["uid"] = fxlib.gen_uid(vnetdetails["IP4"])
+            vn["IPOP"]["Request"]["LocalUID"] = vnetdetails["uid"]
+            # Currently configured to take the first stun address
+            vn["IPOP"]["Request"]["StunAddress"] = self.CMConfig["Stun"][0]
+            if "Turn" in self.CMConfig:
+                if self.CMConfig["Turn"][0]["Address"] is not None:
+                    vn["IPOP"]["Request"]["TurnAddress"] = self.CMConfig["Turn"][0]["Address"]
+                if self.CMConfig["Turn"][0]["User"] is not None:
+                    vn["IPOP"]["Request"]["TurnUser"] = self.CMConfig["Turn"][0]["User"]
+                if self.CMConfig["Turn"][0]["Password"] is not None:
+                    vn["IPOP"]["Request"]["TurnPass"] = self.CMConfig["Turn"][0]["Password"]
+            if "IPMappingEnabled" in vnetdetails:
+                vn["IPOP"]["Request"]["IPMappingEnabled"] = vnetdetails["IPMappingEnabled"]
+            vn["IPOP"]["Request"]["L2TunnelEnabled"] = True
+            vn["IPOP"]["TransactionId"] = self.trans_counter
+            self.trans_counter += 1
+            self.send_msg(json.dumps(vn))
+
+    '''
+    Network Interfaces that will not be used for tunneling
+    '''
+    def set_ignored_interfaces(self,):
+        for i in range(len(self.CMConfig["Vnets"])):
+            vnetdetails = self.CMConfig["Vnets"][i]
+            self.registerCBT("Logger", "info", "Ignoring interfaces {0}".
+                              format(vnetdetails["IgnoredNetInterfaces"]))
+            if "IgnoredNetInterfaces" in vnetdetails:
+                net_ignore_list = ipoplib.IGNORE
+                net_ignore_list["IPOP"]["Request"]["IgnoredNetInterfaces"] = vnetdetails["IgnoredNetInterfaces"]
+                net_ignore_list["IPOP"]["Request"]["InterfaceName"] = vnetdetails["TapName"]
+                net_ignore_list["IPOP"]["TransactionId"] = self.trans_counter
+                self.trans_counter += 1
+                self.send_msg(json.dumps(net_ignore_list))

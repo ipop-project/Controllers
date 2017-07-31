@@ -8,7 +8,7 @@ class IPMulticast(ControllerModule):
         # Table to store Multicast Group address details for virtual network intefaces configured in the ipop-config.json
         self.multicast_details = {}
         # Query CFX to get properties of virtual networks configured by the user
-        tincanparams = self.CFxHandle.queryParam("VirtualNetworkInitializer", "Vnets")
+        tincanparams = self.CFxHandle.queryParam("TincanInterface", "Vnets")
         # Iterate across the virtual networks to get UID,IPv4, IPv6 and TAPName
         for k in range(len(tincanparams)):
             interface_name = tincanparams[k]["TapName"]
@@ -182,7 +182,7 @@ class IPMulticast(ControllerModule):
                         "type": "local"
                     }
                     # Broadcast the MembershipQuery packet to all IPOP nodes in the network
-                    self.registerCBT("BroadCastForwarder", "BroadcastPkt", msg)
+                    self.registerCBT("BroadcastForwarder", "BroadcastPkt", msg)
                     # Check whether message is a general membership query or not
                     if multicast_address in ["0" * bytelength] + self.multicast_details[interface_name].keys() and \
                                     self.multicast_details[interface_name]["mac"] not in [None, ""]:
@@ -322,7 +322,7 @@ class IPMulticast(ControllerModule):
                                     list(set(self.multicast_details[interface_name]["Group"][multicast_address]))
                             else:
                                 self.multicast_details[interface_name]["Group"][multicast_address] = [multicast_src_uid]
-                    self.registerCBT("BroadCastForwarder", "BroadcastPkt", cbt.data)
+                    self.registerCBT("BroadcastForwarder", "BroadcastPkt", cbt.data)
                 else:
                     # MembershipReport obtained from an unmanaged node, route it to all other nodes in the network
                     msg = {
@@ -331,7 +331,7 @@ class IPMulticast(ControllerModule):
                         "type": "local"
                     }
                     # The message has originated from the local Tap interface send it to remaining nodes in the IPOP network
-                    self.registerCBT("BroadCastForwarder", "BroadcastPkt", msg)
+                    self.registerCBT("BroadcastForwarder", "BroadcastPkt", msg)
                 self.registerCBT("Logger", "debug",
                                  "Multicast Table: {0}".format(str(self.multicast_details[interface_name])))
             else:
