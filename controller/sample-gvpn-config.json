@@ -31,7 +31,7 @@
         "L2TunnellingEnabled": true
       }
     ],
-    "Stun": [ "stun.l.google.com:19302" ],
+    "Stun": [ "stun.l.google.com:19302" ]
   },
   "XmppClient": {
     "XmppDetails": [
