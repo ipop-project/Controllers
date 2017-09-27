@@ -19,7 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import errno
 import os
 import sys
 import json
@@ -29,10 +28,10 @@ import controller.framework.ipoplib as ipoplib
 import argparse
 import threading
 import importlib
-from getpass import getpass
 from collections import OrderedDict
 from controller.framework.CBT import CBT as _CBT
 from controller.framework.CFxHandle import CFxHandle
+from controller.framework.CFxSubscription import CFxSubscription
 
 
 class CFX(object):
@@ -48,6 +47,7 @@ class CFX(object):
         self.vpn_type = self.CONFIG['CFx']['Model']
         self.loaded_modules = ['CFx']  # list of modules already loaded
         self.event = None
+        self.Subscriptions = {}
 
     def submitCBT(self, CBT):
         recipient = CBT.recipient
@@ -259,8 +259,46 @@ class CFX(object):
                 else:
                     return self.CONFIG[ModuleName][ParamName]
         except Exception as error:
-            print("Exception occurred while querying data."+str(error))
+            print("Exception occurred while querying data." + str(error))
             return None
+
+    # Caller is the subscription source
+    def CreateSubscriptionSource(self, OwnerName, SubscriptionName, Owner):
+        sub = CFxSubscription(OwnerName, SubscriptionName)
+        sub.Owner = Owner
+        if sub.OwnerName not in self.Subscriptions:
+            self.Subscriptions[sub.OwnerName] = []
+        self.Subscriptions[sub.OwnerName].append(sub)
+        return sub
+
+    def RemoveSubscriptionSource(self, sub):
+        sub.PostUpdate("SUBSCRIPTION_END")
+        if sub.OwnerName not in self.Subscriptions:
+            raise NameError("Failed to remove the subscription source. No such provider name exists")
+        self.Subscriptions[sub.OwnerName].remove(sub)
+
+    def findSubscription(self, OwnerName, SubscriptionName):
+        sub = None
+        if OwnerName not in self.Subscriptions:
+            raise NameError("The specified subscription provider was not found. No such name exists")
+        for sub in self.Subscriptions[OwnerName]:
+            if sub.SubscriptionName == SubscriptionName:
+                return sub
+        return None
+
+    # Caller is the subscription sink
+    def StartSubscription(self, OwnerName, SubscriptionName, Sink):
+        sub = self.findSubscription(OwnerName, SubscriptionName)
+        if sub is not None:
+            sub.AddSubscriber(Sink)
+        else:
+            raise NameError("The specified subscription name was not found")
+
+    def EndSubscription(self, OwnerName, SubscriptionName, Sink):
+        sub = self.findSubscription(OwnerName, SubscriptionName)
+        if sub is not None:
+            sub.RemoveSubscriber(Sink)
+
 
 if __name__ == "__main__":
     cf = CFX()

@@ -79,7 +79,7 @@ class CFxHandle(object):
             timer_enabled = True
         except ValueError:
             logging.warning("Invalid timer configuration for {0}"
-                        ". Timer has been disabled for this module".format("CFXHandle"))
+                            ". Timer has been disabled for this module".format("CFXHandle"))
         except KeyError:
             pass
 
@@ -93,7 +93,7 @@ class CFxHandle(object):
         self.interval = interval
 
     def __worker(self):
-        # get CBT from the local queue and call processCBT() of the 
+        # get CBT from the local queue and call processCBT() of the
         # CBT recipient and passing the CBT as an argument
         while True:
             cbt = self.__getCBT()
@@ -115,14 +115,14 @@ class CFxHandle(object):
                         initiator=self.CMInstance.__class__.__name__,
                         recipient='Logger',
                         action='warning',
-                        data="CBT exception:\n"\
-                             "    initiator {0}\n"\
-                             "    recipient {1}:\n"\
-                             "    action    {2}:\n"\
-                             "    data      {3}:\n"\
-                             "    traceback:\n{4}"\
+                        data="CBT exception:\n"
+                             "    initiator {0}\n"
+                             "    recipient {1}:\n"
+                             "    action    {2}:\n"
+                             "    data      {3}:\n"
+                             "    traceback:\n{4}"
                              .format(cbt.initiator, cbt.recipient, cbt.action,
-                                    cbt.data, traceback.format_exc())
+                                     cbt.data, traceback.format_exc())
                     )
 
                     self.submitCBT(logCBT)
@@ -148,7 +148,20 @@ class CFxHandle(object):
                 )
                 self.submitCBT(logCBT)
 
-
     def queryParam(self, ModuleName, ParamName=""):
-        pv = self.__CFxObject.queryParam(ModuleName,ParamName)
+        pv = self.__CFxObject.queryParam(ModuleName, ParamName)
         return pv
+
+    # Caller is the subscription source
+    def CreateSubscriptionSource(self, SubscriptionName):
+        return self.__CFxObject.CreateSubscriptionSource(self.CMInstance.__class__.__name__, SubscriptionName, self.CMInstance)
+
+    def RemoveSubscriptionSource(self, sub):
+        self.__CFxObject.RemoveSubscriptionSource(sub)
+
+    # Caller is the subscription sink
+    def StartSubscription(self, OwnerName, SubscriptionName):
+        self.__CFxObject.StartSubscription(OwnerName, SubscriptionName, self.CMInstance)
+
+    def EndSubscription(self, OwnerName, SubscriptionName):
+        self.__CFxObject.EndSubscription(OwnerName, SubscriptionName, self.CMInstance)
