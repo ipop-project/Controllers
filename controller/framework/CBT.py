@@ -24,32 +24,37 @@ import uuid
 class CBT(object):
     class Request(object):
         def __init__(self, initiator='', recipient='', action='', data=''):
-            self.initiator = initiator
-            self.recipient = recipient
-            self.action = action
-            self.data = data
+            self.Initiator = initiator
+            self.Recipient = recipient
+            self.Action = action
+            self.Data = data
     class Response(object):
         def __init__(self,):
-            self.status = False
-            self.initiator = None
-            self.recipient = None
-            self.data = None
+            self.Status = False
+            self.Initiator = None
+            self.Recipient = None
+            self.Data = None
 
     def __init__(self, initiator='', recipient='', action='', data=''):
-        self.uid = uuid.uuid4()  # Unique identifier for CBTs
-        self.optype = "Request"
+        self.Tag = uuid.uuid4()  # Unique identifier for CBTs
+        #self.vnet = vnet
+        self.Parent = None
+        self.ChildCount = 0
+        self.Completed = False
+        self.OpType = "Request"
         self.initiator = initiator
         self.recipient = recipient
         self.action = action
         self.data = data
-        self.request = self.Request(initiator, recipient, action, data)
+        self.Request = self.Request(initiator, recipient, action, data)
 
-    def response(self, initiator='', recipient='', data='', status = False):
+    def Response(self, initiator='', recipient='', data='', status = False):
         self.optype = "Response"
         self.initiator = initiator
         self.recipient = recipient
-        self.response = self.Response()
-        self.response.status = status
-        self.response.initiator = initiator
-        self.response.recipient = recipient
-        self.response.data = data
+        self.Completed = True
+        self.Response = self.Response()
+        self.Response.Status = status
+        self.Response.Initiator = initiator
+        self.Response.Recipient = recipient
+        self.Response.Data = data
