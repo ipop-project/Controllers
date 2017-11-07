@@ -23,6 +23,7 @@ import sys
 import logging
 import threading
 import traceback
+from controller.framework.CBT import CBT
 
 py_ver = sys.version_info[0]
 if py_ver == 3:
@@ -42,6 +43,8 @@ class CFxHandle(object):
         self.timer_thread = None
         self.terminateFlag = False
         self.interval = 1
+        self.PendingCBTs = {}
+        self.OwnedCBTs = {}
 
     def __getCBT(self):
         cbt = self.CMQueue.get()  # blocking call
@@ -53,12 +56,35 @@ class CFxHandle(object):
 
     def createCBT(self, initiator='', recipient='', action='', data=''):
         # create and return a CBT with optional parameters
-        cbt = self.__CFxObject.createCBT(initiator, recipient, action, data)
+        cbt = CBT(initiator, recipient, action, data)
+        self.OwnedCBTs[cbt.Tag] = cbt
         return cbt
 
-    def freeCBT(self):
-        # deallocate CBT (use python's automatic garbage collector)
-        pass
+    def CreateLinkedCBT(self, parent):
+        cbt = self.createCBT(initiator, recipient, action, data)
+        cbt.Parent = parent
+        parent.ChildCount = parent.ChildCount + 1
+        return cbt
+
+    def GetParentCBT(self, cbt):
+        return cbt.Parent
+
+    def freeCBT(self, cbt):
+        self.OwnedCBTs.pop(cbt.Tag, None)
+        if not cbt.ChildCount == 0:
+            raise RuntimeError("Invalid attempt to free a linked CBT")
+        if not cbt.Parent is None:
+            cbt.Parent.ChildCount = cbt.Parent.ChildCount - 1
+            cbt.Parent = None
+        # explicitly deallocate CBT
+        del cbt
+
+    def CompleteCBT(self, cbt):
+        cbt.Completed = True
+        self.PendingCBTs.pop(cbt.Tag, None)
+        self.__CFxObject.submitCBT(cbt)
+        if not cbt.ChildCount == 0:
+            raise RuntimeError("Invalid attempt to complete a CBT with outstanding dependencies")
 
     def initialize(self):
         # intialize the CM
@@ -108,6 +134,8 @@ class CFxHandle(object):
             else:
                 try:
                     self.CMInstance.processCBT(cbt)
+                    if not cbt.Completed:
+                        self.PendingCBTs[cbt.Tag] = cbt
                 except SystemExit:
                     sys.exit()
                 except:
@@ -153,11 +181,11 @@ class CFxHandle(object):
         return pv
 
     # Caller is the subscription source
-    def CreateSubscriptionSource(self, SubscriptionName):
-        return self.__CFxObject.CreateSubscriptionSource(self.CMInstance.__class__.__name__, SubscriptionName, self.CMInstance)
+    def PublishSubscription(self, SubscriptionName):
+        return self.__CFxObject.PublishSubscription(self.CMInstance.__class__.__name__, SubscriptionName, self.CMInstance)
 
-    def RemoveSubscriptionSource(self, sub):
-        self.__CFxObject.RemoveSubscriptionSource(sub)
+    def RemoveSubscription(self, sub):
+        self.__CFxObject.RemoveSubscriptionPublisher(sub)
 
     # Caller is the subscription sink
     def StartSubscription(self, OwnerName, SubscriptionName):

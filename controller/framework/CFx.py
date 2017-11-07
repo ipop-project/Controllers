@@ -23,13 +23,14 @@ import os
 import sys
 import json
 import signal
-import controller.framework.fxlib as fxlib
-import controller.framework.ipoplib as ipoplib
 import argparse
 import threading
 import importlib
+import uuid
+import controller.framework.fxlib as fxlib
+import controller.framework.ipoplib as ipoplib
 from collections import OrderedDict
-from controller.framework.CBT import CBT as _CBT
+from controller.framework.CBT import CBT as CBT
 from controller.framework.CFxHandle import CFxHandle
 from controller.framework.CFxSubscription import CFxSubscription
 
@@ -48,19 +49,20 @@ class CFX(object):
         self.loaded_modules = ['CFx']  # list of modules already loaded
         self.event = None
         self.Subscriptions = {}
+        self.NodeId = uuid.uuid4()
 
-    def submitCBT(self, CBT):
-        recipient = CBT.recipient
-        self.CFxHandleDict[recipient].CMQueue.put(CBT)
+    def submitCBT(self, cbt):
+        recipient = cbt.recipient
+        self.CFxHandleDict[recipient].CMQueue.put(cbt)
 
-    def createCBT(self, initiator='', recipient='', action='', data=''):
-        # create and return an empty CBT
-        cbt = _CBT(initiator, recipient, action, data)
-        return cbt
+    #def createCBT(self, initiator='', recipient='', action='', data=''):
+    #    # create and return an empty CBT
+    #    cbt = _CBT(initiator, recipient, action, data)
+    #    return cbt
 
-    def freeCBT(self):
-        # deallocate CBT (use python's automatic garbage collector)
-        pass
+    #def freeCBT(self):
+    #    # deallocate CBT (use python's automatic garbage collector)
+    #    pass
 
     def initialize(self,):
         # check for circular dependencies in the configuration file
@@ -253,6 +255,9 @@ class CFX(object):
         try:
             if ModuleName in [None, ""]:
                 return None
+            elif ModuleName == "CFx":
+                if ParamName == "NodeId":
+                    return self.NodeId
             else:
                 if ParamName == "":
                     return None
@@ -263,7 +268,7 @@ class CFX(object):
             return None
 
     # Caller is the subscription source
-    def CreateSubscriptionSource(self, OwnerName, SubscriptionName, Owner):
+    def PublishSubscription(self, OwnerName, SubscriptionName, Owner):
         sub = CFxSubscription(OwnerName, SubscriptionName)
         sub.Owner = Owner
         if sub.OwnerName not in self.Subscriptions:
@@ -271,8 +276,8 @@ class CFX(object):
         self.Subscriptions[sub.OwnerName].append(sub)
         return sub
 
-    def RemoveSubscriptionSource(self, sub):
-        sub.PostUpdate("SUBSCRIPTION_END")
+    def RemoveSubscription(self, sub):
+        sub.PostUpdate("SUBSCRIPTION_SOURCE_TERMINATED")
         if sub.OwnerName not in self.Subscriptions:
             raise NameError("Failed to remove the subscription source. No such provider name exists")
         self.Subscriptions[sub.OwnerName].remove(sub)

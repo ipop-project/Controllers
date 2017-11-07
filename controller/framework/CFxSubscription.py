@@ -32,11 +32,10 @@ class CFxSubscription(object):
     '''
 
     def AddSubscriber(self, sink):
-
         self.subscribers.append(sink)
 
     def RemoveSubscriber(self, sink):
-        pass
+        self.subscribers.remove(sink)
 
     def PostUpdate(self, msg):
         sink = None
