@@ -52,59 +52,16 @@ class ControllerModule(object):
     def terminate(self):
         pass
 
-    # returns the source CBT if the given CBT is a request CBT associated with
-    # the original CBT; returns None otherwise
-    def checkMapping(self, cbt):
-        for key in self.CBTMappings:
-            if cbt.uid in self.CBTMappings[key]:
-                return key
-        return None
-
-    # tests if all request CBTs associated with the given source CBT have been
-    # serviced
-    def allServicesCompleted(self, sourceCBT_uid):
-        requested_services = self.CBTMappings[sourceCBT_uid]
-        for service in requested_services:
-            if service not in self.pendingCBT:
-                return False
-        return True
-
     # create and submit CBT mask method
-    def registerCBT(self, _recipient, _action, _data='', _uid=None):
+    def registerCBT(self, _recipient, _action, _data='', _tag=None):
         cbt = self.CFxHandle.createCBT(
+            #vnet = _vnet,
             initiator = self.ModuleName,
             recipient = _recipient,
             action = _action,
             data = _data
         )
-        if _uid is not None:
-            cbt.uid = _uid
+        if _tag is not None:
+            cbt.Tag = _tag
         self.CFxHandle.submitCBT(cbt)
         return cbt
-
-    def linkCBT(self, initialCBT, newCBT):
-        newcbtkey = str(newCBT.uid) + " " + str(newCBT.action) + " " + str(newCBT.initiator)
-        initcbtkey = str(initialCBT.uid) + " " + str(initialCBT.action) + " " + str(initialCBT.initiator)
-        self.CBTMappings[newcbtkey] = initcbtkey
-        self.pendingCBT[initcbtkey] = initialCBT
-
-    def retrieveBaseCBT(self, cbt):
-        dependentCBTKey = self.CBTMappings.get(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator))
-        if dependentCBTKey is not None:
-            self.CBTMappings.pop(str(cbt.uid) + " " + str(cbt.action) + " " + str(cbt.initiator))
-            return self.pendingCBT.pop(dependentCBTKey)
-        return None
-
-    def retrievePendingCBT(self, searchstring):
-        pendingCBTList = []
-        for key, value in list(self.pendingCBT.items()):
-            if key.find(searchstring) != -1:
-                self.pendingCBT.pop(key)
-                pendingCBTList.append(value)
-        if len(pendingCBTList) > 0:
-            return pendingCBTList
-        return None
-
-    def insertPendingCBT(self, cbt):
-        cbtkey = str(cbt.initiator) + " " + str(cbt.action) + " " + str(cbt.uid)
-        self.pendingCBT[cbtkey] = cbt
