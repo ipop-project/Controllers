@@ -390,7 +390,7 @@ class LinkManager(ControllerModule):
                         # Get P2P Link state
                         self.registerCBT('TincanInterface', 'DO_GET_STATE', message)
                         # Get P2P Link stats
-                        self.registerCBT('TincanInterface', 'DO_QUERY_TUNNEL_STATS', message)
+                        self.registerCBT('TincanInterface', 'DO_QUERY_LINK_STATS', message)
                 self.peers_lck.release()
                 # Check whether Local Node details have been obtained from Tincan, if not issue local 
                 # state message to Tincan
