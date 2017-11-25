@@ -200,8 +200,8 @@ class TincanInterface(ControllerModule):
             self.send_msg(json.dumps(data))
             log = "Data sent to Tincan: {0}".format(str(data))
             self.registerCBT('Logger', 'debug', log)
-        elif cbt.action == 'DO_QUERY_TUNNEL_STATS':
-            link_stat_request = ipoplib.TUNNEL_STATS
+        elif cbt.action == 'DO_QUERY_LINK_STATS':
+            link_stat_request = ipoplib.LINK_STATS
             link_stat_request["IPOP"]["TransactionId"] = self.trans_counter
             self.trans_counter += 1
             link_stat_request["IPOP"]["Request"]["ProtocolVersion"] = 4
@@ -341,15 +341,12 @@ class TincanInterface(ControllerModule):
                                 }  #FixMe
                                 self.registerCBT(resp_target_module, 'TINCAN_RESPONSE', msg)
                                 return
-                    elif req_operation == "QueryTunnelStats":
-                        return # Fix Me - LinkManager not coded to recieve Tunnel Stats
+                    elif req_operation == "QueryLinkStats":
                         resp_msg = json.loads(tincan_resp_msg["Response"]["Message"])
                         resp_target_module = tincan_resp_msg["Request"]["Initiator"]
-                        msg = {
-                                    "interface_name": interface_name,
-                                    "tunnel_stats": resp_msg,
-                        }
-                        self.registerCBT(resp_target_module, 'TINCAN_RESPONSE', msg)
+                        self.registerCBT('Logger', 'info', json.dumps(resp_msg))
+                        return # Fix Me - LinkManager not coded to recieve Tunnel Stats
+                        self.registerCBT(resp_target_module, 'TINCAN_RESPONSE', resp_msg)
                     elif req_operation in ["CreateCtrlRespLink", "ConfigureLogging", "CreateVnet",
                                            "SetIgnoredNetInterfaces", "RemovePeer"]:
                         self.registerCBT("Logger", "info", "Received data from Tincan: Operation: {0}."

@@ -235,14 +235,14 @@ DELETE_FORWARDING_RULE = {
                 }
         }
 }
-TUNNEL_STATS = {
+LINK_STATS = {
     "IPOP": {
         "ProtocolVersion": 4,
         "TransactionId" : 0,
         "Owner" : "ModuleName",
         "ControlType": "TincanRequest",
         "Request": {
-        "Command": "QueryTunnelStats",
+        "Command": "QueryLinkStats",
         "InterfaceName": "ipop_tap0",
         "MAC" : ""
         }
