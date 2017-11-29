@@ -56,9 +56,8 @@ class BaseTopologyManager(ControllerModule, CFX):
         for interface_name in self.ipop_vnets_details.keys():
             # Invoke Tincan to get Local node state
             self.registerCBT('TincanInterface', 'DO_GET_STATE', {"interface_name": interface_name, "MAC": ""})
-            # Get Peer Nodes from XMPP server
-            self.registerCBT(self.ipop_vnets_details[interface_name]["xmpp_client_code"], "GET_XMPP_PEERLIST",
-                             {"interface_name": interface_name})
+            self.CFxHandle.StartSubscription(self.ipop_vnets_details[interface_name]["xmpp_client_code"], "PEER_PRESENCE_NOTIFICATION")
+
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
         self.timer_method()
 
@@ -118,8 +117,16 @@ class BaseTopologyManager(ControllerModule, CFX):
         msg_type = msg.get("type", None)
         interface_name = msg["interface_name"]
         vnet_details = self.ipop_vnets_details[interface_name]
+
+        if cbt.action == "PEER_PRESENCE_NOTIFICATION":
+            self.registerCBT('Logger', 'debug', "RECEIVED PEER NOTIFICATION FROM XMPP")
+            peer_uid = msg["uid_notification"]
+            interface_name = msg["interface_name"]
+            self.add_outbound_link("successor", peer_uid, interface_name)
+            self.registerCBT('Logger', 'debug', "attempting to create outbound link to {}".format(peer_uid))
+
         # CBT to process peerlist from XMPPClient module
-        if cbt.action == "UPDATE_XMPP_PEERLIST":
+        elif cbt.action == "UPDATE_XMPP_PEERLIST":
             xmpp_peer_list = msg.get("peer_list")
             if len(xmpp_peer_list) > 0:
                 vnet_details["discovered_nodes"] += xmpp_peer_list
@@ -232,8 +239,8 @@ class BaseTopologyManager(ControllerModule, CFX):
                 vnet_details = self.ipop_vnets_details[interface_name]
                 local_uid, local_ip = "", ""
                 if vnet_details["p2p_state"] == "connected" and "ipop_state" in vnet_details.keys():
-                    local_uid = vnet_details["ipop_state"]["_uid"]
-                    local_ip = vnet_details["ipop_state"]["_ip4"]
+                    local_uid = vnet_details["ipop_state"]["uid"]
+                    local_ip = vnet_details["ipop_state"]["ip4"]
                 successors = []
 
                 # Iterate over the IP-UID Table to retrieve Unmanaged node IP list

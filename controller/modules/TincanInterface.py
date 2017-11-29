@@ -250,8 +250,8 @@ class TincanInterface(ControllerModule):
                             msg = {
                                 "type": "local_state",
                                 "_uid": resp_msg["UID"],
-                                "_ip4": resp_msg["VIP4"],
-                                "_fpr": resp_msg["Fingerprint"],
+                                "ip4": resp_msg["VIP4"],
+                                "fpr": resp_msg["Fingerprint"],
                                 "mac": resp_msg["MAC"],
                                 "interface_name": interface_name
                             }

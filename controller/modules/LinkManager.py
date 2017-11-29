@@ -53,10 +53,10 @@ class LinkManager(ControllerModule):
             self.registerCBT('TincanInterface', 'DO_GET_STATE', msg)
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
-    # Send Message to XMPP server
-    def send_msg_srv(self, msg_type, uid, msg, interface_name):
-        cbtdata = {"method": msg_type, "overlay_id": 0, "uid": uid, "data": msg, "interface_name": interface_name}
-        self.registerCBT(self.link_details[interface_name]["xmpp_client_code"], "DO_SEND_MSG", cbtdata)
+    # Forward cbt over XMPP
+    def forward_cbt(self,interface_name,peer_uid,payload):
+        cbtdata = {"uid": peer_uid, "data": payload, "interface_name":interface_name}
+        self.registerCBT(self.link_details[interface_name]["xmpp_client_code"], "FORWARD_CBT",cbtdata)
 
     # send message (through ICC)
     #   - uid = UID of the destination peer (a tincan link must exist)
@@ -107,13 +107,18 @@ class LinkManager(ControllerModule):
         msg = {
             "peer_uid": uid,
             "interface_name": interface_name,
-            "ip4": link_data["ipop_state"]["_ip4"],
-            "fpr": link_data["ipop_state"]["_fpr"],
+            "ip4": link_data["ipop_state"]["ip4"],
+            "fpr": link_data["ipop_state"]["fpr"],
             "mac": link_data["mac"],
             "ttl": ttl
         }
+
+
         # Send the message via XMPP server to Peer node
-        self.send_msg_srv("get_peer_casdetails", uid, json.dumps(msg), interface_name)
+        payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"], dest_module="LinkManager",
+                       action='RETRIEVE_CAS_FROM_TINCAN',core_data=json.dumps(msg))
+
+        self.forward_cbt(interface_name,uid,payload)
         self.registerCBT('Logger', 'info', "Requested CAS details for peer UID:{0}".format(uid))
 
     # Remove p2plink specified by input UID
@@ -150,9 +155,9 @@ class LinkManager(ControllerModule):
             response_msg = {
                 "uid": uid,
                 "interface_name": interface_name,
-                "fpr": self.link_details[interface_name]["ipop_state"]["_fpr"],
+                "fpr": self.link_details[interface_name]["ipop_state"]["fpr"],
                 "cas": data["cas"],
-                "ip4": self.link_details[interface_name]["ipop_state"]["_ip4"],
+                "ip4": self.link_details[interface_name]["ipop_state"]["ip4"],
                 "mac": self.link_details[interface_name]["mac"],
                 "peer_mac": data["peer_mac"]
             }
@@ -168,7 +173,10 @@ class LinkManager(ControllerModule):
                     log_msg = "Resending CAS details to peer UID: {0}".format(uid)
                     self.registerCBT('Logger', 'info', log_msg)
                     response_msg["ttl"] = ttl
-                    self.send_msg_srv("sent_peer_casdetails", uid, json.dumps(response_msg), interface_name)
+                    payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
+                                   dest_module="LinkManager",
+                                   action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
+                    self.forward_cbt(interface_name, uid, payload)
                 # else if node has sent p2plinkrequest concurrently
                 elif peer[uid]["status"] == "sent_link_req":
                     # peer with Bigger UID sends a response
@@ -181,13 +189,19 @@ class LinkManager(ControllerModule):
                         "mac": data["peer_mac"]
                     }
                     response_msg["ttl"] = ttl
-                    self.send_msg_srv("sent_peer_casdetails", uid, json.dumps(response_msg), interface_name)
+                    payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
+                                   dest_module="LinkManager",
+                                   action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
+                    self.forward_cbt(interface_name, uid, payload)
                 elif peer[uid]["status"] == "offline":
                     # If the CAS has been requested for a peer UID but it is inprogress
                     if "linkretrycount" not in peer[uid].keys():
                         peer[uid]["linkretrycount"] = 1
                         response_msg["ttl"] = ttl
-                        self.send_msg_srv("sent_peer_casdetails", uid, json.dumps(response_msg), interface_name)
+                        payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
+                                       dest_module="LinkManager",
+                                       action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
+                        self.forward_cbt(interface_name, uid, payload)
                     else:
                         # Check whether the peer2peer link retry has exceeded the max count
                         if peer[uid]["linkretrycount"] < self.maxretries:
@@ -201,7 +215,10 @@ class LinkManager(ControllerModule):
                             }
                             self.registerCBT('Logger', 'info', "Sending CAS details to peer UID:{0}".format(uid))
                             response_msg["ttl"] = ttl
-                            self.send_msg_srv("sent_peer_casdetails", uid, json.dumps(response_msg), interface_name)
+                            payload = dict(src_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
+                                           dest_module="LinkManager",
+                                           action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
+                            self.forward_cbt(interface_name, uid, payload)
                         else:
                             peer[uid]["linkretrycount"] = 0
                             log_msg = "Giving up after max retries, removing peer {0}".format(uid)
@@ -231,7 +248,10 @@ class LinkManager(ControllerModule):
                     "mac": data["peer_mac"]
                 }
                 response_msg["ttl"] = ttl
-                self.send_msg_srv("sent_peer_casdetails", uid, json.dumps(response_msg), interface_name)
+                payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
+                               dest_module="LinkManager",
+                               action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
+                self.forward_cbt(interface_name, uid, payload)
 
     # Create Peer2Peer Link via Tincan
     def create_p2plink(self, uid, interface_name, msg):
@@ -318,7 +338,7 @@ class LinkManager(ControllerModule):
                     interface_details["ipop_state"] = msg
                     interface_details["mac"] = msg["mac"]
                     self.registerCBT("Logger", "info","LM Local Node Info UID:{0} MAC:{1} IP4: {2}" \
-                      .format(msg["_uid"], msg["mac"], msg["_ip4"]))
+                      .format(msg["_uid"], msg["mac"], msg["ip4"]))
                     # update peer list
                 elif msg_type == "peer_state":
                     uid = msg["uid"]
@@ -375,10 +395,10 @@ class LinkManager(ControllerModule):
     def timer_method(self):
         try:
             # Iterate across various virtual networks
+            self.peers_lck.acquire()
             for interface_name in self.link_details.keys():
                 self.registerCBT("Logger","debug","Peer Nodes:: {0}".format(self.link_details[interface_name]["peers"]))
                 # Iterate over the Peer Table
-                self.peers_lck.acquire()
                 for peeruid in self.link_details[interface_name]["peers"].keys():
                     # Check whether the Peer MAC address has been obtained via XMPP
                     if self.link_details[interface_name]["peers"][peeruid]["mac"] != "":
@@ -391,7 +411,6 @@ class LinkManager(ControllerModule):
                         self.registerCBT('TincanInterface', 'DO_GET_STATE', message)
                         # Get P2P Link stats
                         self.registerCBT('TincanInterface', 'DO_QUERY_LINK_STATS', message)
-                self.peers_lck.release()
                 # Check whether Local Node details have been obtained from Tincan, if not issue local 
                 # state message to Tincan
                 if "_uid" not in self.link_details[interface_name]["ipop_state"].keys():
@@ -400,6 +419,7 @@ class LinkManager(ControllerModule):
                 else:
                     self.clean_p2plinks(interface_name)
                     self.advertise_p2plinks(interface_name)
+            self.peers_lck.release()
         except Exception as err:
             self.peers_lck.release()
             self.registerCBT('Logger', 'error', "Exception caught in LinkManager timer thread.\
