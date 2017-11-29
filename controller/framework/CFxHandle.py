@@ -61,7 +61,7 @@ class CFxHandle(object):
         return cbt
 
     def CreateLinkedCBT(self, parent):
-        cbt = self.createCBT(initiator, recipient, action, data)
+        cbt = self.createCBT()
         cbt.Parent = parent
         parent.ChildCount = parent.ChildCount + 1
         return cbt
@@ -70,13 +70,13 @@ class CFxHandle(object):
         return cbt.Parent
 
     def freeCBT(self, cbt):
-        self.OwnedCBTs.pop(cbt.Tag, None)
         if not cbt.ChildCount == 0:
             raise RuntimeError("Invalid attempt to free a linked CBT")
         if not cbt.Parent is None:
             cbt.Parent.ChildCount = cbt.Parent.ChildCount - 1
             cbt.Parent = None
         # explicitly deallocate CBT
+        self.OwnedCBTs.pop(cbt.Tag, None)
         del cbt
 
     def CompleteCBT(self, cbt):
@@ -125,7 +125,7 @@ class CFxHandle(object):
             cbt = self.__getCBT()
 
             # break on special termination CBT
-            if cbt.action == 'TERMINATE':
+            if cbt.action == 'CFX_TERMINATE':
                 self.terminateFlag = True
                 module_name = self.CMInstance.__class__.__name__
                 logging.info("{0} exiting".format(module_name))
@@ -133,9 +133,9 @@ class CFxHandle(object):
                 break
             else:
                 try:
-                    self.CMInstance.processCBT(cbt)
                     if not cbt.Completed:
                         self.PendingCBTs[cbt.Tag] = cbt
+                    self.CMInstance.processCBT(cbt)
                 except SystemExit:
                     sys.exit()
                 except:

@@ -23,11 +23,12 @@ import uuid
 
 class CBT(object):
     class Request(object):
-        def __init__(self, initiator='', recipient='', action='', data=''):
+        def __init__(self, initiator='', recipient='', action='', data=None):
             self.Initiator = initiator
             self.Recipient = recipient
             self.Action = action
             self.Data = data
+
     class Response(object):
         def __init__(self,):
             self.Status = False
@@ -42,11 +43,17 @@ class CBT(object):
         self.ChildCount = 0
         self.Completed = False
         self.OpType = "Request"
-        self.initiator = initiator
-        self.recipient = recipient
-        self.action = action
+        self.initiator = initiator #deprecated
+        self.recipient = recipient #deprecated
+        self.action = action #deprecated
         self.data = data
         self.Request = self.Request(initiator, recipient, action, data)
+
+    def Request(self, initiator='', recipient='', action='', data=''):
+        self.Request.Initiator = initiator
+        self.Request.Recipient = recipient
+        self.Request.Action = action
+        self.Request.Data = data
 
     def Response(self, initiator='', recipient='', data='', status = False):
         self.optype = "Response"

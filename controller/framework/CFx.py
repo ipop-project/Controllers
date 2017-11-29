@@ -235,7 +235,7 @@ class CFX(object):
     def terminate(self):
         for key in self.CFxHandleDict:
             # create a special terminate CBT to terminate all the CMs
-            terminateCBT = self.createCBT('CFx', key, 'TERMINATE', '')
+            terminateCBT = self.createCBT('CFx', key, 'CFX_TERMINATE', '')
 
             # clear all the queues and put the terminate CBT in all the queues
             self.CFxHandleDict[key].CMQueue.queue.clear()
