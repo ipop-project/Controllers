@@ -75,7 +75,7 @@ CONFIG = {
         "Enabled": False,
         "dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
-    "XmppClient": {
+    "Signal": {
         "Enabled": True,
         "TimerInterval": 10,
         "MessagePerIntervalDelay": 10,      # No of XMPP messages after which the delay has to be increased
@@ -87,7 +87,7 @@ CONFIG = {
     "BaseTopologyManager": {
         "Enabled": True,
         "TimerInterval": 10,            # Timer thread interval in sec
-        "dependencies": ["Logger", "TincanInterface", "XmppClient"]
+        "dependencies": ["Logger", "TincanInterface", "Signal"]
     },
     "OverlayVisualizer": {
         "Enabled": False,           # Set this field to True for sending data to the visualizer

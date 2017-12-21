@@ -28,7 +28,7 @@ import time
 def checktincanstate():
     # Iterates across process table to find Tincan process
     for process in psutil.process_iter():
-        if process.name() == "ipop-tincan":
+        if process.name() == "ipop-tincan" or process.name() == "ipop-tincan.exe":
            return True
     return False
 
