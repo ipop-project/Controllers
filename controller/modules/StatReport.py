@@ -53,8 +53,8 @@ class StatReport(ControllerModule):
         uid = self.CFxHandle.queryParam("CFx", "local_uid")
         if uid is None:
             return
-        xmpp_host = self.CFxHandle.queryParam("XmppClient", "AddressHost")
-        xmpp_username = self.CFxHandle.queryParam("XmppClient", "Username")
+        xmpp_host = self.CFxHandle.queryParam("Signal", "AddressHost")
+        xmpp_username = self.CFxHandle.queryParam("Signal", "Username")
         controller = self.CFxHandle.queryParam("CFx", "Model")
         version = fxlib.ipopVerRel
 

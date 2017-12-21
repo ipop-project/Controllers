@@ -49,7 +49,7 @@ class CBT(object):
         self.data = data
         self.Request = self.Request(initiator, recipient, action, data)
 
-    def Request(self, initiator='', recipient='', action='', data=''):
+    def SetRequest(self, initiator='', recipient='', action='', data=''):
         self.Request.Initiator = initiator
         self.Request.Recipient = recipient
         self.Request.Action = action

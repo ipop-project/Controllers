@@ -25,6 +25,7 @@ import json
 import time
 from controller.framework.ControllerModule import ControllerModule
 from collections import defaultdict
+import threading
 
 try:
     import sleekxmpp
@@ -43,16 +44,20 @@ if py_ver == 3:
 else:
     from Queue import Queue
     import thread
-log_level = "info"
 
+# set up a new custom message stanza
+class IpopMsg(ElementBase):
+    namespace = "Conn_setup"
+    name = 'Ipop'
+    plugin_attrib = 'Ipop'
+    interfaces = set(('setup', 'payload', 'uid', 'TapName'))
 
-class XmppClient(ControllerModule):
+class Signal(ControllerModule):
     def __init__(self, CFxHandle, paramDict, ModuleName):
         ControllerModule.__init__(self, CFxHandle, paramDict, ModuleName)
         self.presence_publisher = None
         self.ipop_xmpp_details = {}
         self.keyring_installed = False
-        #self.pending_CBTQ = {}
 
     # Triggered at start of XMPP session
     def start(self, event):
@@ -69,42 +74,32 @@ class XmppClient(ControllerModule):
                     register_stanza_plugin(Message, IpopMsg)
                     xmpp_detail["XMPPObj"].registerHandler(Callback('Ipop', StanzaPath('message/Ipop'), self.xmppmessagelistener))
         except Exception as err:
-            self.log("Exception in XMPPClient:{0} Event:{1}".format(err, event), severity="error")
+            self.log("Exception in Signal:{0} Event:{1}".format(err, event), severity="error")
 
     # Callback Function to keep track of Online XMPP Peers
     def handle_presence(self, presence):
-        #try:
-            presence_sender = presence['from']
-            presence_receiver_jid = JID(presence['to'])
-            presence_receiver = str(presence_receiver_jid.user)+"@"+str(presence_receiver_jid.domain)
-            status = presence['status']
-            for interface, xmpp_details in self.ipop_xmpp_details.items():
-                # Check whether the Receiver JID belongs to the XMPP Object of the particular virtual network,
-                # If YES update JID-UID table
-                if presence_receiver == xmpp_details["username"] and presence_sender != xmpp_details["XMPPObj"].boundjid\
-                        .full:
-                    if (status != "" and "#" in status):
-                        p_type, uid = status.split('#')
-                        if (p_type=="uid_is"):
-                            self.presence_publisher.PostUpdate(dict(uid_notification=uid, interface_name=interface))
-                            self.log("UID {0} received from {1}".format(uid,presence_sender), severity=log_level)
-                        elif (p_type == "uid?"):
-                                if (xmpp_details["uid"]==uid):
-                                    xmpp_details["XMPPObj"].send_presence(pstatus="jid_uid#" + xmpp_details["uid"]+"#"+
-                                                                          xmpp_details["XMPPObj"].boundjid.full)
-                                    setup_load = "UID_MATCH" + "#" + "None" + "#" + str(presence_sender)
-                                    msg_load = xmpp_details["XMPPObj"].boundjid.full+"#"+xmpp_details["uid"]
-                                    self.sendxmppmsg(presence_sender, xmpp_details["XMPPObj"],
-                                                     setup_load, msg_load)
-                                    self.log("UID {0} matched, replied to {1}".format(uid, presence_sender),
-                                             "debug")
-                                else:
-                                    self.log("UID {0} request received from {1}".format(uid, str(presence_sender)), "debug")
-        #except Exception as err:
-            #self.log("Exception caught in XmppClient handle_presence method : {0}".format(err), severity="error")
-
-    def arp_uid(self,xmppobj , who_has_uid):
-        xmppobj.send_presence(pstatus="uid?#"+who_has_uid)
+        presence_sender = presence['from']
+        presence_receiver_jid = JID(presence['to'])
+        presence_receiver = str(presence_receiver_jid.user)+"@"+str(presence_receiver_jid.domain)
+        status = presence['status']
+        for interface, xmpp_details in self.ipop_xmpp_details.items():
+            # Check whether the Receiver JID belongs to the XMPP Object of the particular virtual network,
+            # If YES update JID-UID table
+            if presence_receiver == xmpp_details["username"] and presence_sender != xmpp_details["XMPPObj"].boundjid\
+                    .full:
+                if (status != "" and "#" in status):
+                    p_type, uid = status.split('#')
+                    if (p_type=="uid_is"):
+                        self.presence_publisher.PostUpdate(dict(uid_notification=uid, interface_name=interface))
+                        self.log("Resolved UID {0} - {1}".format(uid, presence_sender))
+                    elif (p_type == "uid?"):
+                            if (xmpp_details["uid"]==uid):
+                                xmpp_details["XMPPObj"].send_presence(pstatus="jid_uid#" + xmpp_details["uid"]+"#"+
+                                                                        xmpp_details["XMPPObj"].boundjid.full)
+                                setup_load = "UID_MATCH" + "#" + "None" + "#" + str(presence_sender)
+                                msg_load = xmpp_details["XMPPObj"].boundjid.full+"#"+xmpp_details["uid"]
+                                self.sendxmppmsg(presence_sender, xmpp_details["XMPPObj"],
+                                                    setup_load, msg_load)
 
     # This handler method listens for the matched messages on the xmpp stream,
     # extracts the setup and payload and takes suitable action depending on the
@@ -114,8 +109,8 @@ class XmppClient(ControllerModule):
         sender_jid = msg['from']
         receiver = str(receiver_jid.user) + "@" + str(receiver_jid.domain)
         interface_name, xmppobj = "", None
-        self.log("RECEIVED MESSAGE MSG {} ".format(msg), "debug")
-        # Iterate across the XMPPClient module table to find the TapInterface for the XMPP server message
+        self.log("Received XMPP Msg {0}".format(msg), "debug")
+        # Iterate across the Signal module table to find the TapInterface for the XMPP server message
         for tapName, xmpp_details in list(self.ipop_xmpp_details.items()):
             if receiver == xmpp_details["username"]:
                 xmppobj = xmpp_details
@@ -135,55 +130,39 @@ class XmppClient(ControllerModule):
         setup = msg['Ipop']['setup']
         payload = msg['Ipop']['payload']
         msg_type, target_uid, target_jid = setup.split("#")
-        self.log("RECEIVED MESSAGE setup {} payload {}".format(setup,payload),"debug")
 
-        if msg_type == "regular_msg":
-            self.log("Received regular mesage from {0}".format(msg['from']), severity=log_level)
-            self.log("Msg is {0}".format(payload), severity="debug")
-
-        elif msg_type == "UID_MATCH":
+        if msg_type == "UID_MATCH":
             # This type does not contains target uid
             match_jid,matched_uid = payload.split("#")
-            self.log("UID match received from JID {} for UID {}".format(match_jid,matched_uid),"debug")
             # complete all pending CBTs
-            #CBTQ = self.pending_CBTQ[matched_uid]
             CBTQ = self.ipop_xmpp_details[interface_name]["pending_CBTQ"][matched_uid]
-            self.log("Type CBTQ {} ".format(type(CBTQ)), "debug")
-            self.log("CBTQ {} ".format(CBTQ),"debug")
             while not CBTQ.empty():
                 cbt = CBTQ.get()
                 self.log("cbt {}".format(cbt),"debug")
                 setup_load = "FORWARDED_CBT" + "#" + "None" + "#" + match_jid
                 msg_payload = json.dumps(cbt)
                 self.sendxmppmsg(match_jid,xmppobj["XMPPObj"],setup_load,msg_payload)
-            self.log("sent out pending cbt for UID {}".format(matched_uid), "debug")
+            # put the learned JID in cache
+            self.createJidCacheEntry(interface_name, matched_uid, match_jid)
             return
-
         elif msg_type == "FORWARDED_CBT":
-            self.log("____________________HERE-6__________________", "debug")
             # does not contains target uid
             payload = json.loads(payload)
-            self.log("payload {}".format(payload), "debug")
-            self.log("____________________HERE-7__________________", "debug")
             dest_module = payload["dest_module"]
-            self.log("____________________HERE-8__________________", "debug")
             src_uid = payload["sender_uid"]
             action = payload["action"]
             cbtdata = dict(uid=src_uid,data=payload['core_data'],interface_name = interface_name)
-            self.log("cbtdata {}".format(cbtdata),"debug")
             self.registerCBT(dest_module, action, cbtdata, _tag=src_uid)
-            self.log("Received forwarded CBT from {}".format(sender_jid),"debug")
             return
-
+        else:
+            self.log("Invalid message type received {0}".format(str(msg)), "warning")
 
     # Send message to Peer JID via XMPP server
     def sendxmppmsg(self, peer_jid, xmppobj, setup_load=None, msg_payload=None):
         if setup_load is None:
             setup_load = "regular_msg" + "#" + "None" + "#" + peer_jid.full
-
         if py_ver != 3:
             setup_load = unicode(setup_load)
-
         if msg_payload is None:
             content_load = "Hello there this is {0}".format(xmppobj.username)
         else:
@@ -195,7 +174,7 @@ class XmppClient(ControllerModule):
         msg['Ipop']['setup'] = setup_load
         msg['Ipop']['payload'] = content_load
         msg.send()
-        self.log("Sent XMPP message to {0}".format(peer_jid), severity=log_level)
+        self.log("XMPP message sent {0}".format(str(msg)),"debug")
 
     def xmpp_handler(self, xmpp_details, xmppobj):
         try:
@@ -203,18 +182,36 @@ class XmppClient(ControllerModule):
                 thread.start_new_thread(xmppobj.process, ())
                 self.log("Started XMPP handling", severity="debug")
         except Exception as err:
-            self.log("Unable to start XMPP handling thread-Check Internet connectivity/credentials."+str(err),
+            self.log("Unable to start XMPP handler. Check Internet connectivity/credentials." + str(err),
                      severity='error')
 
     def log(self, msg, severity='info'):
         self.registerCBT('Logger', severity, msg)
+
+    def createJidCacheEntry(self,interface_name, NID, JID):
+        JIDCache = self.ipop_xmpp_details[interface_name]["JidCache"]
+        cacheLck = self.ipop_xmpp_details[interface_name]["CacheLock"]
+        cacheLck.acquire()
+        JIDCache[NID]=(JID,time.time())
+        cacheLck.release()
+
+    def scavenageJidCache(self,interface_name):
+        JIDCache = self.ipop_xmpp_details[interface_name]["JidCache"]
+        cacheLck = self.ipop_xmpp_details[interface_name]["CacheLock"]
+        cacheLck.acquire()
+        curr_time = time.time()
+        keys_to_be_deleted = [key for key,value in JIDCache.items() if curr_time-value[1]>=120]
+        for key in keys_to_be_deleted:
+            del JIDCache[key]
+            self.log("Deleted entry from JID cache {0}".format(key), severity="debug")
+        cacheLck.release()
 
     def initialize(self):
         try:
             import keyring
             self.keyring_installed = True
         except:
-            self.registerCBT("Logger", "info", "Key-ring module not installed.")
+            self.log("Key-ring module not installed.", "info")
         xmpp_details = self.CMConfig.get("XmppDetails")
         self.presence_publisher = self.CFxHandle.PublishSubscription("PEER_PRESENCE_NOTIFICATION")
         xmpp_password = None
@@ -276,7 +273,11 @@ class XmppClient(ControllerModule):
             xmppobj.add_event_handler("session_start", self.start)
 
             self.ipop_xmpp_details[interface_name]["XMPPObj"] = xmppobj     # Store the Sleekxmpp object in the Table
-            self.ipop_xmpp_details[interface_name]["pending_CBTQ"] = {} # map for holding pending cbt data to be forwarded
+            # map for holding pending cbt data to be forwarded
+            self.ipop_xmpp_details[interface_name]["pending_CBTQ"] = {}
+            # NID-JID Cache, every entry is a tuple.
+            self.ipop_xmpp_details[interface_name]["JidCache"] = {}
+            self.ipop_xmpp_details[interface_name]["CacheLock"] = threading.Lock()
             # Store XMPP UserName (required to extract TapInterface from the XMPP server message)
             self.ipop_xmpp_details[interface_name]["username"] = xmpp_ele["Username"]
             # Flag to check whether the XMPP Callback for various functionalities have been set
@@ -285,46 +286,52 @@ class XmppClient(ControllerModule):
             ipop_interfaces = self.CFxHandle.queryParam("TincanInterface", "Vnets")
             # Iterate over the entire VirtualNetwork Interface List
             for interface_details in ipop_interfaces:
-                # Check whether the TapName given in the XMPPClient and TincanInterface module if yes load UID
+                # Check whether the TapName given in the Signal and TincanInterface module if yes load UID
                 if interface_details["TapName"] == interface_name:
                     self.ipop_xmpp_details[interface_name]["uid"] = interface_details["uid"]
             # Connect to the XMPP server
             self.xmpp_handler(xmpp_ele, xmppobj)
-        self.log("{0} module Loaded".format(self.ModuleName))
+        self.log("{0} loaded".format(self.ModuleName))
 
     def processCBT(self, cbt):
         message = cbt.data
         interface_name = message.get("interface_name")
         if self.ipop_xmpp_details[interface_name]["uid"] == "":
-            self.log("UID not received from Tincan. Please check Tincan logs.", severity="error")
-            return
+            er_msg = "Failed to resolve Node UID, unable to continue."
+            self.log(er_msg, severity="error")
+            raise RuntimeError(er_msg)
         # CBT to send messages over XMPP protocol
-        if cbt.action == "FORWARD_CBT":
-            peer_uid = message.get("uid")
-            node_uid = self.ipop_xmpp_details[interface_name]["uid"]
+        if cbt.action == "SIG_FORWARD_CBT":
+            peer_nid = message.get("uid")
+            node_nid = self.ipop_xmpp_details[interface_name]["uid"]
             data = message.get("data")
-            #CBTQ =  self.pending_CBTQ
-            CBTQ = self.ipop_xmpp_details[interface_name]["pending_CBTQ"]
-            if peer_uid in CBTQ.keys():
-                CBTQ[peer_uid].put(data)
+            xmppObj = self.ipop_xmpp_details[interface_name]["XMPPObj"]
+            JidCache = self.ipop_xmpp_details[interface_name]["JidCache"]
+            cacheLck = self.ipop_xmpp_details[interface_name]["CacheLock"]
+            cacheLck.acquire()
+            if (peer_nid in JidCache.keys()):
+                peer_jid = JidCache[peer_nid][0]
+                cacheLck.release()
+                setup_load = "FORWARDED_CBT" + "#" + "None" + "#" + peer_jid
+                msg_payload = json.dumps(data)
+                self.sendxmppmsg(peer_jid, xmppObj, setup_load, msg_payload)
+                self.log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".format(peer_nid, setup_load, msg_payload), "debug")
             else:
-                CBTQ[peer_uid]= Queue(maxsize=0)
-                CBTQ[peer_uid].put(data)
-            self.arp_uid(self.ipop_xmpp_details[interface_name]["XMPPObj"], peer_uid)
-            self.log("CBT for UID {} put into pending Queue".format(peer_uid), severity="debug")
-
-
+                cacheLck.release()
+                CBTQ = self.ipop_xmpp_details[interface_name]["pending_CBTQ"]
+                if peer_nid in CBTQ.keys():
+                    CBTQ[peer_nid].put(data)
+                else:
+                    CBTQ[peer_nid]= Queue(maxsize=0)
+                    CBTQ[peer_nid].put(data)
+                xmppObj.send_presence(pstatus="uid?#"+peer_nid)
+        else:
+            self.log("Invalid CBT action requested".format(cbt.action), severity="warning")
 
     def timer_method(self):
-       pass
+        # Clean up JID cache for all XMPP connections
+        for interface_name in self.ipop_xmpp_details.keys():
+            self.scavenageJidCache(interface_name)
 
     def terminate(self):
         pass
-
-
-# set up a new custom message stanza
-class IpopMsg(ElementBase):
-    namespace = "Conn_setup"
-    name = 'Ipop'
-    plugin_attrib = 'Ipop'
-    interfaces = set(('setup', 'payload', 'uid', 'TapName'))

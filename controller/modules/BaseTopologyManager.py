@@ -125,7 +125,7 @@ class BaseTopologyManager(ControllerModule, CFX):
             self.add_outbound_link("successor", peer_uid, interface_name)
             self.registerCBT('Logger', 'debug', "attempting to create outbound link to {}".format(peer_uid))
 
-        # CBT to process peerlist from XMPPClient module
+        # CBT to process peerlist from Signal module
         elif cbt.action == "UPDATE_XMPP_PEERLIST":
             xmpp_peer_list = msg.get("peer_list")
             if len(xmpp_peer_list) > 0:
