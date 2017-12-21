@@ -56,7 +56,7 @@ class LinkManager(ControllerModule):
     # Forward cbt over XMPP
     def forward_cbt(self,interface_name,peer_uid,payload):
         cbtdata = {"uid": peer_uid, "data": payload, "interface_name":interface_name}
-        self.registerCBT(self.link_details[interface_name]["xmpp_client_code"], "FORWARD_CBT",cbtdata)
+        self.registerCBT(self.link_details[interface_name]["xmpp_client_code"], "SIG_FORWARD_CBT",cbtdata)
 
     # send message (through ICC)
     #   - uid = UID of the destination peer (a tincan link must exist)
