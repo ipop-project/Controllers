@@ -288,7 +288,7 @@ class Signal(ControllerModule):
             for interface_details in ipop_interfaces:
                 # Check whether the TapName given in the Signal and TincanInterface module if yes load UID
                 if interface_details["TapName"] == interface_name:
-                    self.ipop_xmpp_details[interface_name]["uid"] = interface_details["uid"]
+                    self.ipop_xmpp_details[interface_name]["uid"] = interface_details["UID"]
             # Connect to the XMPP server
             self.xmpp_handler(xmpp_ele, xmppobj)
         self.log("{0} loaded".format(self.ModuleName))

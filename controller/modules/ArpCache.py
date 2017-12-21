@@ -12,7 +12,7 @@ class ArpCache(ControllerModule):
             interface_name = self.tincanparams[k]["TapName"]
             self.ipop_vnets_details[interface_name] = {}
             interface_detail = self.ipop_vnets_details[interface_name]
-            interface_detail["uid"] = self.tincanparams[k]["uid"]
+            interface_detail["uid"] = self.tincanparams[k]["UID"]
             interface_detail["ip"] = self.tincanparams[k]["IP4"]
             # Table to store Unmanaged Node MAC Address and IPV4 details
             interface_detail["local_mac_ip_table"] = {}

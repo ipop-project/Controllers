@@ -34,9 +34,9 @@ class IPMulticast(ControllerModule):
         for k in range(len(tincanparams)):
             interface_name = tincanparams[k]["TapName"]
             self.multicast_details[interface_name] = {}
-            self.multicast_details[interface_name]["uid"] = tincanparams[k]["uid"]
+            self.multicast_details[interface_name]["uid"] = tincanparams[k]["UID"]
             self.multicast_details[interface_name]["ip4"] = tincanparams[k]["IP4"]
-            self.multicast_details[interface_name]["ip6"] = tincanparams[k]["ip6"]
+            #self.multicast_details[interface_name]["ip6"] = tincanparams[k]["ip6"]
             # Stores local node's mac address obtained from LinkManager
             self.multicast_details[interface_name]["mac"] = ""
             # Table to store Peer UID which has subscribed to a multicast address

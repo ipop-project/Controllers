@@ -22,9 +22,9 @@
 import sys
 py_ver = sys.version_info[0]
 
-RESPLINK = {
+CTL_CREATE_CTRL_RESP_LINK = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
@@ -36,9 +36,9 @@ RESPLINK = {
             }
     }
 }
-LOGCFG = {
+CTL_CONFIGURE_LOGGING = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
@@ -52,78 +52,46 @@ LOGCFG = {
         }
     }
 }
-LSTATE = {
+CTL_QUERY_OVERLAY_INFO = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-          "Command": "QueryNodeInfo",
-          "InterfaceName": "ipop_tap0",
-          "MAC": ""
+          "Command": "QueryOverlayInfo",
+          "OverlayId": ""
         }
     }
 }
-ECHO = {
-  "IPOP": {
-      "ProtocolVersion": 4,
-      "TransactionId": 0,
-      "ControlType": "TincanRequest",
-      "Request": {
-        "Command": "Echo",
-        "InterfaceName": "ipop_tap0",
-        "Message": "echo message"
-      }
-  }
-}
-VNET = {
+CTL_CREATE_OVERLAY = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "ControlType": "TincanRequest",
         "TransactionId": 0,
         "Request": {
-          "Command": "CreateVnet",
-          "InterfaceName": "ipop_tap0",
-          "Description": "My Devices",
-          "LocalVirtIP4": "",
-          "LocalPrefix4": "",
+          "Command": "CreateOverlay",
+          "TapName": "",
+          "IP4": "",
+          "PrefixLen4": "",
           "MTU4": "",
-          "LocalUID": "",
           "StunAddress": "",
           "TurnAddress": "",
           "TurnUser": "",
           "TurnPass": "",
-          "AutoTrimEnabled": False,
-          "IPMappingEnabled": False
+          "EnableIPMapping": False,
+          #"DisableEncryption": False #specify in CreateLink
         }
     }
 }
-LCAS = {
+CTL_CREATE_LINK = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-          "Command": "CreateTunnel",
-          "InterfaceName": "ipop_tap0",
-          "EncryptionEnabled": True,
-          "PeerInfo": {
-            "VIP4": "",
-            "UID": "",
-            "MAC": "",
-            "Fingerprint": ""
-          }
-        }
-    }
-}
-CONCT = {
-    "IPOP": {
-        "ProtocolVersion": 4,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-          "Command": "ConnectTunnel",
-          "InterfaceName": "ipop_tap0",
+          "Command": "CreateLink",
+          "OverlayId": "",
+          "LinkId": "",
           "EncryptionEnabled": True,
           "PeerInfo": {
             "VIP4": "",
@@ -136,69 +104,82 @@ CONCT = {
 }
 IGNORE = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
           "Command": "SetIgnoredNetInterfaces",
-          "InterfaceName": "ipop_tap0",
+          "TapName": "",
           "IgnoredNetInterfaces": []
         }
     }    
 }
 ICC = {
     "IPOP": {
-      "ProtocolVersion": 4,
+      "ProtocolVersion": 5,
       "Tag": 100020,
       "ControlType": "TincanRequest",
       "Request": {
         "Command": "ICC",
         "RecipientMac": "",
-        "InterfaceName": "ipop_tap0",
+        "TapName": "",
         "Recipient": "peer_uid",
         "Data": "encoded string"
       }
      }
-  }
+}
+
 PACKET = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "UpdateRoutes",
-            "InterfaceName": "ipop_tap0",
+            "TapName": "",
             "Data": "encoded_string"
         }
      }
-  }
+}
+
 INSERT_TAP_PACKET = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "InjectFrame",
-            "InterfaceName": "ipop_tap0",
+            "TapName": "",
             "Data": "encoded_string"
         }
      }
   }
-REMOVE = {
+CTL_REMOVE_OVERLAY = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-            "Command": "TrimTunnel",
-            "InterfaceName": "ipop_tap0",
-            "MAC": ""
+            "Command": "RemoveOverlay",
+            "OverlayId": ""
+        }
+     }
+  }
+CTL_REMOVE_LINK = {
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "RemoveLink",
+            "OverlayId": "",
+            "LinkId" : ""
         }
      }
   }
 RESP = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanResponse",
         "Request": {
@@ -212,12 +193,12 @@ RESP = {
 
 ADD_FORWARDING_RULE = {
         "IPOP": {
-            "ProtocolVersion": 4,
+            "ProtocolVersion": 5,
             "TransactionId": 0,
             "ControlType": "TincanRequest",
             "Request": {
                 "Command": "UpdateMap",
-                "InterfaceName": "ipop_tap0",
+                "TapName": "",
                 "Routes": []
                 }
         }
@@ -225,38 +206,38 @@ ADD_FORWARDING_RULE = {
 
 DELETE_FORWARDING_RULE = {
         "IPOP": {
-            "ProtocolVersion": 4,
+            "ProtocolVersion": 5,
             "TransactionId": 0,
             "ControlType": "TincanRequest",
             "Request": {
                 "Command": "RemoveRoutes",
-                "InterfaceName": "ipop_tap0",
+                "TapName": "",
                 "Routes": []
                 }
         }
 }
 LINK_STATS = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId" : 0,
         "Owner" : "ModuleName",
         "ControlType": "TincanRequest",
         "Request": {
         "Command": "QueryLinkStats",
-        "InterfaceName": "ipop_tap0",
+        "TapName": "",
         "MAC" : ""
         }
     }
 }
 QUERY_CAS = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId" : 0,
         "Owner" : "",
         "ControlType": "TincanRequest",
         "Request": {
           "Command": "QueryCandidateAddressSet",
-          "InterfaceName": "ipop_tap0",
+          "TapName": "",
           "MAC" : ""
         }
     }

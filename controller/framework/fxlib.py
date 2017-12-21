@@ -47,11 +47,11 @@ CONFIG = {
     "TincanInterface": {
         "buf_size": 65507,      # Max buffer size for Tincan Messages
         "SocketReadWaitTime": 15,   # Socket read wait time for Tincan Messages
-        "ctrl_recv_port": 5801,     # Controller UDP Listening Port
+        "CtrlRecvPort": 5801,     # Controller UDP Listening Port
         "ip6_prefix": "fd50:0dbc:41f2:4a3c",
-        "localhost": "127.0.0.1",
-        "ctrl_send_port": 5800,     # Tincan UDP Listening Port
-        "localhost6": "::1",
+        "ServiceAddress": "127.0.0.1",
+        "CtrlSendPort": 5800,     # Tincan UDP Listening Port
+        "ServiceAddress6": "::1",
         "dependencies": ["Logger"]
     },
     "LinkManager": {
@@ -122,8 +122,8 @@ def gen_uid(ip4):
 def send_msg(sock, msg):
     if socket.has_ipv6:
         dest = (CONFIG["TincanInterface"]["localhost6"],
-                CONFIG["TincanInterface"]["ctrl_send_port"])
+                CONFIG["TincanInterface"]["CtrlSendPort"])
     else:
         dest = (CONFIG["TincanInterface"]["localhost"],
-                CONFIG["TincanInterface"]["ctrl_send_port"])
+                CONFIG["TincanInterface"]["CtrlSendPort"])
     return sock.sendto(bytes(msg.encode('utf-8')), dest)

@@ -39,7 +39,7 @@ class BroadcastForwarder(ControllerModule):
         for k in range(len(tincanparams)):
             interface_name = tincanparams[k]["TapName"]
             self.ipop_vnets_details[interface_name] = {}
-            self.ipop_vnets_details[interface_name]["uid"] = tincanparams[k]["uid"]
+            self.ipop_vnets_details[interface_name]["uid"] = tincanparams[k]["UID"]
             self.ipop_vnets_details[interface_name]["mac"] = ""
             # Stores local node's mac address obtained from LinkManager
             self.ipop_vnets_details[interface_name]["peerlist"] = []

@@ -30,11 +30,13 @@ class BaseTopologyManager(ControllerModule, CFX):
         super(BaseTopologyManager, self).__init__(CFxHandle, paramDict, ModuleName)
         self.CFxHandle = CFxHandle
         # BTM internal Table
+        self.overlays = {}
         self.ipop_vnets_details = {}
         # Query CFX to get properties of virtual networks configured by the user
         tincanparams = self.CFxHandle.queryParam("TincanInterface", "Vnets")
         # Iterate across the virtual networks to get XMPPModuleName and TAPName
         for k in range(len(tincanparams)):
+            self.overlays[tincanparams[k]["OverlayId"]] = {}
             interface_name = tincanparams[k]["TapName"]
             self.ipop_vnets_details[interface_name] = {}
             vnet_details = self.ipop_vnets_details[interface_name]
@@ -55,7 +57,7 @@ class BaseTopologyManager(ControllerModule, CFX):
         # Iterate across different TapInterface to initialize BTM table attributes
         for interface_name in self.ipop_vnets_details.keys():
             # Invoke Tincan to get Local node state
-            self.registerCBT('TincanInterface', 'DO_GET_STATE', {"interface_name": interface_name, "MAC": ""})
+            #self.registerCBT('TincanInterface', 'DO_GET_STATE', {"interface_name": interface_name, "MAC": ""})
             self.CFxHandle.StartSubscription(self.ipop_vnets_details[interface_name]["xmpp_client_code"], "PEER_PRESENCE_NOTIFICATION")
 
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
@@ -499,13 +501,15 @@ class BaseTopologyManager(ControllerModule, CFX):
 
     def timer_method(self):
         try:
+            for ovlid in self.overlays.keys():
+                self.registerCBT('TincanInterface', 'TCI_QUERY_OVERLAY_INFO', {"OverlayId": ovlid})
             for interface_name in self.ipop_vnets_details.keys():
                 self.registerCBT("Logger", "debug", "BTM Table::" + str(self.ipop_vnets_details[interface_name]))
                 # Invoke class method to create the topology
                 self.manage_topology(interface_name)
                 # Periodically query LinkManager for Peer2Peer Link Details
                 self.registerCBT("LinkManager", "GET_LINK_DETAILS", {"interface_name": interface_name})
-                if self.ipop_vnets_details[interface_name]["p2p_state"] == "started":
-                    self.registerCBT('TincanInterface', 'DO_GET_STATE', {"interface_name": interface_name, "MAC": ""})
+                #if self.ipop_vnets_details[interface_name]["p2p_state"] == "started":
+                #    self.registerCBT('TincanInterface', 'DO_GET_STATE', {"interface_name": interface_name, "MAC": ""})
         except Exception as err:
             self.registerCBT('Logger', 'error', "Exception in BTM timer:" + str(err))

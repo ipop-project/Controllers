@@ -41,7 +41,7 @@ class LinkManager(ControllerModule):
             interface_name = tincanparams[k]["TapName"]
             self.link_details[interface_name] = {}
             self.link_details[interface_name]["xmpp_client_code"] = tincanparams[k]["XMPPModuleName"]
-            self.link_details[interface_name]["uid"] = tincanparams[k]["uid"]
+            self.link_details[interface_name]["uid"] = tincanparams[k]["UID"]
             # Attribute to store Peer2Peer link details
             self.link_details[interface_name]["peers"] = {}
             self.link_details[interface_name]["ipop_state"] = {}
@@ -50,7 +50,7 @@ class LinkManager(ControllerModule):
         # Iterate across Table to send Local Get State request to Tincan
         for interface_name in self.link_details.keys():
             msg = {"interface_name": interface_name, "MAC": ""}
-            self.registerCBT('TincanInterface', 'DO_GET_STATE', msg)
+            self.registerCBT('TincanInterface', 'TCI_QUERY_OVERLAY_INFO', msg)
         self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
 
     # Forward cbt over XMPP

@@ -24,6 +24,7 @@ import socket,select,json,ast
 import controller.framework.ipoplib as ipoplib
 import controller.framework.fxlib as fxlib
 from threading import Thread
+import uuid
 
 
 class TincanInterface(ControllerModule):
@@ -36,16 +37,16 @@ class TincanInterface(ControllerModule):
             self.sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
             self.sock_svr = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
             # Attribute to hold Controller UDP listening socket
-            self.sock_svr.bind((self.CMConfig["localhost6"], self.CMConfig["ctrl_recv_port"]))
+            self.sock_svr.bind((self.CMConfig["ServiceAddress6"], self.CMConfig["CtrlRecvPort"]))
             # Attribute to hold Controller UDP sending socket
-            self.dest = (self.CMConfig["localhost6"], self.CMConfig["ctrl_send_port"])
+            self.dest = (self.CMConfig["ServiceAddress6"], self.CMConfig["CtrlSendPort"])
         else:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock_svr = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # Attribute to hold Controller UDP listening socket
-            self.sock_svr.bind((self.CMConfig["localhost"], self.CMConfig["ctrl_recv_port"]))
+            self.sock_svr.bind((self.CMConfig["ServiceAddress"], self.CMConfig["CtrlRecvPort"]))
             # Attribute to hold Controller UDP sending socket
-            self.dest = (self.CMConfig["localhost"], self.CMConfig["ctrl_send_port"])
+            self.dest = (self.CMConfig["ServiceAddress"], self.CMConfig["CtrlSendPort"])
         self.sock.bind(("", 0))
         self.sock_list = [self.sock_svr]
         self.model = self.CFxHandle.queryParam('CFx', 'Model')
@@ -105,26 +106,23 @@ class TincanInterface(ControllerModule):
             self.registerCBT('Logger', 'debug', log)
             self.registerCBT('Logger', 'info', "Removing Connection to : {0}".format(uid))
         # CBT to process Query Link state
-        elif cbt.action == 'DO_GET_STATE':
-            get_state_request = ipoplib.LSTATE
-            get_state_request["IPOP"]["TransactionId"] = self.trans_counter
+        elif cbt.action == 'TCI_QUERY_OVERLAY_INFO':
+            overlay_info_req = ipoplib.CTL_QUERY_OVERLAY_INFO
+            overlay_info_req["IPOP"]["TransactionId"] = self.trans_counter
             self.trans_counter += 1
-            get_state_request["IPOP"]["Request"]["ProtocolVersion"] = 4
-            get_state_request["IPOP"]["Request"]["InterfaceName"] = cbt.data.get("interface_name")
-            get_state_request["IPOP"]["Request"]["UID"] = cbt.data.get("uid")
-            get_state_request["IPOP"]["Request"]["MAC"] = cbt.data.get("MAC")
-            get_state_request["IPOP"]["Request"]["Initiator"] = cbt.initiator
-            self.send_msg(json.dumps(get_state_request))
-            log = "Tincan Request: {0}".format(str(get_state_request["IPOP"]))
+            overlay_info_req["IPOP"]["Request"]["OverlayId"] = cbt.data.get("OverlayId")
+            overlay_info_req["IPOP"]["Request"]["Initiator"] = cbt.initiator
+            self.send_msg(json.dumps(overlay_info_req))
+            log = "Tincan Request: {0}".format(str(overlay_info_req["IPOP"]))
             self.registerCBT('Logger', 'debug', log)
         # CBT to process GET CAS for a given peer MAC address
         elif cbt.action == 'DO_GET_CAS':
-            lcas = ipoplib.LCAS
+            lcas = ipoplib.CTL_CREATE_LINK
             data = cbt.data
             uid = data["uid"]
             lcas["IPOP"]["TransactionId"] = self.trans_counter
             self.trans_counter += 1
-            lcas["IPOP"]["Request"]["InterfaceName"] = data["interface_name"]
+            lcas["IPOP"]["Request"]["OverlayId"] = data["interface_name"]
             lcas["IPOP"]["Request"]["PeerInfo"]["VIP4"] = data["data"]["ip4"]
             lcas["IPOP"]["Request"]["PeerInfo"]["Fingerprint"] = data["data"]["fpr"]
             lcas["IPOP"]["Request"]["PeerInfo"]["UID"] = uid
@@ -204,7 +202,6 @@ class TincanInterface(ControllerModule):
             link_stat_request = ipoplib.LINK_STATS
             link_stat_request["IPOP"]["TransactionId"] = self.trans_counter
             self.trans_counter += 1
-            link_stat_request["IPOP"]["Request"]["ProtocolVersion"] = 4
             link_stat_request["IPOP"]["Request"]["InterfaceName"] = cbt.data.get("interface_name")
             link_stat_request["IPOP"]["Request"]["UID"] = cbt.data.get("uid")
             link_stat_request["IPOP"]["Request"]["MAC"] = cbt.data.get("MAC")
@@ -217,7 +214,6 @@ class TincanInterface(ControllerModule):
             query_cas_request = ipoplib.QUERY_CAS
             query_cas_request["IPOP"]["TransactionId"] = self.trans_counter
             self.trans_counter += 1
-            query_cas_request["IPOP"]["Request"]["ProtocolVersion"] = 4
             query_cas_request["IPOP"]["Request"]["InterfaceName"] = cbt.data.get("interface_name")
             query_cas_request["IPOP"]["Request"]["UID"] = cbt.data.get("uid")
             query_cas_request["IPOP"]["Request"]["MAC"] = cbt.data.get("MAC")
@@ -242,51 +238,52 @@ class TincanInterface(ControllerModule):
                 # check whether the Tincan response is Success message
                 if tincan_resp_msg["Response"]["Success"] is True:
                     # Whether the response is for GET_NODE_STATE operation
-                    if req_operation == "QueryNodeInfo":
+                    if req_operation == "QueryOverlayInfo":
                         resp_msg = json.loads(tincan_resp_msg["Response"]["Message"])
                         resp_target_module = tincan_resp_msg["Request"]["Initiator"]
                         # Check whether the Query is for Self or a remote node
-                        if resp_msg["Type"] == "local":
+                        msg = {
+                            "type": "local_state",
+                            "_uid": resp_msg["OverlayId"],
+                            "ip4": resp_msg["VIP4"],
+                            "fpr": resp_msg["Fingerprint"],
+                            "mac": resp_msg["MAC"],
+                            "interface_name": resp_msg["TapName"],
+                        }
+                        if ("LinkIds" in resp_msg):
+                            msg["LinkIds"] =  resp_msg["LinkIds"]
+                        log = "current state of {0} : {1}".format(resp_msg["OverlayId"], str(msg))
+                        self.registerCBT('Logger', 'debug', log)
+                        self.registerCBT(resp_target_module, 'TINCAN_RESPONSE', msg)
+                    elif req_operation == "QueryLinkStats":
+                        # Checks whether the link to peer is in Unknown state
+                        if resp_msg["Status"] != "unknown":
                             msg = {
-                                "type": "local_state",
-                                "_uid": resp_msg["UID"],
+                                "type": "peer_state",
+                                "uid": tincan_resp_msg["Request"]["UID"],
                                 "ip4": resp_msg["VIP4"],
                                 "fpr": resp_msg["Fingerprint"],
                                 "mac": resp_msg["MAC"],
+                                "status": resp_msg["Status"],
                                 "interface_name": interface_name
                             }
-                            log = "current state of {0} : {1}".format(resp_msg["UID"], str(msg))
-                            self.registerCBT('Logger', 'debug', log)
-                            self.registerCBT(resp_target_module, 'TINCAN_RESPONSE', msg)
                         else:
-                            # Checks whether the link to peer is in Unknown state
-                            if resp_msg["Status"] != "unknown":
-                                msg = {
-                                    "type": "peer_state",
-                                    "uid": tincan_resp_msg["Request"]["UID"],
-                                    "ip4": resp_msg["VIP4"],
-                                    "fpr": resp_msg["Fingerprint"],
-                                    "mac": resp_msg["MAC"],
-                                    "status": resp_msg["Status"],
-                                    "interface_name": interface_name
-                                }
-                            else:
-                                msg = {
-                                    "type": "peer_state",
-                                    "uid": tincan_resp_msg["Request"]["UID"],
-                                    "ip4": "",
-                                    "fpr": "",
-                                    "mac": "",
-                                    "ttl": "",
-                                    "rate": "",
-                                    "status": resp_msg["Status"],
-                                    "interface_name": interface_name
-                                }
-                            log = "Peer UID:{0} State:{1}".format(tincan_resp_msg["Request"]["UID"], resp_msg["Status"])
-                            self.registerCBT('Logger', 'debug', log)
-                            self.registerCBT(resp_target_module, 'TINCAN_RESPONSE', msg)
+                            msg = {
+                                "type": "peer_state",
+                                "uid": tincan_resp_msg["Request"]["UID"],
+                                "ip4": "",
+                                "fpr": "",
+                                "mac": "",
+                                "ttl": "",
+                                "rate": "",
+                                "status": resp_msg["Status"],
+                                "interface_name": interface_name
+                            }
+                        log = "Peer UID:{0} State:{1}".format(tincan_resp_msg["Request"]["UID"], resp_msg["Status"])
+                        self.registerCBT('Logger', 'debug', log)
+                        self.registerCBT(resp_target_module, 'TINCAN_RESPONSE', msg)
                     # Whether the response is for DO_GET_CAS operation
-                    elif req_operation == "CreateTunnel":
+                    elif req_operation == "CreateLink":
                         # Sends the CAS to LinkManager
                         resp_target_module = tincan_resp_msg["Request"]["Initiator"]
                         log = "Received data from Tincan for operation: {0}. Data: {1}".\
@@ -347,15 +344,15 @@ class TincanInterface(ControllerModule):
                         self.registerCBT('Logger', 'info', json.dumps(resp_msg))
                         return # Fix Me - LinkManager not coded to recieve Tunnel Stats
                         self.registerCBT(resp_target_module, 'TINCAN_RESPONSE', resp_msg)
-                    elif req_operation in ["CreateCtrlRespLink", "ConfigureLogging", "CreateVnet",
+                    elif req_operation in ["CreateCtrlRespLink", "ConfigureLogging", "CreateOverlay",
                                            "SetIgnoredNetInterfaces", "RemovePeer"]:
                         self.registerCBT("Logger", "info", "Received data from Tincan: Operation: {0}."
                                                           " Task status::{1}".format(req_operation,
                                                                                      tincan_resp_msg["Response"]))
                         return
                     else:
-                        log = '{0}: unrecognized Data {1} received from {2}. Data:::{3}' \
-                            .format(cbt.recipient, cbt.action, cbt.initiator, cbt.data)
+                        log = 'unrecognized Data {0} received from {1}. Data:::{2}' \
+                            .format(cbt.action, cbt.initiator, cbt.data)
                         self.registerCBT('Logger', 'warning', log)
                 else:
                     log = 'Tincan Failure Status for request:: '.format(cbt.data)
@@ -448,15 +445,15 @@ class TincanInterface(ControllerModule):
     '''
     def create_control_link(self,):
         self.registerCBT("Logger", "info", "Creating Tincan control response link")
-        ep = ipoplib.RESPLINK
-        if self.CMConfig["ctrl_recv_port"] is not None:
-          ep["IPOP"]["Request"]["Port"] = self.CMConfig["ctrl_recv_port"]
+        ep = ipoplib.CTL_CREATE_CTRL_RESP_LINK
+        if self.CMConfig["CtrlRecvPort"] is not None:
+          ep["IPOP"]["Request"]["Port"] = self.CMConfig["CtrlRecvPort"]
         if socket.has_ipv6 is False:
             ep["IPOP"]["Request"]["AddressFamily"] = "af_inet"
-            ep["IPOP"]["Request"]["IP"] = self.CMConfig["localhost"]
+            ep["IPOP"]["Request"]["IP"] = self.CMConfig["ServiceAddress"]
         else:
             ep["IPOP"]["Request"]["AddressFamily"] = "af_inetv6"
-            ep["IPOP"]["Request"]["IP"] = self.CMConfig["localhost6"]
+            ep["IPOP"]["Request"]["IP"] = self.CMConfig["ServiceAddress6"]
         ep["IPOP"]["TransactionId"] = self.trans_counter
         self.trans_counter += 1
         self.send_msg(json.dumps(ep))
@@ -467,7 +464,7 @@ class TincanInterface(ControllerModule):
     def set_log_level(self,):
         log_level = self.CFxHandle.queryParam("Logger", "LogLevel")
         self.registerCBT("Logger", "info", "Setting Tincan log level to " + log_level)
-        lgl = ipoplib.LOGCFG
+        lgl = ipoplib.CTL_CONFIGURE_LOGGING
         lgl["IPOP"]["Request"]["Level"] = log_level
         lgl["IPOP"]["Request"]["Device"] = self.CFxHandle.queryParam("Logger", "LogOption")
         lgl["IPOP"]["Request"]["Directory"] = self.CFxHandle.queryParam("Logger", "LogFilePath")
@@ -485,17 +482,21 @@ class TincanInterface(ControllerModule):
     def create_virtual_networks(self,):
         for i in range(len(self.CMConfig["Vnets"])):
             vnetdetails = self.CMConfig["Vnets"][i]
-            vn = ipoplib.VNET
+            vn = ipoplib.CTL_CREATE_OVERLAY
             # Create VNET Request Message
             self.registerCBT("Logger", "info", "Creating Vnet {0}".format(vnetdetails["TapName"]))
-            vn["IPOP"]["Request"]["InterfaceName"] = vnetdetails["TapName"]
-            vn["IPOP"]["Request"]["Description"] = vnetdetails["Description"]
-            vn["IPOP"]["Request"]["LocalVirtIP4"] = vnetdetails["IP4"]
-            vn["IPOP"]["Request"]["LocalPrefix4"] = vnetdetails["IP4PrefixLen"]
+            vn["IPOP"]["Request"]["TapName"] = vnetdetails["TapName"]
+            vn["IPOP"]["Request"]["IP4"] = vnetdetails["IP4"]
+            vn["IPOP"]["Request"]["PrefixLen4"] = vnetdetails["IP4PrefixLen"]
             if "MTU4" in vnetdetails:
                 vn["IPOP"]["Request"]["MTU4"] = vnetdetails["MTU4"]
-            vnetdetails["uid"] = fxlib.gen_uid(vnetdetails["IP4"])
-            vn["IPOP"]["Request"]["LocalUID"] = vnetdetails["uid"]
+
+            vnetdetails["UID"] = fxlib.gen_uid(vnetdetails["IP4"])
+
+            if not "OverlayId" in vnetdetails:
+                vnetdetails["OverlayId"] = str(uuid.uuid4());
+            vn["IPOP"]["Request"]["OverlayId"] = vnetdetails["OverlayId"]
+            vn["IPOP"]["Request"]["Type"] = vnetdetails["Type"];
             # Currently configured to take the first stun address
             vn["IPOP"]["Request"]["StunAddress"] = self.CMConfig["Stun"][0]
             if "Turn" in self.CMConfig:
@@ -505,9 +506,10 @@ class TincanInterface(ControllerModule):
                     vn["IPOP"]["Request"]["TurnUser"] = self.CMConfig["Turn"][0]["User"]
                 if self.CMConfig["Turn"][0]["Password"] is not None:
                     vn["IPOP"]["Request"]["TurnPass"] = self.CMConfig["Turn"][0]["Password"]
-            if "IPMappingEnabled" in vnetdetails:
-                vn["IPOP"]["Request"]["IPMappingEnabled"] = vnetdetails["IPMappingEnabled"]
-            vn["IPOP"]["Request"]["L2TunnelEnabled"] = True
+            if "EnableIPMapping" in vnetdetails:
+                vn["IPOP"]["Request"]["EnableIPMapping"] = vnetdetails["EnableIPMapping"]
+            if "DisableEncryption" in vnetdetails:
+                vn["IPOP"]["Request"]["DisableEncryption"] = vnetdetails["DisableEncryption"]
             vn["IPOP"]["TransactionId"] = self.trans_counter
             self.trans_counter += 1
             self.send_msg(json.dumps(vn))
