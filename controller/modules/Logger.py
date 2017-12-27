@@ -40,9 +40,9 @@ class Logger(ControllerModule):
         # Check whether the Logging is set to File by the User
         if self.CMConfig["LogOption"] == "Console":
             # Console logging
-            logging.basicConfig(format='[%(asctime)s.%(msecs)03d] %(levelname)s:\n%(message)s\n', datefmt='%H:%M:%S',
+            logging.basicConfig(format='[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s\n', datefmt='%H:%M:%S',
                                 level=level)
-            logging.info("Logger Module Loaded")
+            self.logger = logging.getLogger("IPOP console logger");
         else:
             # Extracts the filepath else sets logs to current working directory
             filepath = self.CMConfig.get("LogFilePath", "./")
@@ -61,32 +61,21 @@ class Logger(ControllerModule):
             # Adds the filehandler to the Python logger module
             self.logger.addHandler(handler)
 
+        self.logger.info("Logger: Module loaded")
         # PKTDUMP mode dumps packet information
         logging.addLevelName(5, "PKTDUMP")
         logging.PKTDUMP = 5
 
     def processCBT(self, cbt):
         # Extracting the logging level information from the CBT action tag
-        if cbt.action == 'debug':
-            if self.CMConfig["LogOption"] == "File":
-                self.logger.debug(cbt.initiator + ": " + cbt.data)
-            else:
-                logging.debug(cbt.initiator + ": " + cbt.data)
-        elif cbt.action == 'info':
-            if self.CMConfig["LogOption"] == "File":
-                self.logger.info(cbt.initiator + ": " + cbt.data)
-            else:
-                logging.info(cbt.initiator + ": " + cbt.data)
-        elif cbt.action == 'warning':
-            if self.CMConfig["LogOption"] == "File":
+        if cbt.action == "LOG_DEBUG" or cbt.action == "debug":
+            self.logger.  debug(cbt.initiator + ": " + cbt.data)
+        elif cbt.action == "LOG_INFO" or cbt.action == "info":
+            self.logger.info(cbt.initiator + ": " + cbt.data)
+        elif cbt.action == "LOG_WARNING" or cbt.action == 'warning':
                 self.logger.warning(cbt.initiator + ": " + cbt.data)
-            else:
-                logging.warning(cbt.initiator + ": " + cbt.data)
-        elif cbt.action == 'error':
-            if self.CMConfig["LogOption"] == "File":
+        elif cbt.action == "LOG_ERROR" or cbt.action == 'error':
                 self.logger.error(cbt.initiator + ": " + cbt.data)
-            else:
-                logging.error(cbt.initiator + ": " + cbt.data)
         elif cbt.action == "pktdump":
             self.pktdump(message=cbt.data.get('message'),
                          dump=cbt.data.get('dump'))
