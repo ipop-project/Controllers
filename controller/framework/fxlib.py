@@ -45,17 +45,16 @@ CONFIG = {
         "ConsoleLevel": None
     },
     "TincanInterface": {
-        "buf_size": 65507,      # Max buffer size for Tincan Messages
+        "MaxReadSize": 65507,      # Max buffer size for Tincan Messages
         "SocketReadWaitTime": 15,   # Socket read wait time for Tincan Messages
         "CtrlRecvPort": 5801,     # Controller UDP Listening Port
-        "ip6_prefix": "fd50:0dbc:41f2:4a3c",
         "ServiceAddress": "127.0.0.1",
         "CtrlSendPort": 5800,     # Tincan UDP Listening Port
         "ServiceAddress6": "::1",
         "dependencies": ["Logger"]
     },
     "LinkManager": {
-        "Enabled": True,
+        "Enabled": False,
         "TimerInterval": 10,                # Timer thread interval in sec
         "InitialLinkTTL": 120,              # Initial Time to Live for a p2p link in sec
         "LinkPulse": 180,                   # Time to Live for an online p2p link in sec
@@ -63,12 +62,12 @@ CONFIG = {
         "dependencies": ["Logger", "TincanInterface"]
     },
     "BroadcastForwarder": {
-        "Enabled": True,
+        "Enabled": False,
         "TimerInterval": 10,                # Timer thread interval in sec
         "dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "ArpCache": {
-        "Enabled": True,
+        "Enabled": False,
         "dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "IPMulticast": {
@@ -76,7 +75,7 @@ CONFIG = {
         "dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "Signal": {
-        "Enabled": True,
+        "Enabled": False,
         "TimerInterval": 10,
         "MessagePerIntervalDelay": 10,      # No of XMPP messages after which the delay has to be increased
         "InitialAdvertismentDelay": 5,      # Initial delay for Peer XMPP messages
@@ -85,7 +84,7 @@ CONFIG = {
         "dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "BaseTopologyManager": {
-        "Enabled": True,
+        "Enabled": False,
         "TimerInterval": 10,            # Timer thread interval in sec
         "dependencies": ["Logger", "TincanInterface", "Signal"]
     },

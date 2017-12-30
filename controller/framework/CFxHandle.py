@@ -69,7 +69,7 @@ class CFxHandle(object):
     def GetParentCBT(self, cbt):
         return cbt.Parent
 
-    def freeCBT(self, cbt):
+    def FreeCBT(self, cbt):
         if not cbt.ChildCount == 0:
             raise RuntimeError("Invalid attempt to free a linked CBT")
         if not cbt.Parent is None:
@@ -82,9 +82,9 @@ class CFxHandle(object):
     def CompleteCBT(self, cbt):
         cbt.Completed = True
         self.PendingCBTs.pop(cbt.Tag, None)
-        self.__CFxObject.submitCBT(cbt)
         if not cbt.ChildCount == 0:
             raise RuntimeError("Invalid attempt to complete a CBT with outstanding dependencies")
+        self.__CFxObject.submitCBT(cbt)
 
     def initialize(self):
         # intialize the CM

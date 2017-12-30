@@ -22,9 +22,9 @@
 import sys
 py_ver = sys.version_info[0]
 
-CTL_CREATE_CTRL_RESP_LINK = {
+CTL_CREATE_CTRL_LINK = {
     "IPOP": {
-        "ProtocolVersion": 5,
+        "ProtocolVersion": 4,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
@@ -38,7 +38,7 @@ CTL_CREATE_CTRL_RESP_LINK = {
 }
 CTL_CONFIGURE_LOGGING = {
     "IPOP": {
-        "ProtocolVersion": 5,
+        "ProtocolVersion": 4,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
@@ -79,7 +79,6 @@ CTL_CREATE_OVERLAY = {
           "TurnUser": "",
           "TurnPass": "",
           "EnableIPMapping": False,
-          #"DisableEncryption": False #specify in CreateLink
         }
     }
 }
@@ -102,22 +101,22 @@ CTL_CREATE_LINK = {
         }
     }
 }
-IGNORE = {
+CTL_SET_IGNORED_NET_INTERFACES = {
     "IPOP": {
         "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
           "Command": "SetIgnoredNetInterfaces",
-          "TapName": "",
+          "OverlayId": "",
           "IgnoredNetInterfaces": []
         }
     }    
 }
-ICC = {
+CTL_ICC = {
     "IPOP": {
       "ProtocolVersion": 5,
-      "Tag": 100020,
+      "Tag": 0,
       "ControlType": "TincanRequest",
       "Request": {
         "Command": "ICC",
@@ -216,7 +215,7 @@ DELETE_FORWARDING_RULE = {
                 }
         }
 }
-LINK_STATS = {
+CTL_QUERY_LINK_STATS = {
     "IPOP": {
         "ProtocolVersion": 5,
         "TransactionId" : 0,
@@ -229,7 +228,7 @@ LINK_STATS = {
         }
     }
 }
-QUERY_CAS = {
+CTL_QUERY_CAS = {
     "IPOP": {
         "ProtocolVersion": 5,
         "TransactionId" : 0,
@@ -237,8 +236,8 @@ QUERY_CAS = {
         "ControlType": "TincanRequest",
         "Request": {
           "Command": "QueryCandidateAddressSet",
-          "TapName": "",
-          "MAC" : ""
+          "OverlayId": "",
+          "LinkId" : ""
         }
     }
 }

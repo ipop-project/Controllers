@@ -20,14 +20,18 @@
 # THE SOFTWARE.
 
 import uuid
-
 class CBT(object):
+    TagCounter = 0
     class Request(object):
         def __init__(self, initiator='', recipient='', action='', data=None):
             self.Initiator = initiator
             self.Recipient = recipient
             self.Action = action
             self.Data = data
+
+        def __repr__(self):
+            msg = "{\n\t\tInitiator: %s,\n\t\tRecipient: %s,\n\t\tAction: %s,\n\t\tData: %s\n\t}" % (self.Initiator, self.Recipient, self.Action, str(self.Data))
+            return msg
 
     class Response(object):
         def __init__(self,):
@@ -36,8 +40,14 @@ class CBT(object):
             self.Recipient = None
             self.Data = None
 
+        def __repr__(self):
+            msg = "{\n\t\tStatus: %s,\n\t\tInitiator: %s,\n\t\tRecipient: %s,\n\t\tData: %s\n\t}" % (self.Status, self.Initiator, self.Recipient, str(self.Data))
+            return msg
+
     def __init__(self, initiator='', recipient='', action='', data=''):
-        self.Tag = uuid.uuid4()  # Unique identifier for CBTs
+        self.Tag = CBT.TagCounter
+        CBT.TagCounter = CBT.TagCounter + 1
+        #self.Tag = uuid.uuid4()  # Unique identifier for CBTs
         #self.vnet = vnet
         self.Parent = None
         self.ChildCount = 0
@@ -46,8 +56,12 @@ class CBT(object):
         self.initiator = initiator #deprecated
         self.recipient = recipient #deprecated
         self.action = action #deprecated
-        self.data = data
+        self.data = data #deprecated
         self.Request = self.Request(initiator, recipient, action, data)
+
+    def __repr__(self):
+        msg = "{\n\tParent: %s,\n\tChildCount: %d,\n\tCompleted: %r,\n\tOpType: %s,\n\tRequest: %r,\n\tResponse: %r\n}" % (str(self.Parent), self.ChildCount, self.Completed, self.OpType, self.Request, self.Response)
+        return msg
 
     def SetRequest(self, initiator='', recipient='', action='', data=''):
         self.Request.Initiator = initiator
@@ -55,8 +69,8 @@ class CBT(object):
         self.Request.Action = action
         self.Request.Data = data
 
-    def Response(self, initiator='', recipient='', data='', status = False):
-        self.optype = "Response"
+    def SetResponse(self, initiator='', recipient='', data='', status = False):
+        self.OpType = "Response"
         self.initiator = initiator
         self.recipient = recipient
         self.Completed = True

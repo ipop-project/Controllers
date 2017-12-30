@@ -79,6 +79,9 @@ class Logger(ControllerModule):
         elif cbt.action == "pktdump":
             self.pktdump(message=cbt.data.get('message'),
                          dump=cbt.data.get('dump'))
+        elif cbt.action == "LOG_QUERY_CONFIG":
+            cbt.SetResponse("Logger", cbt.Request.Initiator, self.CMConfig, True)
+            self.CFxHandle.CompleteCBT(cbt)
         else:
             log = '{0}: unrecognized CBT {1} received from {2}'\
                     .format(cbt.recipient, cbt.action, cbt.initiator)
