@@ -49,7 +49,8 @@ class CFX(object):
         self.loaded_modules = ['CFx']  # list of modules already loaded
         self.event = None
         self.Subscriptions = {}
-        self.NodeId = uuid.uuid4()
+        self.NodeId = self.SetNodeId(self.CONFIG)
+        # self.NodeId = uuid.uuid4()
 
     def submitCBT(self, cbt):
         recipient = cbt.recipient
@@ -209,6 +210,25 @@ class CFX(object):
             self.CONFIG['CFx']["local_uid"] = uid
             return True  # modified
         return False
+
+    def SetNodeId(self, config):
+        # if NodeId is not specified in Config file, generate NodeId
+        if 'NodeId' not in config['CFx']:
+            try:
+                with open("nid","r") as f:
+                    nodeid = f.read()
+                    return nodeid
+            except IOError:
+                nodeid = uuid.uuid4()
+                with open("nid","w") as f:
+                    f.write(nodeid)
+                    return nodeid
+        else:
+            nodeid = config['CFx']['NodeId']
+            with open("nid","w") as f:
+                f.write(nodeid)
+            return nodeid
+            
 
     def waitForShutdownEvent(self):
         self.event = threading.Event()
