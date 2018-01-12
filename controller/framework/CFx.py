@@ -84,11 +84,15 @@ class CFX(object):
             if key not in self.loaded_modules:
                 self.load_module(key)
 
+        # intialize all the CFxHandles which in turn initialize the CMs
+        for module_name in self.CFxHandleDict:
+         	self.CFxHandleDict[module_name].initialize()
+
         # start all the worker and timer threads
-        for handle in self.CFxHandleDict:
-            self.CFxHandleDict[handle].CMThread.start()
-            if self.CFxHandleDict[handle].timer_thread:
-                self.CFxHandleDict[handle].timer_thread.start()
+        for module_name in self.CFxHandleDict:
+            self.CFxHandleDict[module_name].CMThread.start()
+            if self.CFxHandleDict[module_name].timer_thread:
+                self.CFxHandleDict[module_name].timer_thread.start()
 
     def load_module(self, module_name):
         if 'Enabled' in self.CONFIG[module_name]:
@@ -126,7 +130,7 @@ class CFX(object):
             self.CFxHandleDict[module_name] = handle
 
             # intialize all the CFxHandles which in turn initialize the CMs
-            handle.initialize()
+            #handle.initialize()
 
             self.loaded_modules.append(module_name)
 
@@ -194,22 +198,23 @@ class CFX(object):
                 if self.CONFIG.get(key, None):
                     self.CONFIG[key].update(loaded_config[key])
 
-        need_save = self.setup_config(self.CONFIG)
-        if need_save and args.config_file and args.update_config:
-            with open(args.config_file, "w") as f:
-                json.dump(self.CONFIG, f, indent=4, sort_keys=True)
+        # need_save = self.setup_config(self.CONFIG)
+        # if need_save and args.config_file and args.update_config:
+        #     with open(args.config_file, "w") as f:
+        #         json.dump(self.CONFIG, f, indent=4, sort_keys=True)
         '''
         if args.ip_config:
             fxlib.load_peer_ip_config(args.ip_config)
         '''
 
-    def setup_config(self, config):
-        # validate config; return true if the config is modified
-        if not config['CFx']['local_uid']:
-            uid = ipoplib.uid_b2a(os.urandom(self.CONFIG['CFx']['uid_size'] // 2))
-            self.CONFIG['CFx']["local_uid"] = uid
-            return True  # modified
-        return False
+    # def setup_config(self, config):
+    #     # validate config; return true if the config is modified
+    #     if not config['CFx']['local_id']:
+    #         uid = ipoplib.uid_b2a(os.urandom(self.CONFIG['CFx']['uid_size'] // 2))
+    #         self.CONFIG['CFx']["local_id"] = uid
+    #         return True  # modified
+    #     return False
+
 
     def SetNodeId(self, config):
         # if NodeId is not specified in Config file, generate NodeId
