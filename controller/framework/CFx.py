@@ -50,20 +50,10 @@ class CFX(object):
         self.event = None
         self.Subscriptions = {}
         self.NodeId = self.SetNodeId(self.CONFIG)
-        # self.NodeId = uuid.uuid4()
 
     def submitCBT(self, cbt):
         recipient = cbt.recipient
         self.CFxHandleDict[recipient].CMQueue.put(cbt)
-
-    #def createCBT(self, initiator='', recipient='', action='', data=''):
-    #    # create and return an empty CBT
-    #    cbt = _CBT(initiator, recipient, action, data)
-    #    return cbt
-
-    #def freeCBT(self):
-    #    # deallocate CBT (use python's automatic garbage collector)
-    #    pass
 
     def initialize(self,):
         # check for circular dependencies in the configuration file
@@ -71,7 +61,7 @@ class CFX(object):
         for key in self.CONFIG:
             if key != 'CFx':
                 try:
-                    dependency_graph[key] = self.CONFIG[key]['dependencies']
+                    dependency_graph[key] = self.CONFIG[key]['Dependencies']
                 except Exception as error:
                     pass
 
@@ -120,6 +110,7 @@ class CFX(object):
 
             # create a CFxHandle object for each module
             handle = CFxHandle(self)
+            self.CONFIG[module_name]["NodeId"] = NodeId
             instance = module_class(handle, self.CONFIG[module_name], module_name)
 
             handle.CMInstance = instance
@@ -130,14 +121,13 @@ class CFX(object):
             self.CFxHandleDict[module_name] = handle
 
             # intialize all the CFxHandles which in turn initialize the CMs
-            #handle.initialize()
 
             self.loaded_modules.append(module_name)
 
     def load_dependencies(self, module_name):
         # load the dependencies of the module as specified in the configuration file
         try:
-            dependencies = self.CONFIG[module_name]['dependencies']
+            dependencies = self.CONFIG[module_name]['Dependencies']
             for module_name in dependencies:
                 if module_name not in self.loaded_modules:
                     self.load_module(module_name)
@@ -197,24 +187,6 @@ class CFX(object):
             for key in loaded_config:
                 if self.CONFIG.get(key, None):
                     self.CONFIG[key].update(loaded_config[key])
-
-        # need_save = self.setup_config(self.CONFIG)
-        # if need_save and args.config_file and args.update_config:
-        #     with open(args.config_file, "w") as f:
-        #         json.dump(self.CONFIG, f, indent=4, sort_keys=True)
-        '''
-        if args.ip_config:
-            fxlib.load_peer_ip_config(args.ip_config)
-        '''
-
-    # def setup_config(self, config):
-    #     # validate config; return true if the config is modified
-    #     if not config['CFx']['local_id']:
-    #         uid = ipoplib.uid_b2a(os.urandom(self.CONFIG['CFx']['uid_size'] // 2))
-    #         self.CONFIG['CFx']["local_id"] = uid
-    #         return True  # modified
-    #     return False
-
 
     def SetNodeId(self, config):
         # if NodeId is not specified in Config file, generate NodeId

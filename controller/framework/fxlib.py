@@ -50,7 +50,7 @@ CONFIG = {
         "ServiceAddress": "127.0.0.1",
         "CtrlSendPort": 5800,     # Tincan UDP Listening Port
         "ServiceAddress6": "::1",
-        "dependencies": ["Logger"]
+        "Dependencies": ["Logger"]
     },
     "LinkManager": {
         "Enabled": False,
@@ -58,20 +58,20 @@ CONFIG = {
         "InitialLinkTTL": 120,              # Initial Time to Live for a p2p link in sec
         "LinkPulse": 180,                   # Time to Live for an online p2p link in sec
         "MaxConnRetry": 5,                  # Max Connection Retry attempts for each p2p link
-        "dependencies": ["Logger", "TincanInterface"]
+        "Dependencies": ["Logger", "TincanInterface", "Signal"]
     },
     "BroadcastForwarder": {
         "Enabled": False,
         "TimerInterval": 10,                # Timer thread interval in sec
-        "dependencies": ["Logger", "TincanInterface", "LinkManager"]
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "ArpCache": {
         "Enabled": False,
-        "dependencies": ["Logger", "TincanInterface", "LinkManager"]
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "IPMulticast": {
         "Enabled": False,
-        "dependencies": ["Logger", "TincanInterface", "LinkManager"]
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "Signal": {
         "Enabled": False,
@@ -80,12 +80,12 @@ CONFIG = {
         "InitialAdvertismentDelay": 5,      # Initial delay for Peer XMPP messages
         "XmppAdvrtDelay": 5,                # Incremental delay for XMPP messages
         "MaxAdvertismentDelay": 30,         # Max XMPP Message delay
-        "dependencies": ["Logger", "TincanInterface", "LinkManager"]
+        "Dependencies": ["Logger"]
     },
     "BaseTopologyManager": {
         "Enabled": False,
         "TimerInterval": 10,            # Timer thread interval in sec
-        "dependencies": ["Logger", "TincanInterface", "Signal"]
+        "Dependencies": ["Logger", "TincanInterface", "Signal"]
     },
     "OverlayVisualizer": {
         "Enabled": False,           # Set this field to True for sending data to the visualizer
@@ -94,14 +94,14 @@ CONFIG = {
         #"TopologyDataQueryInterval": 5,             # Interval to query TopologyManager to get network stats
         #"WebServiceDataPostInterval": 5,            # Interval to send data to the visualizer
         "NodeName": "",                             # Node Name as seen from the UI
-        "dependencies": ["Logger", "BaseTopologyManager"]
+        "Dependencies": ["Logger"]
     },
     "StatReport": {
         "Enabled": False,
         "TimerInterval": 200,
         "StatServerAddress": "metrics.ipop-project.org",
         "StatServerPort": 8080,
-        "dependencies": ["Logger"]
+        "Dependencies": ["Logger"]
     }
 }
 
