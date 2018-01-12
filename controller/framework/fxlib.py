@@ -29,8 +29,7 @@ ipopVerRel = "{0}.{1}.{2}".format(ipopVerMjr, ipopVerMnr, ipopVerRev)
 # set default config values
 CONFIG = {
     "CFx": {
-        "local_uid": "",  # Attribute to store node UID needed by Statreport and SVPN
-        "uid_size": 40,   # No of bytes for node UID
+        "NodeId": "",  # Attribute to store node UID needed by Statreport and SVPN
         "ipopVerRel": ipopVerRel,
     },
     "Logger": {
