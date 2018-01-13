@@ -82,10 +82,10 @@ CONFIG = {
         "MaxAdvertismentDelay": 30,         # Max XMPP Message delay
         "Dependencies": ["Logger"]
     },
-    "BaseTopologyManager": {
+    "Topology": {
         "Enabled": False,
         "TimerInterval": 10,            # Timer thread interval in sec
-        "Dependencies": ["Logger", "TincanInterface", "Signal"]
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "OverlayVisualizer": {
         "Enabled": False,           # Set this field to True for sending data to the visualizer

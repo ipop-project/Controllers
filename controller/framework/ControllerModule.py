@@ -63,5 +63,20 @@ class ControllerModule(object):
         )
         if _tag is not None:
             cbt.Tag = _tag
-        self.CFxHandle.submitCBT(cbt)
+        self.CFxHandle.SubmitCBT(cbt)
         return cbt
+
+    def CreateLinkedCBT(self, parent):
+        return self.CFxHandle.CreateLinkedCBT(parent)
+
+    def CompleteCBT(self, cbt):
+        self.CFxHandle.CompleteCBT(cbt)
+
+    def FreeCBT(self, cbt):
+        self.CFxHandle.FreeCBT(cbt)
+
+    def GetParentCBT(self, cbt):
+        self.CFxHandle.GetParentCBT(cbt)
+
+    def SubmitCBT(self, cbt):
+        self.CFxHandle.SubmitCBT(cbt)

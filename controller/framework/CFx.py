@@ -49,10 +49,10 @@ class CFX(object):
         self.loaded_modules = ['CFx']  # list of modules already loaded
         self.event = None
         self.Subscriptions = {}
-        self.NodeId = self.SetNodeId(self.CONFIG)
+        self.NodeId = self.SetNodeId()
 
     def submitCBT(self, cbt):
-        recipient = cbt.recipient
+        recipient = cbt.Request.Recipient
         self.CFxHandleDict[recipient].CMQueue.put(cbt)
 
     def initialize(self,):
@@ -110,7 +110,7 @@ class CFX(object):
 
             # create a CFxHandle object for each module
             handle = CFxHandle(self)
-            self.CONFIG[module_name]["NodeId"] = NodeId
+            self.CONFIG[module_name]["NodeId"] = self.NodeId
             instance = module_class(handle, self.CONFIG[module_name], module_name)
 
             handle.CMInstance = instance
@@ -188,24 +188,21 @@ class CFX(object):
                 if self.CONFIG.get(key, None):
                     self.CONFIG[key].update(loaded_config[key])
 
-    def SetNodeId(self, config):
+    def SetNodeId(self,):
+        config = self.CONFIG["CFx"]
         # if NodeId is not specified in Config file, generate NodeId
-        if 'NodeId' not in config['CFx']:
+        nodeid = config.get("NodeId", None)
+        if nodeid is None or len(nodeid) == 0:
             try:
                 with open("nid","r") as f:
                     nodeid = f.read()
-                    return nodeid
             except IOError:
-                nodeid = uuid.uuid4()
-                with open("nid","w") as f:
-                    f.write(nodeid)
-                    return nodeid
-        else:
-            nodeid = config['CFx']['NodeId']
+                pass
+        if nodeid is None or len(nodeid) == 0:
+            nodeid = str(uuid.uuid4())
             with open("nid","w") as f:
                 f.write(nodeid)
-            return nodeid
-            
+        return nodeid
 
     def waitForShutdownEvent(self):
         self.event = threading.Event()

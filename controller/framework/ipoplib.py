@@ -24,7 +24,7 @@ py_ver = sys.version_info[0]
 
 CTL_CREATE_CTRL_LINK = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
@@ -38,7 +38,7 @@ CTL_CREATE_CTRL_LINK = {
 }
 CTL_CONFIGURE_LOGGING = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
@@ -113,7 +113,7 @@ CTL_SET_IGNORED_NET_INTERFACES = {
         }
     }    
 }
-CTL_ICC = {
+CTL_SEND_ICC = {
     "IPOP": {
       "ProtocolVersion": 5,
       "Tag": 0,

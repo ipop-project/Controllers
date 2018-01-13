@@ -23,14 +23,14 @@ import uuid
 class CBT(object):
     TagCounter = 0
     class Request(object):
-        def __init__(self, initiator='', recipient='', action='', data=None):
+        def __init__(self, initiator='', recipient='', action='', params=None):
             self.Initiator = initiator
             self.Recipient = recipient
             self.Action = action
-            self.Data = data
+            self.Params = params
 
         def __repr__(self):
-            msg = "{\n\t\tInitiator: %s,\n\t\tRecipient: %s,\n\t\tAction: %s,\n\t\tData: %s\n\t}" % (self.Initiator, self.Recipient, self.Action, str(self.Data))
+            msg = "{\n\t\tInitiator: %s,\n\t\tRecipient: %s,\n\t\tAction: %s,\n\t\tData: %s\n\t}" % (self.Initiator, self.Recipient, self.Action, str(self.Params))
             return msg
 
     class Response(object):
@@ -44,7 +44,7 @@ class CBT(object):
             msg = "{\n\t\tStatus: %s,\n\t\tInitiator: %s,\n\t\tRecipient: %s,\n\t\tData: %s\n\t}" % (self.Status, self.Initiator, self.Recipient, str(self.Data))
             return msg
 
-    def __init__(self, initiator='', recipient='', action='', data=''):
+    def __init__(self, initiator='', recipient='', action='', params=''):
         self.Tag = CBT.TagCounter
         CBT.TagCounter = CBT.TagCounter + 1
         #self.Tag = uuid.uuid4()  # Unique identifier for CBTs
@@ -53,21 +53,17 @@ class CBT(object):
         self.ChildCount = 0
         self.Completed = False
         self.OpType = "Request"
-        self.initiator = initiator #deprecated
-        self.recipient = recipient #deprecated
-        self.action = action #deprecated
-        self.data = data #deprecated
-        self.Request = self.Request(initiator, recipient, action, data)
+        self.Request = self.Request(initiator, recipient, action, params)
 
     def __repr__(self):
         msg = "{\n\tParent: %s,\n\tChildCount: %d,\n\tCompleted: %r,\n\tOpType: %s,\n\tRequest: %r,\n\tResponse: %r\n}" % (str(self.Parent), self.ChildCount, self.Completed, self.OpType, self.Request, self.Response)
         return msg
 
-    def SetRequest(self, initiator='', recipient='', action='', data=''):
+    def SetRequest(self, initiator='', recipient='', action='', params=''):
         self.Request.Initiator = initiator
         self.Request.Recipient = recipient
         self.Request.Action = action
-        self.Request.Data = data
+        self.Request.Params = params
 
     def SetResponse(self, initiator='', recipient='', data='', status = False):
         self.OpType = "Response"
