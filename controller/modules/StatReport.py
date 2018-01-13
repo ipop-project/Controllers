@@ -50,7 +50,7 @@ class StatReport(ControllerModule):
         pass
 
     def report(self):
-        uid = self.CFxHandle.queryParam("CFx", "local_uid")
+        uid = self.CFxHandle.queryParam("CFx", "NodeId")
         if uid is None:
             return
         xmpp_host = self.CFxHandle.queryParam("Signal", "AddressHost")

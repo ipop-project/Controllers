@@ -50,7 +50,7 @@ class CFxHandle(object):
         cbt = self.CMQueue.get()  # blocking call
         return cbt
 
-    def submitCBT(self, cbt):
+    def SubmitCBT(self, cbt):
         # submit CBT to the CFx
         self.__CFxObject.submitCBT(cbt)
 
@@ -125,7 +125,7 @@ class CFxHandle(object):
             cbt = self.__getCBT()
 
             # break on special termination CBT
-            if cbt.action == 'CFX_TERMINATE':
+            if cbt.Request.Action == 'CFX_TERMINATE':
                 self.terminateFlag = True
                 module_name = self.CMInstance.__class__.__name__
                 logging.info("{0} exiting".format(module_name))
@@ -149,11 +149,11 @@ class CFxHandle(object):
                              "    action    {2}:\n"
                              "    data      {3}:\n"
                              "    traceback:\n{4}"
-                             .format(cbt.initiator, cbt.recipient, cbt.action,
-                                     cbt.data, traceback.format_exc())
+                             .format(cbt.Request.Initiator, cbt.Request.Recipient, cbt.Request.Action,
+                                     cbt.Request.Params, traceback.format_exc())
                     )
 
-                    self.submitCBT(logCBT)
+                    self.SubmitCBT(logCBT)
 
     def __timer_worker(self):
         # call the timer_method of each CM every timer_interval seconds
@@ -174,7 +174,7 @@ class CFxHandle(object):
                     action='warning',
                     data="timer_method exception:\n{0}".format(traceback.format_exc())
                 )
-                self.submitCBT(logCBT)
+                self.SubmitCBT(logCBT)
 
     def queryParam(self, ModuleName, ParamName=""):
         pv = self.__CFxObject.queryParam(ModuleName, ParamName)

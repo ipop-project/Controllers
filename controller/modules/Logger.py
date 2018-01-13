@@ -68,23 +68,23 @@ class Logger(ControllerModule):
 
     def processCBT(self, cbt):
         # Extracting the logging level information from the CBT action tag
-        if cbt.action == "LOG_DEBUG" or cbt.action == "debug":
-            self.logger.  debug(cbt.initiator + ": " + cbt.data)
-        elif cbt.action == "LOG_INFO" or cbt.action == "info":
-            self.logger.info(cbt.initiator + ": " + cbt.data)
-        elif cbt.action == "LOG_WARNING" or cbt.action == 'warning':
-                self.logger.warning(cbt.initiator + ": " + cbt.data)
-        elif cbt.action == "LOG_ERROR" or cbt.action == 'error':
-                self.logger.error(cbt.initiator + ": " + cbt.data)
-        elif cbt.action == "pktdump":
-            self.pktdump(message=cbt.data.get('message'),
-                         dump=cbt.data.get('dump'))
-        elif cbt.action == "LOG_QUERY_CONFIG":
+        if cbt.Request.Action == "LOG_DEBUG" or cbt.Request.Action == "debug":
+            self.logger.debug(cbt.Request.Initiator + ": " + cbt.Request.Params)
+        elif cbt.Request.Action == "LOG_INFO" or cbt.Request.Action == "info":
+            self.logger.info(cbt.Request.Initiator + ": " + cbt.Request.Params)
+        elif cbt.Request.Action == "LOG_WARNING" or cbt.Request.Action == 'warning':
+                self.logger.warning(cbt.Request.Initiator + ": " + cbt.Request.Params)
+        elif cbt.Request.Action == "LOG_ERROR" or cbt.Request.Action == 'error':
+                self.logger.error(cbt.Request.Initiator + ": " + cbt.Request.Params)
+        elif cbt.Request.Action == "pktdump":
+            self.pktdump(message=cbt.Request.Params.get('message'),
+                         dump=cbt.Request.Params.get('dump'))
+        elif cbt.Request.Action == "LOG_QUERY_CONFIG":
             cbt.SetResponse("Logger", cbt.Request.Initiator, self.CMConfig, True)
             self.CFxHandle.CompleteCBT(cbt)
         else:
             log = '{0}: unrecognized CBT {1} received from {2}'\
-                    .format(cbt.recipient, cbt.action, cbt.initiator)
+                    .format(cbt.Request.Recipient, cbt.Request.Action, cbt.Request.Initiator)
             self.registerCBT('Logger', 'warning', log)
 
     def timer_method(self):

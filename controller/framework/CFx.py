@@ -49,21 +49,11 @@ class CFX(object):
         self.loaded_modules = ['CFx']  # list of modules already loaded
         self.event = None
         self.Subscriptions = {}
-        self.NodeId = self.SetNodeId(self.CONFIG)
-        # self.NodeId = uuid.uuid4()
+        self.NodeId = self.SetNodeId()
 
     def submitCBT(self, cbt):
-        recipient = cbt.recipient
+        recipient = cbt.Request.Recipient
         self.CFxHandleDict[recipient].CMQueue.put(cbt)
-
-    #def createCBT(self, initiator='', recipient='', action='', data=''):
-    #    # create and return an empty CBT
-    #    cbt = _CBT(initiator, recipient, action, data)
-    #    return cbt
-
-    #def freeCBT(self):
-    #    # deallocate CBT (use python's automatic garbage collector)
-    #    pass
 
     def initialize(self,):
         # check for circular dependencies in the configuration file
@@ -71,7 +61,7 @@ class CFX(object):
         for key in self.CONFIG:
             if key != 'CFx':
                 try:
-                    dependency_graph[key] = self.CONFIG[key]['dependencies']
+                    dependency_graph[key] = self.CONFIG[key]['Dependencies']
                 except Exception as error:
                     pass
 
@@ -120,6 +110,7 @@ class CFX(object):
 
             # create a CFxHandle object for each module
             handle = CFxHandle(self)
+            self.CONFIG[module_name]["NodeId"] = self.NodeId
             instance = module_class(handle, self.CONFIG[module_name], module_name)
 
             handle.CMInstance = instance
@@ -130,14 +121,13 @@ class CFX(object):
             self.CFxHandleDict[module_name] = handle
 
             # intialize all the CFxHandles which in turn initialize the CMs
-            #handle.initialize()
 
             self.loaded_modules.append(module_name)
 
     def load_dependencies(self, module_name):
         # load the dependencies of the module as specified in the configuration file
         try:
-            dependencies = self.CONFIG[module_name]['dependencies']
+            dependencies = self.CONFIG[module_name]['Dependencies']
             for module_name in dependencies:
                 if module_name not in self.loaded_modules:
                     self.load_module(module_name)
@@ -198,26 +188,27 @@ class CFX(object):
                 if self.CONFIG.get(key, None):
                     self.CONFIG[key].update(loaded_config[key])
 
+<<<<<<< HEAD
 
 
     def SetNodeId(self, config):
+=======
+    def SetNodeId(self,):
+        config = self.CONFIG["CFx"]
+>>>>>>> bef921d3e86ff27cca50c86b00239a93d7dccc0a
         # if NodeId is not specified in Config file, generate NodeId
-        if 'NodeId' not in config['CFx']:
+        nodeid = config.get("NodeId", None)
+        if nodeid is None or len(nodeid) == 0:
             try:
                 with open("nid","r") as f:
                     nodeid = f.read()
-                    return nodeid
             except IOError:
-                nodeid = uuid.uuid4()
-                with open("nid","w") as f:
-                    f.write(nodeid)
-                    return nodeid
-        else:
-            nodeid = config['CFx']['NodeId']
+                pass
+        if nodeid is None or len(nodeid) == 0:
+            nodeid = str(uuid.uuid4())
             with open("nid","w") as f:
                 f.write(nodeid)
-            return nodeid
-            
+        return nodeid
 
     def waitForShutdownEvent(self):
         self.event = threading.Event()

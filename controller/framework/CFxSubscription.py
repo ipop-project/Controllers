@@ -38,6 +38,5 @@ class CFxSubscription(object):
         self.subscribers.remove(sink)
 
     def PostUpdate(self, msg):
-        sink = None
         for sink in self.subscribers:
             self.Owner.registerCBT(sink.__class__.__name__, self.SubscriptionName, msg)
