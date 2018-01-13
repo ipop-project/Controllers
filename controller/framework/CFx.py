@@ -198,22 +198,6 @@ class CFX(object):
                 if self.CONFIG.get(key, None):
                     self.CONFIG[key].update(loaded_config[key])
 
-        # need_save = self.setup_config(self.CONFIG)
-        # if need_save and args.config_file and args.update_config:
-        #     with open(args.config_file, "w") as f:
-        #         json.dump(self.CONFIG, f, indent=4, sort_keys=True)
-        '''
-        if args.ip_config:
-            fxlib.load_peer_ip_config(args.ip_config)
-        '''
-
-    # def setup_config(self, config):
-    #     # validate config; return true if the config is modified
-    #     if not config['CFx']['local_id']:
-    #         uid = ipoplib.uid_b2a(os.urandom(self.CONFIG['CFx']['uid_size'] // 2))
-    #         self.CONFIG['CFx']["local_id"] = uid
-    #         return True  # modified
-    #     return False
 
 
     def SetNodeId(self, config):
