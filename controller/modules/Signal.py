@@ -92,6 +92,7 @@ class XmppTransport:
         print(msg)
     # Triggered at start of XMPP session
     def start_event_handler(self, event):
+        self._log("Start event overlay_id {0}".format(self.overlay_id))
         try:
             # Check whether Callback functions are configured for XMPP
             # server messages
@@ -122,11 +123,11 @@ class XmppTransport:
                     pstatus, peer_id = status.split('#')
                     if (pstatus == "ident"):
                         self.presence_publisher.PostUpdate(dict(uid_notification = peer_id, overlay_id = self.overlay_id))
-                        self._log("Resolved Peer ID {0} - {1}".format(peer_id, presence_sender))
+                        self._log("Resolved Peer@Overlay {0}@{1} - {2}".format(peer_id[:7], self.overlay_id, presence_sender))
+                        self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                     elif (pstatus == "uid?"):
                         if (self.node_id == peer_id):
-                            self.transport.send_presence(pstatus="jid_uid#" + self.node_id + "#" + self.transport.boundjid.full)
-                            header = "UID_MATCH" + "#" + "None" + "#" + str(presence_sender)
+                            header = "uid!" + "#" + "None" + "#" + str(presence_sender)
                             msg = self.transport.boundjid.full + "#" + self.node_id
                             self.send_msg(presence_sender, header, msg)
                     #elif (pstatus == "jid_uid"):
@@ -152,21 +153,21 @@ class XmppTransport:
             payload = msg['Ipop']['payload']
             msg_type, target_uid, target_jid = setup.split("#")
 
-            if msg_type == "UID_MATCH":
+            if msg_type == "uid!":
                 # This type does not contains target uid
                 match_jid, matched_uid = payload.split("#")
                 # complete all pending CBTs
-                CBTQ = self.cbts[matched_uid]
-                while not CBTQ.empty():
-                    cbt_data = CBTQ.get()
+                cbtq = self.cbts[matched_uid]
+                while not cbtq.empty():
+                    cbt_data = cbtq.get()
                     self._log("CBT data {}".format(cbt_data),"LOG_DEBUG")
-                    setup_load = "FORWARDED_CBT" + "#" + "None" + "#" + match_jid
+                    setup_load = "invk" + "#" + "None" + "#" + match_jid
                     msg_payload = json.dumps(cbt_data)
                     self.send_msg(match_jid, setup_load, msg_payload)
                 # put the learned JID in cache
                 self.jid_cache.add_entry(matched_uid, match_jid)
                 return
-            elif msg_type == "FORWARDED_CBT":
+            elif msg_type == "invk":
                 cbtdata = json.loads(payload)
                 self.cm_mod.registerCBT(cbtdata["RecipientCM"], cbtdata["Action"], cbtdata["Params"])
                 return
@@ -195,8 +196,9 @@ class XmppTransport:
     def connect_to_server(self,):
         try:
             if self.transport.connect(address=(self.host, self.port)):
-                thread.start_new_thread(self.transport.process, ())
-                self._log("Connected to XMPP server {0}:{1}".format(self.host, self.port))
+                self.transport.process()
+                #thread.start_new_thread(self.transport.process, ())
+                self._log("Starting connection to XMPP server {0}:{1}".format(self.host, self.port))
         except Exception as err:
             self._log("Unable to initialize XMPP transport instanace.\n" \
                 + str(err), severity="LOG_ERROR")
@@ -246,9 +248,7 @@ class XmppTransport:
         else:
             self.transport.ca_certs = self.overlay_descr["TrustStore"]
         # event handler for session start and roster update
-        # necessary for detecting unfriending
         self.transport.add_event_handler("session_start", self.start_event_handler)
-        #return self.transport
 
     def shutdown(self,):
         #TODO: shut down xmpp thread
@@ -289,7 +289,6 @@ class Signal(ControllerModule):
             self.create_transport_instance(overlay_id, overlay_descr,
                 self._circles[overlay_id]["JidCache"],
                 self._circles[overlay_id]["JidRefreshQ"])
-
         self._log("Module loaded")
 
     def processCBT(self, cbt):
@@ -313,7 +312,7 @@ class Signal(ControllerModule):
                     cache_entry = jid_cache.lookup(peerid)
                     if cache_entry is not None:
                         peer_jid = cache_entry[0]
-                        setup_load = "FORWARDED_CBT" + "#" + "None" + "#" + peer_jid
+                        setup_load = "invk" + "#" + "None" + "#" + peer_jid
                         msg_payload = json.dumps(cbt_data)
                         self._circles["overlay_id"]["Transport"].send_msg(peer_jid, setup_load, msg_payload)
                         self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".format(peerid, setup_load, msg_payload), "LOG_DEBUG")
