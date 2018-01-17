@@ -64,3 +64,4 @@ error.log
 *.suo
 *.opensdf
 *.sdf
+.vs/

@@ -84,7 +84,7 @@ class XmppTransport:
         self.overlay_descr = overlay_descr
         self.IsEventHandlerInitialized = False
         self.cm_mod = cm_mod
-        self.node_id = cm_mod.CMConfig["NodeId"]
+        self.node_id = cm_mod._cm_config["NodeId"]
         self.presence_publisher = presence_publisher
         self.jid_cache = jid_cache
         self.cbts = cbts
@@ -122,7 +122,7 @@ class XmppTransport:
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split('#')
                     if (pstatus == "ident"):
-                        self.presence_publisher.PostUpdate(dict(uid_notification = peer_id, overlay_id = self.overlay_id))
+                        self.presence_publisher.post_update(dict(uid_notification = peer_id, overlay_id = self.overlay_id))
                         self._log("Resolved Peer@Overlay {0}@{1} - {2}".format(peer_id[:7], self.overlay_id, presence_sender))
                         self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                     elif (pstatus == "uid?"):
@@ -256,14 +256,14 @@ class XmppTransport:
 
 
 class Signal(ControllerModule):
-    def __init__(self, CFxHandle, paramDict, ModuleName):
-        ControllerModule.__init__(self, CFxHandle, paramDict, ModuleName)
+    def __init__(self, cfx_handle, module_config, module_name):
+        super(Signal, self).__init__(cfx_handle, module_config, module_name)
         self._presence_publisher = None
         self._circles = {}
         self._keyring_installed = False
 
     def _log(self, msg, severity='info'):
-        self.registerCBT('Logger', severity, msg)
+        self.register_cbt('Logger', severity, msg)
 
     def create_transport_instance(self, overlay_id, overlay_descr, jid_cache, jid_refresh_q):
         self._circles[overlay_id]["Transport"] = XmppTransport(overlay_id,
@@ -278,9 +278,9 @@ class Signal(ControllerModule):
             self._keyring_installed = True
         except:
             self._log("The key-ring module is not installed.", "LOG_INFO")
-        self._presence_publisher = self.CFxHandle.PublishSubscription("SIG_PEER_PRESENCE_NOTIFY")
-        for overlay_id in self.CMConfig["Overlays"]:
-            overlay_descr = self.CMConfig["Overlays"][overlay_id]
+        self._presence_publisher = self._cfx_handle.publish_subscription("SIG_PEER_PRESENCE_NOTIFY")
+        for overlay_id in self._cm_config["Overlays"]:
+            overlay_descr = self._cm_config["Overlays"][overlay_id]
             self._circles[overlay_id] = {}
             self._circles[overlay_id]["JidCache"] = JidCache()
             self._circles[overlay_id]["XmppUser"] = overlay_descr["Username"] #TODO: Is this needed?
@@ -291,18 +291,18 @@ class Signal(ControllerModule):
                 self._circles[overlay_id]["JidRefreshQ"])
         self._log("Module loaded")
 
-    def processCBT(self, cbt):
+    def process_cbt(self, cbt):
         try:
             if cbt.OpType == "Request":
-                message = cbt.Request.Param
+                message = cbt.Request.Params
                 if cbt.Request.Action == "SIG_FORWARD_CBT":
                     peerid = message["PeerId"]
                     overlay_id = message["OverlayId"]
-                    message["InitiatorId"] = self.CMConfig["NodeId"]
+                    message["InitiatorId"] = self._cm_config["NodeId"]
                     message["InitiatorCM"] = cbt.Request.Initiator
                     if (overlay_id not in self._circles):
-                        cbt.SetResponse(self.ModuleName, cbt.Request.Initiator, "Overlay ID not found", False)
-                        self.CFxHandle.CompleteCBT(cbt)
+                        cbt.SetResponse(self._module_name, cbt.Request.Initiator, "Overlay ID not found", False)
+                        self.complete_cbt(cbt)
                         return
                     cbt_data = message.get("CbtData")
                     xmppobj = self._circles[overlay_id]["Transport"]
@@ -327,21 +327,18 @@ class Signal(ControllerModule):
                         xmppobj.send_presence(pstatus="uid?#" + peerid)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
-                    self.registerCBT('Logger', 'LOG_WARNING', log)
+                    self.register_cbt('Logger', 'LOG_WARNING', log)
 
-            if cbt.OpType == "Response":
+            elif cbt.OpType == "Response":
                 if (cbt.Response.Status == False):
-                    self.registerCBT("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.Response.Message))
-                    self.FreeCBT(cbt)
+                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.Response.Message))
+                    self.free_cbt(cbt)
                     return
-
-            else:
-                log = "Unsupported CBT OpType {0}".format(cbt)
-                self.registerCBT('Logger', 'LOG_WARNING', log)
+                self.free_cbt(cbt)
 
         except Exception as err:
             erlog = "Exception trace, continuing ...:\n{0}".format(traceback.format_exc())
-            self.registerCBT('Logger', 'LOG_WARNING', erlog)
+            self.register_cbt('Logger', 'LOG_WARNING', erlog)
 
     def timer_method(self):
         # Clean up JID cache for all XMPP connections

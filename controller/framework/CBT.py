@@ -47,8 +47,6 @@ class CBT(object):
     def __init__(self, initiator='', recipient='', action='', params=''):
         self.Tag = CBT.TagCounter
         CBT.TagCounter = CBT.TagCounter + 1
-        #self.Tag = uuid.uuid4()  # Unique identifier for CBTs
-        #self.vnet = vnet
         self.Parent = None
         self.ChildCount = 0
         self.Completed = False
@@ -65,13 +63,10 @@ class CBT(object):
         self.Request.Action = action
         self.Request.Params = params
 
-    def SetResponse(self, initiator='', recipient='', data='', status = False):
+    def SetResponse(self, data='', status = False):
         self.OpType = "Response"
-        self.initiator = initiator
-        self.recipient = recipient
-        self.Completed = True
         self.Response = self.Response()
+        self.Response.Initiator = self.Request.Recipient
+        self.Response.Recipient = self.Request.Initiator
         self.Response.Status = status
-        self.Response.Initiator = initiator
-        self.Response.Recipient = recipient
         self.Response.Data = data

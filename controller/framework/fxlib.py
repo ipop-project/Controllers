@@ -35,15 +35,16 @@ CONFIG = {
     "Logger": {
         "Enabled": True,
         "LogLevel": "ERROR",      # Types of messages to log, <ERROR>/<WARNING>/<INFO>/<DEBUG>
-        "LogOption": "File",      # Send logging output to <File> or <Console>
-        "LogFilePath": "./logs/",
+        "_Device": "File",      # Send logging output to <File> or <Console>
+        "Directory": "./logs/",
         "CtrlLogFileName": "ctrl.log",
         "TincanLogFileName": "tincan.log",
-        "LogFileSize": 1000000,   # 1MB sized log files
-        "BackupLogFileCount": 5,   # Keep up to 5 files of history
+        "MaxFileSize": 1000000,   # 1MB sized log files
+        "MaxArchives": 5,   # Keep up to 5 files of history
         "ConsoleLevel": None
     },
     "TincanInterface": {
+        "Enabled": False,
         "MaxReadSize": 65507,      # Max buffer size for Tincan Messages
         "SocketReadWaitTime": 15,   # Socket read wait time for Tincan Messages
         "CtrlRecvPort": 5801,     # Controller UDP Listening Port
@@ -51,27 +52,6 @@ CONFIG = {
         "CtrlSendPort": 5800,     # Tincan UDP Listening Port
         "ServiceAddress6": "::1",
         "Dependencies": ["Logger"]
-    },
-    "LinkManager": {
-        "Enabled": False,
-        "TimerInterval": 10,                # Timer thread interval in sec
-        "InitialLinkTTL": 120,              # Initial Time to Live for a p2p link in sec
-        "LinkPulse": 180,                   # Time to Live for an online p2p link in sec
-        "MaxConnRetry": 5,                  # Max Connection Retry attempts for each p2p link
-        "Dependencies": ["Logger", "TincanInterface", "Signal"]
-    },
-    "BroadcastForwarder": {
-        "Enabled": False,
-        "TimerInterval": 10,                # Timer thread interval in sec
-        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
-    },
-    "ArpCache": {
-        "Enabled": False,
-        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
-    },
-    "IPMulticast": {
-        "Enabled": False,
-        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "Signal": {
         "Enabled": False,
@@ -82,10 +62,31 @@ CONFIG = {
         "MaxAdvertismentDelay": 30,         # Max XMPP Message delay
         "Dependencies": ["Logger"]
     },
+    "LinkManager": {
+        "Enabled": False,
+        "TimerInterval": 10,                # Timer thread interval in sec
+        "InitialLinkTTL": 120,              # Initial Time to Live for a p2p link in sec
+        "LinkPulse": 180,                   # Time to Live for an online p2p link in sec
+        "MaxConnRetry": 5,                  # Max Connection Retry attempts for each p2p link
+        "Dependencies": ["Logger", "TincanInterface", "Signal"]
+    },
     "Topology": {
         "Enabled": False,
         "TimerInterval": 10,            # Timer thread interval in sec
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
+    },
+    "BroadcastForwarder": {
+        "Enabled": False,
+        "TimerInterval": 10,                # Timer thread interval in sec
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
+    },
+    "IPMulticast": {
+        "Enabled": False,
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
+    },
+    "ArpCache": {
+        "Enabled": False,
+        "Dependencies": ["BroadcastForwarder"]
     },
     "OverlayVisualizer": {
         "Enabled": False,           # Set this field to True for sending data to the visualizer

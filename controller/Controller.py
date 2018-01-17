@@ -25,10 +25,10 @@ import time
 
 
 # Function checks the system process table for Tincan process
-def checktincanstate():
+def is_tincan_proc():
     # Iterates across process table to find Tincan process
     for process in psutil.process_iter():
-        if process.name() == "ipop-tincan" or process.name() == "ipop-tincan.exe":
+        if process.name().find("ipop-tincan") != -1:
            return True
     return False
 
@@ -36,15 +36,15 @@ def checktincanstate():
 def main():
     stime = time.time()
     # Loop till Tincan not in running state
-    while checktincanstate() is False:
+    while is_tincan_proc() is False:
         # Print warning message to the console that the Tincan process has not been started every 10 sec interval
-        if time.time()-stime > 10:
+        if time.time() - stime > 10:
             print("Waiting on IPOP Tincan to start...")
             stime = time.time()
     # Create CFX object that initializes internal datastructure of all the controller modules
     cfx = CFX()
     cfx.initialize()
-    cfx.waitForShutdownEvent()
+    cfx.wait_for_shutdown_event()
     cfx.terminate()
 
 if __name__ == "__main__":

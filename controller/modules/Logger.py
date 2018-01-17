@@ -27,34 +27,34 @@ from controller.framework.ControllerModule import ControllerModule
 
 
 class Logger(ControllerModule):
-    def __init__(self, CFxHandle, paramDict, ModuleName):
-        super(Logger, self).__init__(CFxHandle, paramDict, ModuleName)
+    def __init__(self, cfx_handle, module_config, module_name):
+        super(Logger, self).__init__(cfx_handle, module_config, module_name)
 
     def initialize(self):
         # Extracts the controller Log Level from the ipop-config file,
         # If nothing is provided the default is INFO
-        if "LogLevel" in self.CMConfig:
-            level = getattr(logging, self.CMConfig["LogLevel"])
+        if "LogLevel" in self._cm_config:
+            level = getattr(logging, self._cm_config["LogLevel"])
         else:
             level = getattr(logging, "info")
         # Check whether the Logging is set to File by the User
-        if self.CMConfig["LogOption"] == "Console":
+        if self._cm_config["Device"] == "Console":
             # Console logging
             logging.basicConfig(format='[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s\n', datefmt='%H:%M:%S',
                                 level=level)
             self.logger = logging.getLogger("IPOP console logger");
         else:
             # Extracts the filepath else sets logs to current working directory
-            filepath = self.CMConfig.get("LogFilePath", "./")
+            filepath = self._cm_config.get("Directory", "./")
             fqname = filepath + \
-                self.CMConfig.get("CtrlLogFileName", "ctrl.log")
+                self._cm_config.get("CtrlLogFileName", "ctrl.log")
             if not os.path.isdir(filepath):
               os.mkdir(filepath)
             self.logger = logging.getLogger("IPOP Rotating Log")
             self.logger.setLevel(level)
             # Creates rotating filehandler
-            handler = lh.RotatingFileHandler(filename=fqname, maxBytes=self.CMConfig["LogFileSize"],
-                                             backupCount=self.CMConfig["BackupLogFileCount"])
+            handler = lh.RotatingFileHandler(filename=fqname, maxBytes=self._cm_config["MaxFileSize"],
+                                             backupCount=self._cm_config["MaxArchives"])
             formatter = logging.Formatter(
                 "[%(asctime)s.%(msecs)03d] %(levelname)s:%(message)s", datefmt='%Y%m%d %H:%M:%S')
             handler.setFormatter(formatter)
@@ -66,26 +66,34 @@ class Logger(ControllerModule):
         logging.addLevelName(5, "PKTDUMP")
         logging.PKTDUMP = 5
 
-    def processCBT(self, cbt):
-        # Extracting the logging level information from the CBT action tag
-        if cbt.Request.Action == "LOG_DEBUG" or cbt.Request.Action == "debug":
-            self.logger.debug(cbt.Request.Initiator + ": " + cbt.Request.Params)
-        elif cbt.Request.Action == "LOG_INFO" or cbt.Request.Action == "info":
-            self.logger.info(cbt.Request.Initiator + ": " + cbt.Request.Params)
-        elif cbt.Request.Action == "LOG_WARNING" or cbt.Request.Action == 'warning':
+    def process_cbt(self, cbt):
+        if cbt.OpType == "Request":
+            # Extracting the logging level information from the CBT action tag
+            if cbt.Request.Action == "LOG_DEBUG" or cbt.Request.Action == "debug":
+                self.logger.debug("{0}: {1}".format(cbt.Request.Initiator, cbt.Request.Params))
+                cbt.SetResponse(None, True)
+            elif cbt.Request.Action == "LOG_INFO" or cbt.Request.Action == "info":
+                self.logger.info(cbt.Request.Initiator + ": " + cbt.Request.Params)
+                cbt.SetResponse(None, True)
+            elif cbt.Request.Action == "LOG_WARNING" or cbt.Request.Action == 'warning':
                 self.logger.warning(cbt.Request.Initiator + ": " + cbt.Request.Params)
-        elif cbt.Request.Action == "LOG_ERROR" or cbt.Request.Action == 'error':
+                cbt.SetResponse(None, True)
+            elif cbt.Request.Action == "LOG_ERROR" or cbt.Request.Action == 'error':
                 self.logger.error(cbt.Request.Initiator + ": " + cbt.Request.Params)
-        elif cbt.Request.Action == "pktdump":
-            self.pktdump(message=cbt.Request.Params.get('message'),
-                         dump=cbt.Request.Params.get('dump'))
-        elif cbt.Request.Action == "LOG_QUERY_CONFIG":
-            cbt.SetResponse("Logger", cbt.Request.Initiator, self.CMConfig, True)
-            self.CFxHandle.CompleteCBT(cbt)
-        else:
-            log = '{0}: unrecognized CBT {1} received from {2}'\
-                    .format(cbt.Request.Recipient, cbt.Request.Action, cbt.Request.Initiator)
-            self.registerCBT('Logger', 'warning', log)
+                cbt.SetResponse(None, True)
+            elif cbt.Request.Action == "pktdump":
+                self.pktdump(message=cbt.Request.Params.get('message'),
+                             dump=cbt.Request.Params.get('dump'))
+                cbt.SetResponse(None, True)
+            elif cbt.Request.Action == "LOG_QUERY_CONFIG":
+                cbt.SetResponse(self._cm_config, True)
+            else:
+                log = "Unsupported CBT action in request {0}".format(cbt)
+                self.logger.warning("{0}: {1}".format(self._module_name, log))
+            self._cfx_handle.complete_cbt(cbt)
+        elif cbt.OpType == "Response":
+            print(cbt) #TODO remove before release
+            self.free_cbt(cbt)
 
     def timer_method(self):
         pass
