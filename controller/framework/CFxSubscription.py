@@ -39,4 +39,4 @@ class CFxSubscription(object):
 
     def post_update(self, msg):
         for sink in self._subscribers:
-            self._owner.registerCBT(sink.__class__.__name__, self._subscription_name, msg)
+            self._owner.register_cbt(sink.__class__.__name__, self._subscription_name, msg)

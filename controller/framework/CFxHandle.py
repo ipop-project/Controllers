@@ -52,39 +52,39 @@ class CFxHandle(object):
 
     def submit_cbt(self, cbt):
         # submit CBT to the CFx
-        self.__cfx_object.submitCBT(cbt)
+        self.__cfx_object.submit_cbt(cbt)
 
     def create_cbt(self, initiator='', recipient='', action='', data=''):
         # create and return a CBT with optional parameters
         cbt = CBT(initiator, recipient, action, data)
-        self._owned_cbts[cbt.Tag] = cbt
+        self._owned_cbts[cbt.tag] = cbt
         return cbt
 
     def create_linked_cbt(self, parent):
         cbt = self.create_cbt()
-        cbt.Parent = parent
-        parent.ChildCount = parent.ChildCount + 1
+        cbt.parent = parent
+        parent.child_count = parent.child_count + 1
         return cbt
 
     def get_parent_cbt(self, cbt):
-        return cbt.Parent
+        return cbt.parent
 
     def free_cbt(self, cbt):
-        if not cbt.ChildCount == 0:
+        if not cbt.child_count == 0:
             raise RuntimeError("Invalid attempt to free a linked CBT")
-        if not cbt.Parent is None:
-            cbt.Parent.ChildCount = cbt.Parent.ChildCount - 1
-            cbt.Parent = None
+        if not cbt.parent is None:
+            cbt.parent.child_count = cbt.parent.child_count - 1
+            cbt.parent = None
         # explicitly deallocate CBT
-        self._owned_cbts.pop(cbt.Tag, None)
+        self._owned_cbts.pop(cbt.tag, None)
         del cbt
 
     def complete_cbt(self, cbt):
-        cbt.Completed = True
-        self._pending_cbts.pop(cbt.Tag, None)
-        if not cbt.ChildCount == 0:
+        cbt.completed = True
+        self._pending_cbts.pop(cbt.tag, None)
+        if not cbt.child_count == 0:
             raise RuntimeError("Invalid attempt to complete a CBT with outstanding dependencies")
-        self.__cfx_object.submitCBT(cbt)
+        self.__cfx_object.submit_cbt(cbt)
 
     def initialize(self):
         # intialize the CM
@@ -125,7 +125,7 @@ class CFxHandle(object):
             cbt = self.__get_cbt()
 
             # break on special termination CBT
-            if cbt.Request.Action == 'CFX_TERMINATE':
+            if cbt.request.action == 'CFX_TERMINATE':
                 self._terminate_flag = True
                 module_name = self._cm_instance.__class__.__name__
                 logging.info("{0} exiting".format(module_name))
@@ -133,8 +133,8 @@ class CFxHandle(object):
                 break
             else:
                 try:
-                    if not cbt.Completed:
-                        self._pending_cbts[cbt.Tag] = cbt
+                    if not cbt.completed:
+                        self._pending_cbts[cbt.tag] = cbt
                     self._cm_instance.process_cbt(cbt)
                 except SystemExit:
                     sys.exit()
@@ -149,8 +149,8 @@ class CFxHandle(object):
                              "    action    {2}:\n"
                              "    data      {3}:\n"
                              "    traceback:\n{4}"
-                             .format(cbt.Request.Initiator, cbt.Request.Recipient, cbt.Request.Action,
-                                     cbt.Request.Params, traceback.format_exc())
+                             .format(cbt.request.initiator, cbt.request.recipient, cbt.request.action,
+                                     cbt.request.params, traceback.format_exc())
                     )
 
                     self.submit_cbt(log_cbt)

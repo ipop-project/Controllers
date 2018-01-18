@@ -1,0 +1,89 @@
+{
+  "CFx": {
+    "Model": "GroupVPN",
+    "Overlays": [ "A0FB389", "A0FB390" ]
+  },
+  "Logger": {
+    "Enabled": true,
+    "LogLevel": "DEBUG",
+    "Device": "File",
+    "Directory": "./logs/",
+    "CtrlLogFileName": "ctrl.log",
+    "TincanLogFileName": "tincan.log",
+    "MaxFileSize": 5000000,
+    "MaxArchives": 5
+  },
+  "TincanInterface": {
+    "Enabled": true,
+    "CtrlRecvPort": 5801,
+    "ServiceAddress": "127.0.0.1",
+    "CtrlSendPort": 5800,
+    "ServiceAddress6": "::1"
+  },
+  "Signal": {
+    "Enabled": true,
+    "Overlays": {
+      "A0FB389": {
+        "HostAddress": "***",
+        "Port": "***",
+        "Username": "***@***",
+        "Password": "***",
+        "AuthenticationMethod": "PASSWORD",
+        "AcceptUntrustedServer": true
+      },
+      "A0FB390": {
+        "HostAddress": "***",
+        "Port": "***",
+        "Username": "***",
+        "Password": "***",
+        "AuthenticationMethod": "PASSWORD",
+        "AcceptUntrustedServer": true
+      }
+    },
+    "TimerInterval": 10
+  },
+  "Topology": {
+    "Enabled": true,
+    "TimerInterval": 10,
+    "Stun": [ "stun.l.google.com:19302" ],
+    "Turn": [
+      {
+        "Address": "***:***",
+        "User": "***",
+        "Password": "***"
+      },
+      {
+        "Address": "***:***",
+        "User": "***",
+        "Password": "***"
+      }
+    ],
+    "Overlays": {
+      "A0FB389": {
+        "Name": "ipop_overlay0",
+        "Type": "VNET",
+        "IP4": "10.254.0.10",
+        "IP4PrefixLen": 16,
+        "MTU4": 1200,
+        "TapName": "ipop_tap0",
+        "Description": "GVPN Network",
+        "IgnoredNetInterfaces": [ "ipop_tap0", "ipop_tap1" ],
+        "EnableIPMapping": false
+      },
+      "A0FB390": {
+        "Name": "IpopOverlay1",
+        "Type": "TUNNEL",
+        "IP4": "10.253.0.10",
+        "IP4PrefixLen": 16,
+        "MTU4": 1200,
+        "TapName": "ipop_tap1",
+        "Description": "SVPN Network",
+        "IgnoredNetInterfaces": [ "ipop_tap0", "ipop_tap1" ],
+        "EnableIPMapping": true
+      }
+    }
+  },
+  "LinkManager": {
+    "Enabled": true
+  }
+}

@@ -67,31 +67,31 @@ class Logger(ControllerModule):
         logging.PKTDUMP = 5
 
     def process_cbt(self, cbt):
-        if cbt.OpType == "Request":
+        if cbt.op_type == "Request":
             # Extracting the logging level information from the CBT action tag
-            if cbt.Request.Action == "LOG_DEBUG" or cbt.Request.Action == "debug":
-                self.logger.debug("{0}: {1}".format(cbt.Request.Initiator, cbt.Request.Params))
-                cbt.SetResponse(None, True)
-            elif cbt.Request.Action == "LOG_INFO" or cbt.Request.Action == "info":
-                self.logger.info(cbt.Request.Initiator + ": " + cbt.Request.Params)
-                cbt.SetResponse(None, True)
-            elif cbt.Request.Action == "LOG_WARNING" or cbt.Request.Action == 'warning':
-                self.logger.warning(cbt.Request.Initiator + ": " + cbt.Request.Params)
-                cbt.SetResponse(None, True)
-            elif cbt.Request.Action == "LOG_ERROR" or cbt.Request.Action == 'error':
-                self.logger.error(cbt.Request.Initiator + ": " + cbt.Request.Params)
-                cbt.SetResponse(None, True)
-            elif cbt.Request.Action == "pktdump":
-                self.pktdump(message=cbt.Request.Params.get('message'),
-                             dump=cbt.Request.Params.get('dump'))
-                cbt.SetResponse(None, True)
-            elif cbt.Request.Action == "LOG_QUERY_CONFIG":
-                cbt.SetResponse(self._cm_config, True)
+            if cbt.request.action == "LOG_DEBUG" or cbt.request.action == "debug":
+                self.logger.debug("{0}: {1}".format(cbt.request.initiator, cbt.request.params))
+                cbt.set_response(None, True)
+            elif cbt.request.action == "LOG_INFO" or cbt.request.action == "info":
+                self.logger.info(cbt.request.initiator + ": " + cbt.request.params)
+                cbt.set_response(None, True)
+            elif cbt.request.action == "LOG_WARNING" or cbt.request.action == 'warning':
+                self.logger.warning(cbt.request.initiator + ": " + cbt.request.params)
+                cbt.set_response(None, True)
+            elif cbt.request.action == "LOG_ERROR" or cbt.request.action == 'error':
+                self.logger.error(cbt.request.initiator + ": " + cbt.request.params)
+                cbt.set_response(None, True)
+            elif cbt.request.action == "pktdump":
+                self.pktdump(message=cbt.request.params.get('message'),
+                             dump=cbt.request.params.get('dump'))
+                cbt.set_response(None, True)
+            elif cbt.request.action == "LOG_QUERY_CONFIG":
+                cbt.set_response(self._cm_config, True)
             else:
                 log = "Unsupported CBT action in request {0}".format(cbt)
                 self.logger.warning("{0}: {1}".format(self._module_name, log))
             self._cfx_handle.complete_cbt(cbt)
-        elif cbt.OpType == "Response":
+        elif cbt.op_type == "Response":
             print(cbt) #TODO remove before release
             self.free_cbt(cbt)
 

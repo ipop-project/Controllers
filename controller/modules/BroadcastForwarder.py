@@ -69,7 +69,7 @@ class BroadcastForwarder(ControllerModule):
         elif cbt.action == 'BroadcastData':
             self.sendtopeer(cbt.data, "BroadcastData")
         else:
-            log = '{0}: unrecognized CBT message {1} received from {2}.Data:: {3}' \
+            log = '{0}: unrecognized CBT message {1} received from {2}. Data:: {3}' \
                 .format(cbt.recipient, cbt.action, cbt.initiator, cbt.data)
             self.register_cbt('Logger', 'warning', log)
 

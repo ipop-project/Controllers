@@ -35,7 +35,7 @@ CONFIG = {
     "Logger": {
         "Enabled": True,
         "LogLevel": "ERROR",      # Types of messages to log, <ERROR>/<WARNING>/<INFO>/<DEBUG>
-        "_Device": "File",      # Send logging output to <File> or <Console>
+        "Device": "File",      # Send logging output to <File> or <Console>
         "Directory": "./logs/",
         "CtrlLogFileName": "ctrl.log",
         "TincanLogFileName": "tincan.log",

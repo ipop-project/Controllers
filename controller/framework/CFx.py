@@ -45,16 +45,16 @@ class CFX(object):
         value as the CFxHandle reference
         '''
         self._cfx_handle_dict = {}
-        self.vpn_type = self._config['CFx']['Model']
+        self.model = self._config['CFx']['Model']
         self._event = None
         self._subscriptions = {}
         self._node_id = self.set_node_id()
         self._load_order = [] #OrderedDict()
 
-    def submitCBT(self, cbt):
-        recipient = cbt.Request.Recipient
-        if cbt.OpType == "Response":
-            recipient = cbt.Response.Recipient
+    def submit_cbt(self, cbt):
+        recipient = cbt.request.recipient
+        if cbt.op_type == "Response":
+            recipient = cbt.response.recipient
         self._cfx_handle_dict[recipient]._cm_queue.put(cbt)
 
     def initialize(self,):
@@ -91,12 +91,7 @@ class CFX(object):
         try:
             module = importlib.import_module("controller.modules.{0}".format(module_name))
         except ImportError as error:
-            if self.vpn_type == "GroupVPN":
-                module = importlib.import_module("controller.modules.gvpn.{0}".format(module_name))
-            elif self.vpn_type == "SocialVPN":
-                module = importlib.import_module("controller.modules.svpn.{0}".format(module_name))
-            else:
-                module = importlib.import_module("controller.modules.{0}.{1}".format(self.vpn_type, module_name))
+            module = importlib.import_module("controller.modules.{0}.{1}".format(self.model, module_name))
 
         # get the class with name key from module
         module_class = getattr(module, module_name)
@@ -227,12 +222,12 @@ class CFX(object):
     def terminate(self):
         for key in self._cfx_handle_dict:
             # create a special terminate CBT to terminate all the CMs
-            terminateCBT = self.create_cbt('CFx', key, 'CFX_TERMINATE', '')
+            terminate_cbt = self.create_cbt('CFx', key, 'CFX_TERMINATE', '')
 
             # clear all the queues and put the terminate CBT in all the queues
             self._cfx_handle_dict[key]._cm_queue.queue.clear()
 
-            self.submitCBT(terminateCBT)
+            self.submit_cbt(terminate_cbt)
 
         # wait for the threads to process their current CBTs and exit
             print("waiting for timer threads to exit gracefully...")

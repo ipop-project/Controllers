@@ -49,8 +49,8 @@ class LinkManager(ControllerModule):
     in the request and will be the same at both nodes.
     '''
     def req_link_endpt_from_peer(self, cbt):
-        olid = cbt.Request.Params["OverlayId"]
-        peerid = cbt.Request.Params["PeerId"]
+        olid = cbt.request.params["OverlayId"]
+        peerid = cbt.request.params["PeerId"]
 
         if self._overlays.get(olid) is None:
             self._overlays[olid] = dict(Lock=threading.Lock(), Peers=dict(), Links=dict())
@@ -74,8 +74,8 @@ class LinkManager(ControllerModule):
         msg = {
             "OverlayId" : olid,
             "LinkId" : lnkid,
-            "EncryptionEnabled" : cbt.Request.Params["EncryptionEnabled"],
-            "NodeData": cbt.Request.Params["NodeData"],
+            "EncryptionEnabled" : cbt.request.params["EncryptionEnabled"],
+            "NodeData": cbt.request.params["NodeData"],
             "TTL": time.time() + self._cm_config["InitialLinkTTL"]
         }
 
@@ -91,23 +91,23 @@ class LinkManager(ControllerModule):
 
     def CreateLinkLocalEndpt(self, cbt):
         lcbt = self.create_linked_cbt(cbt)
-        lcbt.SetRequest("TincanInterface", "TCI_CREATE_LINK", cbt.Request.Params)
+        lcbt.SetRequest("TincanInterface", "TCI_CREATE_LINK", cbt.request.params)
         self.submit_cbt(lcbt)
 
     def SendLocalLinkEndptToPeer(self, cbt):
         '''
         Completes the CBT to Signal which will send it to the remote peer
         '''
-        local_cas = cbt.Response.Data
+        local_cas = cbt.response.data
         parent_cbt = self.get_parent_cbt(cbt)
-        parent_cbt.SetResponse(local_cas, True)
+        parent_cbt.set_response(local_cas, True)
         self.complete_cbt(parent_cbt)
 
         payload = {"PeerId": peerid, "CbtData": cbtdata}
         self.register_cbt("Signal", "SIG_FORWARD_CBT", payload)
 
     def RemoveLink(self, cbt):
-        msg = cbt.Request.Params
+        msg = cbt.request.params
         #send courtesy terminate link ICC
 
     def QueryLinkDescriptor(self, cbt):
@@ -115,39 +115,39 @@ class LinkManager(ControllerModule):
 
     def process_cbt(self, cbt):
         try:
-            if cbt.OpType == "Request":
-                if cbt.Request.Action == "LNK_CREATE_LINK":
+            if cbt.op_type == "Request":
+                if cbt.request.action == "LNK_CREATE_LINK":
                     self.req_link_endpt_from_peer(cbt) #1 send via SIG
 
-                elif cbt.Request.Action == "LNK_REQ_LINK_ENDPT":
+                elif cbt.request.action == "LNK_REQ_LINK_ENDPT":
                     self.CreateLinkLocalEndpt(cbt) #2 rcvd peer req for endpt, send via TCI 
 
-                elif cbt.Request.Action == "LNK_ADD_PEER_CAS":
+                elif cbt.request.action == "LNK_ADD_PEER_CAS":
                     self.CreateLinkLocalEndpt(cbt) #4 rcvd cas from peer, sends via TCI to add peer cas
 
-                elif cbt.Request.Action == "LNK_REMOVE_LINK":
+                elif cbt.request.action == "LNK_REMOVE_LINK":
                     self.RemoveLink(cbt)
 
-                if cbt.Request.Action == "LNK_QUERY_LINK_DSCR":
+                if cbt.request.action == "LNK_QUERY_LINK_DSCR":
                     pass
 
-                if cbt.Request.Action == "SIG_PEER_PRESENCE_NOTIFY":
+                if cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
                     pass
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
                     self.register_cbt('Logger', 'LOG_WARNING', log)
 
-            if cbt.OpType == "Response":
-                if (cbt.Response.Status == False):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.Response.Message))
+            if cbt.op_type == "Response":
+                if (cbt.response.status == False):
+                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
                     return
-                if cbt.Request.Action == "SIG_FORWARD_CBT":
+                if cbt.request.action == "SIG_FORWARD_CBT":
                     self.free_cbt(cbt)
 
-                if cbt.Request.Action == "LNK_REQ_LINK_ENDPT":
+                if cbt.request.action == "LNK_REQ_LINK_ENDPT":
                     pass
 
-                if cbt.Request.Action == "TCI_CREATE_LINK":
+                if cbt.request.action == "TCI_CREATE_LINK":
                     self.SendLocalLinkEndptToPeer(cbt) #3/5 send via SIG to peer to update CAS
                     self.SendResponseToInitiator(cbt)
 
