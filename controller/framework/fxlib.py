@@ -64,7 +64,7 @@ CONFIG = {
     },
     "LinkManager": {
         "Enabled": False,
-        "TimerInterval": 10,                # Timer thread interval in sec
+        "TimerInterval": 30,                # Timer thread interval in sec
         "InitialLinkTTL": 120,              # Initial Time to Live for a p2p link in sec
         "LinkPulse": 180,                   # Time to Live for an online p2p link in sec
         "MaxConnRetry": 5,                  # Max Connection Retry attempts for each p2p link
@@ -72,7 +72,7 @@ CONFIG = {
     },
     "Topology": {
         "Enabled": False,
-        "TimerInterval": 10,            # Timer thread interval in sec
+        "TimerInterval": 30,            # Timer thread interval in sec
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "BroadcastForwarder": {

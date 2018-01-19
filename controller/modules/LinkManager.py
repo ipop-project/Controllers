@@ -30,8 +30,6 @@ class LinkManager(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(LinkManager, self).__init__(cfx_handle, module_config, module_name)
         self.maxretries = self._cm_config["MaxConnRetry"]
-        self._links = {}
-        self._links_lck = threading.Lock()
         self._peers = {}
         self._overlays = {}
 
@@ -58,18 +56,9 @@ class LinkManager(ControllerModule):
         if peerid in self._overlays[olid]["Peers"]:
             lnkid = self._overlays[olid]["Peers"][peerid] #index for quick peer->link lookup
         else:
-            lnkid = uuid.uuid4()
+            lnkid = uuid.uuid4().hex
             self._overlays[olid]["Peers"][peerid] = lnkid
             self._overlays[olid]["Peers"][peerid]["Links"][lnkid] = dict(PeerId=peerid, Stats=dict())
-
-        if self._links.get(olid) is None:
-            self._links[olid] = {}
-        if peerid in self._peers[olid]:
-            lnkid = self._peers[olid][peerid]
-        else:
-            lnkid = uuid.uuid4()
-            self._peers[olid][peerid] = lnkid
-            self._links[olid][lnkid] = dict(PeerId=peerid)
 
         msg = {
             "OverlayId" : olid,

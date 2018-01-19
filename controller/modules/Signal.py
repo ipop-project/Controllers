@@ -67,7 +67,7 @@ class JidCache:
         keys_to_be_deleted = [key for key, value in self.cache.items() if curr_time - value[1] >= 120]
         for key in keys_to_be_deleted:
             del self.cache[key]
-            #self._log("Deleted entry from JID cache {0}".format(key), severity="debug")
+            self._log("Deleted entry from JID cache {0}".format(key), severity="debug")
         self.lck.release()
 
     def lookup(node_id):
@@ -123,7 +123,7 @@ class XmppTransport:
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split('#')
                     if (pstatus == "ident"):
-                        self.presence_publisher.post_update(dict(uid_notification = peer_id, overlay_id = self.overlay_id))
+                        self.presence_publisher.post_update(dict(peer_id = peer_id, overlay_id = self.overlay_id))
                         self._log("Resolved Peer@Overlay {0}@{1} - {2}".format(peer_id[:7], self.overlay_id, presence_sender))
                         self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                     elif (pstatus == "uid?"):
@@ -131,7 +131,6 @@ class XmppTransport:
                             header = "uid!" + "#" + "None" + "#" + str(presence_sender)
                             msg = self.transport.boundjid.full + "#" + self.node_id
                             self.send_msg(presence_sender, header, msg)
-                    #elif (pstatus == "jid_uid"):
                     else:
                         self._log("Unrecognized PSTATUS: {0}".format(pstatus))
         except Exception as err:

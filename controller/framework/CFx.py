@@ -192,7 +192,7 @@ class CFX(object):
             except IOError:
                 pass
         if nodeid is None or len(nodeid) == 0:
-            nodeid = str(uuid.uuid4())
+            nodeid = str(uuid.uuid4().hex)
             with open("nid","w") as f:
                 f.write(nodeid)
         return nodeid
