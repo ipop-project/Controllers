@@ -34,74 +34,74 @@ else:
 
 class CFxHandle(object):
     def __init__(self, CFxObject):
-        self.CMQueue = Queue.Queue()  # CBT queue
-        self.CMInstance = None
-        self.CMThread = None  # CM worker thread
-        self.CMConfig = None
-        self.__CFxObject = CFxObject  # CFx object reference
-        self.joinEnabled = False
-        self.timer_thread = None
-        self.terminateFlag = False
+        self._cm_queue = Queue.Queue()  # CBT queue
+        self._cm_instance = None
+        self._cm_thread = None  # CM worker thread
+        self._cm_config = None
+        self.__cfx_object = CFxObject  # CFx object reference
+        self._join_enabled = False
+        self._timer_thread = None
+        self._terminate_flag = False
         self.interval = 1
-        self.PendingCBTs = {}
-        self.OwnedCBTs = {}
+        self._pending_cbts = {}
+        self._owned_cbts = {}
 
-    def __getCBT(self):
-        cbt = self.CMQueue.get()  # blocking call
+    def __get_cbt(self):
+        cbt = self._cm_queue.get()  # blocking call
         return cbt
 
-    def SubmitCBT(self, cbt):
+    def submit_cbt(self, cbt):
         # submit CBT to the CFx
-        self.__CFxObject.submitCBT(cbt)
+        self.__cfx_object.submit_cbt(cbt)
 
-    def createCBT(self, initiator='', recipient='', action='', data=''):
+    def create_cbt(self, initiator='', recipient='', action='', data=''):
         # create and return a CBT with optional parameters
         cbt = CBT(initiator, recipient, action, data)
-        self.OwnedCBTs[cbt.Tag] = cbt
+        self._owned_cbts[cbt.tag] = cbt
         return cbt
 
-    def CreateLinkedCBT(self, parent):
-        cbt = self.createCBT()
-        cbt.Parent = parent
-        parent.ChildCount = parent.ChildCount + 1
+    def create_linked_cbt(self, parent):
+        cbt = self.create_cbt()
+        cbt.parent = parent
+        parent.child_count = parent.child_count + 1
         return cbt
 
-    def GetParentCBT(self, cbt):
-        return cbt.Parent
+    def get_parent_cbt(self, cbt):
+        return cbt.parent
 
-    def FreeCBT(self, cbt):
-        if not cbt.ChildCount == 0:
+    def free_cbt(self, cbt):
+        if not cbt.child_count == 0:
             raise RuntimeError("Invalid attempt to free a linked CBT")
-        if not cbt.Parent is None:
-            cbt.Parent.ChildCount = cbt.Parent.ChildCount - 1
-            cbt.Parent = None
+        if not cbt.parent is None:
+            cbt.parent.child_count = cbt.parent.child_count - 1
+            cbt.parent = None
         # explicitly deallocate CBT
-        self.OwnedCBTs.pop(cbt.Tag, None)
+        self._owned_cbts.pop(cbt.tag, None)
         del cbt
 
-    def CompleteCBT(self, cbt):
-        cbt.Completed = True
-        self.PendingCBTs.pop(cbt.Tag, None)
-        if not cbt.ChildCount == 0:
+    def complete_cbt(self, cbt):
+        cbt.completed = True
+        self._pending_cbts.pop(cbt.tag, None)
+        if not cbt.child_count == 0:
             raise RuntimeError("Invalid attempt to complete a CBT with outstanding dependencies")
-        self.__CFxObject.submitCBT(cbt)
+        self.__cfx_object.submit_cbt(cbt)
 
     def initialize(self):
         # intialize the CM
-        self.CMInstance.initialize()
+        self._cm_instance.initialize()
 
         # create the worker thread, which is started by CFx
-        self.CMThread = threading.Thread(target=self.__worker)
-        self.CMThread.setDaemon(True)
+        self._cm_thread = threading.Thread(target=self.__worker)
+        self._cm_thread.setDaemon(True)
 
         # check whether CM requires join() or not
-        self.joinEnabled = True
+        self._join_enabled = True
 
-        # check if the CMConfig has timer_interval specified
+        # check if the _cm_config has timer_interval specified
         timer_enabled = False
 
         try:
-            self.interval = int(self.CMConfig['TimerInterval'])
+            self.interval = int(self._cm_config['TimerInterval'])
             timer_enabled = True
         except ValueError:
             logging.warning("Invalid timer configuration for {0}"
@@ -111,36 +111,36 @@ class CFxHandle(object):
 
         if timer_enabled:
             # create the timer worker thread, which is started by CFx
-            self.timer_thread = threading.Thread(target=self.__timer_worker,
+            self._timer_thread = threading.Thread(target=self.__timer_worker,
                                                  args=())
-            self.timer_thread.setDaemon(False)
+            self._timer_thread.setDaemon(False)
 
-    def updateTimerInterval(self, interval):
+    def update_timer_interval(self, interval):
         self.interval = interval
 
     def __worker(self):
-        # get CBT from the local queue and call processCBT() of the
+        # get CBT from the local queue and call process_cbt() of the
         # CBT recipient and passing the CBT as an argument
         while True:
-            cbt = self.__getCBT()
+            cbt = self.__get_cbt()
 
             # break on special termination CBT
-            if cbt.Request.Action == 'CFX_TERMINATE':
-                self.terminateFlag = True
-                module_name = self.CMInstance.__class__.__name__
+            if cbt.request.action == 'CFX_TERMINATE':
+                self._terminate_flag = True
+                module_name = self._cm_instance.__class__.__name__
                 logging.info("{0} exiting".format(module_name))
-                self.CMInstance.terminate()
+                self._cm_instance.terminate()
                 break
             else:
                 try:
-                    if not cbt.Completed:
-                        self.PendingCBTs[cbt.Tag] = cbt
-                    self.CMInstance.processCBT(cbt)
+                    if not cbt.completed:
+                        self._pending_cbts[cbt.tag] = cbt
+                    self._cm_instance.process_cbt(cbt)
                 except SystemExit:
                     sys.exit()
                 except:
-                    logCBT = self.createCBT(
-                        initiator=self.CMInstance.__class__.__name__,
+                    log_cbt = self.create_cbt(
+                        initiator=self._cm_instance.__class__.__name__,
                         recipient='Logger',
                         action='warning',
                         data="CBT exception:\n"
@@ -149,47 +149,47 @@ class CFxHandle(object):
                              "    action    {2}:\n"
                              "    data      {3}:\n"
                              "    traceback:\n{4}"
-                             .format(cbt.Request.Initiator, cbt.Request.Recipient, cbt.Request.Action,
-                                     cbt.Request.Params, traceback.format_exc())
+                             .format(cbt.request.initiator, cbt.request.recipient, cbt.request.action,
+                                     cbt.request.params, traceback.format_exc())
                     )
 
-                    self.SubmitCBT(logCBT)
+                    self.submit_cbt(log_cbt)
 
     def __timer_worker(self):
         # call the timer_method of each CM every timer_interval seconds
         event = threading.Event()
         while True:
-            if self.terminateFlag:
+            if self._terminate_flag:
                 break
             event.wait(self.interval)
 
             try:
-                self.CMInstance.timer_method()
+                self._cm_instance.timer_method()
             except SystemExit:
                 sys.exit()
             except:
-                logCBT = self.createCBT(
-                    initiator=self.CMInstance.__class__.__name__,
+                log_cbt = self.create_cbt(
+                    initiator=self._cm_instance.__class__.__name__,
                     recipient='Logger',
                     action='warning',
                     data="timer_method exception:\n{0}".format(traceback.format_exc())
                 )
-                self.SubmitCBT(logCBT)
+                self.submit_cbt(log_cbt)
 
-    def queryParam(self, ModuleName, ParamName=""):
-        pv = self.__CFxObject.queryParam(ModuleName, ParamName)
+    def query_param(self, ModuleName, param_name=""):
+        pv = self.__cfx_object.query_param(ModuleName, param_name)
         return pv
 
     # Caller is the subscription source
-    def PublishSubscription(self, SubscriptionName):
-        return self.__CFxObject.PublishSubscription(self.CMInstance.__class__.__name__, SubscriptionName, self.CMInstance)
+    def publish_subscription(self, subscription_name):
+        return self.__cfx_object.publish_subscription(self._cm_instance.__class__.__name__, subscription_name, self._cm_instance)
 
-    def RemoveSubscription(self, sub):
-        self.__CFxObject.RemoveSubscriptionPublisher(sub)
+    def remove_subscription(self, sub):
+        self.__cfx_object.RemoveSubscriptionPublisher(sub)
 
     # Caller is the subscription sink
-    def StartSubscription(self, OwnerName, SubscriptionName):
-        self.__CFxObject.StartSubscription(OwnerName, SubscriptionName, self.CMInstance)
+    def start_subscription(self, owner_name, subscription_name):
+        self.__cfx_object.start_subscription(owner_name, subscription_name, self._cm_instance)
 
-    def EndSubscription(self, OwnerName, SubscriptionName):
-        self.__CFxObject.EndSubscription(OwnerName, SubscriptionName, self.CMInstance)
+    def end_subscription(self, owner_name, subscription_name):
+        self.__cfx_object.end_subscription(owner_name, subscription_name, self._cm_instance)

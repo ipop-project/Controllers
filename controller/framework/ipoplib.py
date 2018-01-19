@@ -44,7 +44,7 @@ CTL_CONFIGURE_LOGGING = {
         "Request": {
           "Command": "ConfigureLogging",
           "Level": "WARNING",
-          "Device": "FILE",
+          "Device": "File",
           "Directory": "./logs/",
           "Filename": "tincan_log",
           "MaxArchives": 10,

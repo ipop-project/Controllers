@@ -34,15 +34,15 @@ else:
 
 
 class StatReport(ControllerModule):
-    def __init__(self, CFxHandle, paramDict, ModuleName):
-        super(StatReport, self).__init__(CFxHandle, paramDict, ModuleName)
+    def __init__(self, cfx_handle, module_config, module_name):
+        super(StatReport, self).__init__(cfx_handle, module_config, module_name)
         self._stat_data = {"ready": False}
         self.submit_time = 0
 
     def initialize(self):
-        self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
+        self.register_cbt('Logger', 'info', "{0} Loaded".format(self._module_name))
 
-    def processCBT(self, cbt):
+    def process_cbt(self, cbt):
         if cbt.OpType == "Response":
             if (cbt.Response.Status == False):
                 self.registerCBT("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.Response.Message))
@@ -53,6 +53,7 @@ class StatReport(ControllerModule):
         else:
             log = "Unsupported CBT OpType {0}".format(cbt)
             self.registerCBT('Logger', 'LOG_WARNING', log)
+
 
     def timer_method(self):
         cur_time = datetime.datetime.now()
@@ -70,6 +71,7 @@ class StatReport(ControllerModule):
     def request_report(self):
         self.registerCBT("Signal","QUERY_REPORTING_DATA")
         
+
 
     def create_report(self, cbt):
         nid = self.CMConfig["NodeId"]
@@ -96,8 +98,8 @@ class StatReport(ControllerModule):
         data = json.dumps(_stat_data["data"])
         url = None
         try:
-            url = "http://" + self.CMConfig["StatServerAddress"] + ":" +\
-                str(self.CMConfig["StatServerPort"]) + "/api/submit"
+            url = "http://" + self._cm_config["StatServerAddress"] + ":" +\
+                str(self._cm_config["StatServerPort"]) + "/api/submit"
             req = urllib2.Request(url=url, data=data)
             req.add_header("Content-Type", "application/json")
             res = urllib2.urlopen(req)
@@ -106,9 +108,9 @@ class StatReport(ControllerModule):
                 log = "succesfully reported status to the stat-server {0}\n"\
                         "HTTP response code:{1}, msg:{2}"\
                         .format(url, res.getcode(), res.read())
-                self.registerCBT('Logger', 'info', log)
+                self.register_cbt('Logger', 'info', log)
             else:
                 raise
         except Exception as error:
             log = "statistics report failed to the stat-server ({0}).Error: {1}".format(url, error)
-            self.registerCBT('Logger', 'warning', log)
+            self.register_cbt('Logger', 'warning', log)
