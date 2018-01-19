@@ -188,14 +188,9 @@ class CFX(object):
                 if self.CONFIG.get(key, None):
                     self.CONFIG[key].update(loaded_config[key])
 
-<<<<<<< HEAD
 
-
-    def SetNodeId(self, config):
-=======
     def SetNodeId(self,):
         config = self.CONFIG["CFx"]
->>>>>>> bef921d3e86ff27cca50c86b00239a93d7dccc0a
         # if NodeId is not specified in Config file, generate NodeId
         nodeid = config.get("NodeId", None)
         if nodeid is None or len(nodeid) == 0:

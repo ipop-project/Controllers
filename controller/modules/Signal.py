@@ -326,6 +326,16 @@ class Signal(ControllerModule):
                             CBTQ[peerid] = Queue(maxsize=0)
                             CBTQ[peerid].put(cbt_data)
                         xmppobj.send_presence(pstatus="uid?#" + peerid)
+                elif cbt.Request.Action == "QUERY_REPORTING_DATA":
+                    stats = {}
+                    for overlay_id in self.CMConfig["Overlays"]:
+                        stats[overlay_id] = {
+                            "xmpp_host": _circles[overlay_id]["Transport"].host,
+                            "xmpp_username": _circles[overlay_id]["Transport"].user
+                        }
+                    cbt.SetResponse(self.ModuleName,cbt.RequestInitiator,stats,True)
+                    self.CFxHandle.CompleteCBT(cbt)
+                    return
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
                     self.registerCBT('Logger', 'LOG_WARNING', log)
