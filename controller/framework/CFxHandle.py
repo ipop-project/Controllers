@@ -54,9 +54,9 @@ class CFxHandle(object):
         # submit CBT to the CFx
         self.__cfx_object.submit_cbt(cbt)
 
-    def create_cbt(self, initiator='', recipient='', action='', data=''):
+    def create_cbt(self, initiator="", recipient="", action="", params=""):
         # create and return a CBT with optional parameters
-        cbt = CBT(initiator, recipient, action, data)
+        cbt = CBT(initiator, recipient, action, params)
         self._owned_cbts[cbt.tag] = cbt
         print("create_cbt:{0}".format(cbt))
         return cbt
@@ -102,7 +102,7 @@ class CFxHandle(object):
         timer_enabled = False
 
         try:
-            self.interval = int(self._cm_config['TimerInterval'])
+            self.interval = int(self._cm_config["TimerInterval"])
             timer_enabled = True
         except ValueError:
             logging.warning("Invalid timer configuration for {0}"
@@ -126,7 +126,7 @@ class CFxHandle(object):
             cbt = self.__get_cbt()
 
             # break on special termination CBT
-            if cbt.request.action == 'CFX_TERMINATE':
+            if cbt.request.action == "CFX_TERMINATE":
                 self._terminate_flag = True
                 module_name = self._cm_instance.__class__.__name__
                 logging.info("{0} exiting".format(module_name))
@@ -142,8 +142,8 @@ class CFxHandle(object):
                 except:
                     log_cbt = self.create_cbt(
                         initiator=self._cm_instance.__class__.__name__,
-                        recipient='Logger',
-                        action='warning',
+                        recipient="Logger",
+                        action="LOG_WARNING",
                         data="CBT exception:\n"
                              "    initiator {0}\n"
                              "    recipient {1}:\n"
@@ -171,8 +171,8 @@ class CFxHandle(object):
             except:
                 log_cbt = self.create_cbt(
                     initiator=self._cm_instance.__class__.__name__,
-                    recipient='Logger',
-                    action='warning',
+                    recipient="Logger",
+                    action="LOG_WARNING",
                     data="timer_method exception:\n{0}".format(traceback.format_exc())
                 )
                 self.submit_cbt(log_cbt)

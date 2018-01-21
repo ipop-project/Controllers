@@ -125,7 +125,7 @@ class XmppTransport:
             status = presence["status"]
             if presence_receiver == self.overlay_descr["Username"] and presence_sender != self.transport.boundjid.full:
                 if (status != "" and "#" in status):
-                    pstatus, peer_id = status.split('#')
+                    pstatus, peer_id = status.split("#")
                     if (pstatus == "ident"):
                         self.presence_publisher.post_update(dict(peer_id = peer_id, overlay_id = self.overlay_id))
                         self._log("Resolved Peer@Overlay {0}@{1} - {2}".format(peer_id[:7], self.overlay_id, presence_sender))
@@ -144,8 +144,8 @@ class XmppTransport:
     # extracts the setup and payload, and takes suitable action.
     def message_listener(self, msg):
         try:
-            receiver_jid = JID(msg['to'])
-            sender_jid = msg['from']
+            receiver_jid = JID(msg["to"])
+            sender_jid = msg["from"]
             receiver = str(receiver_jid.user) + "@" + str(receiver_jid.domain)
             self._log("Received XMPP Msg {0}".format(msg), "LOG_DEBUG")
 
@@ -153,8 +153,8 @@ class XmppTransport:
             if sender_jid == self.transport.boundjid.full:
                 return
             # extract setup and content
-            setup = msg['Ipop']['setup']
-            payload = msg['Ipop']['payload']
+            setup = msg["Ipop"]["setup"]
+            payload = msg["Ipop"]["payload"]
             msg_type, target_uid, target_jid = setup.split("#")
 
             if msg_type == "uid!":
@@ -189,11 +189,11 @@ class XmppTransport:
         if msg_payload is None:
             msg_payload = "IDENTITY: {0}".format(xmppobj.username)
         msg = self.transport.Message()
-        msg['to'] = peer_jid
+        msg["to"] = peer_jid
         msg["from"] = self.transport.boundjid.full
-        msg['type'] = 'chat'
-        msg['Ipop']['setup'] = header
-        msg['Ipop']['payload'] = msg_payload
+        msg["type"] = "chat"
+        msg["Ipop"]["setup"] = header
+        msg["Ipop"]["payload"] = msg_payload
         msg.send()
         self._log("XMPP send msg: {0}".format(str(msg)),"LOG_DEBUG")
 
@@ -217,7 +217,7 @@ class XmppTransport:
             er_log = "x509 Authentication is enbabled but credentials exists in IPOP configuration file; x509 will be used."
             self._log(er_log, "LOG_WARNING")
         if auth_method == "x509":
-            self.transport = sleekxmpp.ClientXMPP(None, None, sasl_mech='EXTERNAL')
+            self.transport = sleekxmpp.ClientXMPP(None, None, sasl_mech="EXTERNAL")
             self.transport.ssl_version = ssl.PROTOCOL_TLSv1
             self.transport.ca_certs = self.overlay_descr["TrustStore"]
             self.transport.certfile = self.overlay_descr["CertDirectory"] + self.overlay_descr["CertFile"]
@@ -227,7 +227,7 @@ class XmppTransport:
             if user is None:
                 raise RuntimeError("No username is provided in IPOP configuration file.")
             if pswd is None and self._keyring_installed is True:
-                pswd = keyring.get_password("ipop", self.overlay_descr['Username'])
+                pswd = keyring.get_password("ipop", self.overlay_descr["Username"])
             if pswd is None:
                 # Prompt user to enter password
                 print("{0}@{1} Password: ".format(user, self.overlay_id))
@@ -237,17 +237,17 @@ class XmppTransport:
                     pswd = str(raw_input())
                 if self._keyring_installed is True:
                     try:
-                        keyring.set_password("ipop", xmpp_ele['Username'], pswd)
+                        keyring.set_password("ipop", xmpp_ele["Username"], pswd)
                     except Exception as err:
                         self._log("Failed to store password in keyring. {0}".format(str(err)), "LOG_ERROR")
         else:
             raise RuntimeError("Invalid authentication method specified in configuration: {0}".format(auth_method))
 
-        self.transport = sleekxmpp.ClientXMPP(user, pswd, sasl_mech='PLAIN')
+        self.transport = sleekxmpp.ClientXMPP(user, pswd, sasl_mech="PLAIN")
         del pswd
         # Server SSL Authenication required by default
         if self.overlay_descr.get("AcceptUntrustedServer", False) is True:
-            self.transport.register_plugin("feature_mechanisms", pconfig={'unencrypted_plain': True})
+            self.transport.register_plugin("feature_mechanisms", pconfig={"unencrypted_plain": True})
             self.transport.use_tls = False
         else:
             self.transport.ca_certs = self.overlay_descr["TrustStore"]
@@ -266,8 +266,8 @@ class Signal(ControllerModule):
         self._circles = {}
         self._keyring_installed = False
 
-    def _log(self, msg, severity='info'):
-        self.register_cbt('Logger', severity, msg)
+    def _log(self, msg, severity="info"):
+        self.register_cbt("Logger", severity, msg)
 
     def create_transport_instance(self, overlay_id, overlay_descr, jid_cache, jid_refresh_q):
         self._circles[overlay_id]["Transport"] = XmppTransport(overlay_id,
@@ -331,18 +331,18 @@ class Signal(ControllerModule):
                         xmppobj.send_presence(pstatus="uid?#" + peerid)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
-                    self.register_cbt('Logger', 'LOG_WARNING', log)
+                    self.register_cbt("Logger", "LOG_WARNING", log)
 
             elif cbt.op_type == "Response":
                 if (cbt.response.status == False):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
                     self.free_cbt(cbt)
                     return
                 self.free_cbt(cbt)
 
         except Exception as err:
-            erlog = "Exception trace, continuing ...:\n{0}".format(traceback.format_exc())
-            self.register_cbt('Logger', 'LOG_WARNING', erlog)
+            erlog = "Exception: {0}".format(str(err))
+            self.register_cbt("Logger", "LOG_WARNING", erlog)
 
     def timer_method(self):
         # Clean up JID cache for all XMPP connections
