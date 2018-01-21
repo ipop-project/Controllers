@@ -58,6 +58,7 @@ class CFxHandle(object):
         # create and return a CBT with optional parameters
         cbt = CBT(initiator, recipient, action, data)
         self._owned_cbts[cbt.tag] = cbt
+        print("create_cbt:{0}".format(cbt))
         return cbt
 
     def create_linked_cbt(self, parent):

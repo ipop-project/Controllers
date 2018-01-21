@@ -52,9 +52,13 @@ class IpopMsg(ElementBase):
     interfaces = set(("setup", "payload", "node_id", "overlay_id"))
 
 class JidCache:
-    def __init__(self,):
+    def __init__(self, cm_mod):
         self.lck = threading.Lock()
         self.cache = {}
+        self.cm_mod = cm_mod
+
+    def _log(self, msg, severity="info"):
+        self.cm_mod._log(msg, severity)
 
     def add_entry(self, node_id, jid):
         self.lck.acquire()
@@ -282,7 +286,7 @@ class Signal(ControllerModule):
         for overlay_id in self._cm_config["Overlays"]:
             overlay_descr = self._cm_config["Overlays"][overlay_id]
             self._circles[overlay_id] = {}
-            self._circles[overlay_id]["JidCache"] = JidCache()
+            self._circles[overlay_id]["JidCache"] = JidCache(self)
             self._circles[overlay_id]["XmppUser"] = overlay_descr["Username"] #TODO: Is this needed?
             self._circles[overlay_id]["IsEventHandlerInitialized"] = False #TODO: Is this needed?
             self._circles[overlay_id]["JidRefreshQ"] = {}

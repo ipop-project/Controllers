@@ -20,7 +20,10 @@
 # THE SOFTWARE.
 
 from controller.framework.ControllerModule import ControllerModule
-import socket,select,json,ast
+import socket
+import select
+import json
+import ast
 import controller.framework.ipoplib as ipoplib
 import controller.framework.fxlib as fxlib
 from threading import Thread
@@ -30,7 +33,6 @@ import uuid
 class TincanInterface(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(TincanInterface, self).__init__(cfx_handle, module_config, module_name)
-        self._tid_counter = 0  # control transaction Ids
         self._tincan_listener_thread = None    # UDP listener thread object
         self.control_cbt = {}
         # Preference for IPv6 control link
@@ -79,7 +81,7 @@ class TincanInterface(ControllerModule):
                         self.register_cbt("TincanInterface", "TCI_TINCAN_REQ", ctl["IPOP"]["Request"])
 
     def CreateControlLink(self,):
-        self.register_cbt("Logger", "info", "Creating Tincan control link")
+        self.register_cbt("Logger", "LOG_INFO", "Creating Tincan control link")
         cbt = self.create_cbt(self._module_name, self._module_name, "TCI_CREATE_CTRL_LINK")
         self.control_cbt[cbt.tag] = cbt
         ctl = ipoplib.CTL_CREATE_CTRL_LINK
@@ -92,8 +94,6 @@ class TincanInterface(ControllerModule):
             ctl["IPOP"]["Request"]["AddressFamily"] = "af_inetv6"
             ctl["IPOP"]["Request"]["IP"] = self._cm_config["ServiceAddress6"]
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
-        #ctl["IPOP"]["Request"]["Owner"] = self._module_name
         self.SendControl(json.dumps(ctl))
 
     def CreateControlLinkResp(self, cbt):
@@ -114,8 +114,6 @@ class TincanInterface(ControllerModule):
             ctl["IPOP"]["Request"]["MaxFileSize"] = log_cfg["MaxFileSize"]
             ctl["IPOP"]["Request"]["ConsoleLevel"] = log_cfg["ConsoleLevel"]
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
-        #ctl["IPOP"]["Request"]["Owner"] = self._module_name
         self.SendControl(json.dumps(ctl))
 
     def ConfigureTincanLoggingResp(self, cbt):
@@ -127,7 +125,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_CREATE_LINK
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
@@ -145,7 +142,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_CREATE_OVERLAY
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["StunAddress"] = msg["StunAddress"]
@@ -166,7 +162,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_CREATE_OVERLAY
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
@@ -178,7 +173,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_QUERY_CAS
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
@@ -190,7 +184,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_QUERY_LINK_STATS
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
@@ -202,7 +195,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_QUERY_OVERLAY_INFO
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
@@ -213,7 +205,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_CREATE_OVERLAY
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
@@ -224,7 +215,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_CREATE_LINK
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["LinkId"] = msg["LinkId"]
@@ -235,7 +225,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_SEND_ICC
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
@@ -249,7 +238,6 @@ class TincanInterface(ControllerModule):
         msg = cbt.request.params
         ctl = ipoplib.CTL_SET_IGNORED_NET_INTERFACES
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        self._tid_counter += 1
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]

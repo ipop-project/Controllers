@@ -119,7 +119,7 @@ CTL_SEND_ICC = {
       "Tag": 0,
       "ControlType": "TincanRequest",
       "Request": {
-        "Command": "ICC",
+        "Command": "SendIcc",
         "RecipientMac": "",
         "TapName": "",
         "Recipient": "peer_uid",
