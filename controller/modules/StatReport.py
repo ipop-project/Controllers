@@ -38,6 +38,7 @@ class StatReport(ControllerModule):
         super(StatReport, self).__init__(cfx_handle, module_config, module_name)
         self._stat_data = {"ready": False}
         self.submit_time = 0
+        self.registerCBT('Logger', 'LOG_DEBUG', "Inside __init__ of StatReport")
 
     def initialize(self):
         self.register_cbt('Logger', 'info', "{0} Loaded".format(self._module_name))
@@ -57,7 +58,7 @@ class StatReport(ControllerModule):
 
     def timer_method(self):
         cur_time = datetime.datetime.now()
-        if self._stat_data["data_ready"]:
+        if self._stat_data["ready"]:
             self.submit_report()
             print(self._stat_data)
             self.submit_time = datetime.datetime.now()
