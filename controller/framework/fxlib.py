@@ -115,7 +115,7 @@ def gen_ip6(uid, ip6=None):
 
 # Generates UID from IPv4
 def gen_uid(ip4):
-    return hashlib.sha1(ip4.encode('utf-8')).hexdigest()[:CONFIG["CFx"]["uid_size"]]
+    return hashlib.sha1(ip4.encode("utf-8")).hexdigest()[:CONFIG["CFx"]["uid_size"]]
 
 # Function to send UDP message to Tincan
 def send_msg(sock, msg):
@@ -125,4 +125,4 @@ def send_msg(sock, msg):
     else:
         dest = (CONFIG["TincanInterface"]["localhost"],
                 CONFIG["TincanInterface"]["CtrlSendPort"])
-    return sock.sendto(bytes(msg.encode('utf-8')), dest)
+    return sock.sendto(bytes(msg.encode("utf-8")), dest)

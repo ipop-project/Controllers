@@ -40,12 +40,12 @@ class CFX(object):
     def __init__(self):
         self._config = {}
         self.parse_config()
-        '''
+        """
         CFxHandleDict is a dict containing the references to CFxHandles of all CMs with key as the module name and
         value as the CFxHandle reference
-        '''
+        """
         self._cfx_handle_dict = {}
-        self.model = self._config['CFx']['Model']
+        self.model = self._config["CFx"]["Model"]
         self._event = None
         self._subscriptions = {}
         self._node_id = self.set_node_id()
@@ -61,9 +61,9 @@ class CFX(object):
         # check for circular dependencies in the configuration file
         dependency_graph = {}
         for key in self._config:
-            if key != 'CFx':
+            if key != "CFx":
                 try:
-                    dependency_graph[key] = self._config[key]['Dependencies']
+                    dependency_graph[key] = self._config[key]["Dependencies"]
                 except Exception as error:
                     pass
 
@@ -142,7 +142,7 @@ class CFX(object):
         return any(visit(v) for v in g)
 
     def __handler(self, signum=None, frame=None):
-        print('Signal handler called with signal ', signum)
+        print("Signal handler called with signal ", signum)
 
     def parse_config(self):
         self._config = fxlib.CONFIG
@@ -201,11 +201,11 @@ class CFX(object):
         self._event = threading.Event()
 
         # Since signal.pause() is not avaialble on windows, use event.wait()
-        # with a timeout to catch KeyboardInterrupt. Without timeout, it's
+        # with a timeout to catch KeyboardInterrupt. Without timeout, it"s
         # not possible to catch KeyboardInterrupt because event.wait() is
         # a blocking call without timeout. The if condition checks if the os
         # is windows.
-        if os.name == 'nt':
+        if os.name == "nt":
             while True:
                 try:
                     self._event.wait(1)
@@ -222,7 +222,7 @@ class CFX(object):
     def terminate(self):
         for key in self._cfx_handle_dict:
             # create a special terminate CBT to terminate all the CMs
-            terminate_cbt = self.create_cbt('CFx', key, 'CFX_TERMINATE', '')
+            terminate_cbt = self.create_cbt("CFx", key, "CFX_TERMINATE", "")
 
             # clear all the queues and put the terminate CBT in all the queues
             self._cfx_handle_dict[key]._cm_queue.queue.clear()
