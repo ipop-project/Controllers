@@ -24,6 +24,7 @@ from controller.framework.CFx import CFX
 import time
 import math
 import uuid
+import json
 
 
 class Topology(ControllerModule, CFX):
@@ -34,31 +35,37 @@ class Topology(ControllerModule, CFX):
     def initialize(self):
         self._sub_presence = self._cfx_handle.start_subscription("Signal", "SIG_PEER_PRESENCE_NOTIFY")
         for olid in self._cm_config["Overlays"]:
-            param = {
-                "StunAddress": self._cm_config["Stun"][0],
-                "TurnAddress": self._cm_config["Turn"][0]["Address"],
-                "TurnPass": self._cm_config["Turn"][0]["Password"],
-                "TurnUser": self._cm_config["Turn"][0]["User"],
-                "Type": self._cm_config["Overlays"][olid]["Type"],
-                "EnableIPMapping": self._cm_config["Overlays"][olid].get("EnableIPMapping", False),
-                "TapName": self._cm_config["Overlays"][olid]["TapName"],
-                "IP4": self._cm_config["Overlays"][olid]["IP4"],
-                "MTU4": self._cm_config["Overlays"][olid]["MTU4"],
-                "PrefixLen4": self._cm_config["Overlays"][olid]["IP4PrefixLen"],
-                "OverlayId": olid
-            }
-            self.register_cbt("TincanInterface", "TCI_CREATE_OVERLAY", param)
-            self._overlays[olid] = dict(Peers=set())
-        self.register_cbt("Logger", "LOG_INFO", "{0} Module loaded".format(self._module_name))
+            self._overlays[olid] = (
+                dict(Descriptor = dict(IsReady=False, State="Bootstrapping"),
+                    Peers=set()))
+            self.create_overlay(self._cm_config["Overlays"][olid], olid)
+        self.register_cbt("Logger", "LOG_INFO", "{0} Module loaded"
+                          .format(self._module_name))
 
     def terminate(self):
         pass
 
-    def connect_to_peer(sef, overlay_id, peer_id):
+    def create_overlay(self, overlay_cfg, overlay_id):
+        param = {
+            "StunAddress": self._cm_config["Stun"][0],
+            "TurnAddress": self._cm_config["Turn"][0]["Address"],
+            "TurnPass": self._cm_config["Turn"][0]["Password"],
+            "TurnUser": self._cm_config["Turn"][0]["User"],
+            "Type": overlay_cfg["Type"],
+            "EnableIPMapping": overlay_cfg.get("EnableIPMapping", False),
+            "TapName": overlay_cfg["TapName"],
+            "IP4": overlay_cfg["IP4"],
+            "MTU4": overlay_cfg["MTU4"],
+            "PrefixLen4": overlay_cfg["IP4PrefixLen"],
+            "OverlayId": overlay_id
+        }
+        self.register_cbt("TincanInterface", "TCI_CREATE_OVERLAY", param)
+
+    def connect_to_peer(self, overlay_id, peer_id):
         #only send the create link request is we have overlay info from tincan
         #this is where we get the local fingerprint/mac and more which necessary
         #for creating the link
-        if (self._overlays[overlay_id].get("Descriptor") is not None
+        if (self._overlays[overlay_id]["Descriptor"]["IsReady"]
             and self._overlays[overlay_id]["Peers"][peer_id] != "PeerStateConnected"):
             local_descr = {
                 "OverlayId": overlay_id,
@@ -70,35 +77,57 @@ class Topology(ControllerModule, CFX):
         
     def update_overlay_info(self, cbt):
         if cbt.response.status:
-            self._overlays[cbt.request.params["OverlayId"]] = {
-                "Descriptor": cbt.response.data
-            }
+            olid = cbt.request.params["OverlayId"]
+            self._overlays[olid]["Descriptor"]["IsReady"] = cbt.response.status
+            cbt_data = json.loads(cbt.response.data)
+            self._overlays[olid]["Descriptor"]["MAC"] = cbt_data["MAC"]
+
+            self._overlays[olid]["Descriptor"]["PrefixLen"] = cbt_data["IP4PrefixLen"]
+            self._overlays[olid]["Descriptor"]["VIP4"] = cbt_data["VIP4"]
+            self._overlays[olid]["Descriptor"]["TapName"] = cbt_data["TapName"]
+            self._overlays[olid]["Descriptor"]["Fingerprint"] = cbt_data["Fingerprint"]
         else:
             self.register_cbt("Logger", "LOG_WARNING",
                 "Query overlay info failed {0}".format(cbt.response.data))
+            #retry the query
+            self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", cbt.request.params)
+
+    def create_overlay_resp_handler(self, cbt):
+        if cbt.response.status == True:
+            self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", {"OverlayId": cbt.request.params["OverlayId"]})
+        else:
+            self.register_cbt("Logger", "LOG_WARNING", cbt.response.data)
+            #retry creating the overlay once
+            if self._overlays[cbt.request.params["OverlayId"]].get("RetryCount", 0) < 1:
+                self._overlays[cbt.request.params["OverlayId"]]["RetryCount"] = 1
+                self.register_cbt("TincanInterface", "TCI_CREATE_OVERLAY", cbt.request.params)
+
+    def peer_presence_handler(self, cbt):
+        peer = cbt.request.params
+        self._overlays[peer["overlay_id"]]["Peers"].add(peer["peer_id"])
+        self._overlays[peer["overlay_id"]]["Descriptor"]["State"] = "Isolated"
+        self.connect_to_peer(peer["overlay_id"], peer["peer_id"])
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
             if cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
-                peer = cbt.request.param
-                if self._overlays.get(peer.overlay_id) is not None:
-                    #if self._overlays[peer.overlay_id].get("Peers") is None:
-                    #    self._overlays[peer.overlay_id]["Peers"] =  set()
-                    self._overlays[peer.overlay_id]["Peers"].add(peer_id)
+                self.peer_presence_handler(cbt)
                 cbt.set_response(None, True)
                 self.complete_cbt(cbt)
         elif cbt.op_type == "Response":
+            if cbt.request.action == "TCI_CREATE_OVERLAY":
+                self.create_overlay_resp_handler(cbt)
             if cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
                 self.update_overlay_info(cbt)
             self.free_cbt(cbt)
+
         pass
 
     def timer_method(self):
         try:
-            for overlay_id in self._overlays:
-                self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", {"OverlayId": overlay_id})
-                for peer_id in self._overlays[overlay_id]["Peers"]:
-                    self.connect_to_peer(overlay_id, peer_id)
-
+            #for overlay_id in self._overlays:
+            #    for peer_id in self._overlays[overlay_id]["Peers"]:
+            #        self.connect_to_peer(overlay_id, peer_id)
+            pass
         except Exception as err:
             self.register_cbt("Logger", "LOG_ERROR", "Exception in BTM timer:" + str(err))
