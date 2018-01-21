@@ -19,10 +19,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import json
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import time
 import sys
+import threading
+from collections import defaultdict
+
 from controller.framework.ControllerModule import ControllerModule
+
+import requests
+
 py_ver = sys.version_info[0]
 # Check Python version and load appropriate urllib modules
 if py_ver == 3:
@@ -41,49 +50,67 @@ class OverlayVisualizer(ControllerModule):
         # Datastructure to store Node network details
         self.ipop_interface_details = {}
 
+        self.node_id = str(self.CFxHandle.queryParam("CFx", "NodeId"))
+        # The visualizer dataset which is forwarded to the collector service
+        self.vis_ds = dict(NodeId=self.node_id, Data=defaultdict(dict))
+        # Its lock
+        self.vis_ds_lock = threading.Lock()
+
     def initialize(self):
         self.register_cbt('Logger', 'info', "{0} Loaded".format(self.module_name))
         # Query VirtualNetwork Interface details from TincanInterface module
+
         ipop_interfaces = self._cfx_handle.query_param("TincanInterface", "Vnets")
         # Create a dict of available net interfaces for collecting visualizer data
         for interface_details in ipop_interfaces:
           interface_name = interface_details["TapName"]
           self.ipop_interface_details[interface_name] = {}
 
+        # We're using the pub-sub model here to gather data for the visualizer
+        # from other modules
+        # Using this publisher, the OverlayVisualizer publishes events in the
+        # timer_method() and all subscribing modules are expected to reply
+        # with the data they want to forward to the visualiser
+        self.vis_req_publisher = self.CFxHandle.PublishSubscription("VIS_DATA_REQ")
+
     def process_cbt(self, cbt):
-        msg = cbt.data
-        interface_name = msg.pop("interface_name")
-        # Check whether TapName exists in the internal table, if not create the entry
-        if interface_name not in self.ipop_interface_details.keys():
-            self.ipop_interface_details[interface_name] = {}
-        self.ipop_interface_details[interface_name].update(msg)
+        msg = cbt.Response.Data
+
+        # self.vis_ds belongs to the critical section as
+        # it may be updated in timer_method concurrently
+        self.vis_ds_lock.acquire()
+        for mod_name in msg:
+            for ovrl_id in msg[mod_name]:
+                self.vis_ds["Data"][ovrl_id][mod_name] \
+                        = msg[mod_name][ovrl_id]
+        self.vis_ds_lock.release()
 
     def timer_method(self):
-        # Increment the counter with every timer thread invocation
-        #self.interval_counter += 1
-        #if self.interval_counter % self._cm_config["TopologyDataQueryInterval"] == 0:
-        for interface_name in self.ipop_interface_details.keys():
-          self.register_cbt("BaseTopologyManager", "GET_VISUALIZER_DATA", {"interface_name": interface_name})
-        #if self.interval_counter % self._cm_config["WebServiceDataPostInterval"] == 0:
+        # to keep track of requests which failed
+        failed_reqs = dict()
+
         try:
-            # Iterate across the IPOP interface details table to send Node network details
-            for interface_name in self.ipop_interface_details.keys():
-                vis_req_msg = self.ipop_interface_details[interface_name]
-                if vis_req_msg:
-                  vis_req_msg["node_name"] = self._cm_config["NodeName"]
-                  vis_req_msg["name"] = vis_req_msg["uid"]
-                  vis_req_msg["uptime"] = int(time.time())
-                  message = json.dumps(vis_req_msg).encode("utf8")
-                  req = urllib2.Request(url=self.vis_address, data=message)
-                  req.add_header("Content-Type", "application/json")
-                  res = urllib2.urlopen(req)
-                  # Check whether data has been successfully sent to the Visualizer
-                  if res.getcode() != 200:
-                      raise
-        except Exception as err:
+            self.vis_ds_lock.acquire()
+            print('Vis gonna send', self.vis_ds)
+            req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
+            resp = requests.put(req_url, data=json.dumps(self.vis_ds),
+                          headers={"Content-Type": "application/json"})
+            resp.raise_for_status()
+
+            # flush old data if request was successful
+            self.vis_ds = dict(NodeId=self.node_id, Data=defaultdict(dict))
+        except requests.exceptions.RequestException as err:
+            # collect failed request
+            # failed_reqs[ovrl_id] = ovrl_data
             log = "Failed to send data to the IPOP Visualizer webservice({0}). Exception: {1}".\
                 format(self.vis_address, str(err))
-            self.register_cbt('Logger', 'error', log)
+            self.registerCBT('Logger', 'error', log)
+        finally:
+            self.vis_ds_lock.release()
+
+        # Now that all the accumulated data has been dealth with, we request
+        # more data
+        self.vis_req_publisher.PostUpdate(None)
 
     def terminate(self):
         pass

@@ -33,7 +33,7 @@
     ],
     "Stun": [ "stun.l.google.com:19302" ]
   },
-  "XmppClient": {
+  "Signal": {
     "XmppDetails": [
       {
         "Username": "***",
@@ -46,5 +46,12 @@
       }
     ],
     "TimerInterval": 10
+  },
+  "OverlayVisualizer": {
+    "Enabled": true,
+    "WebServiceAddress": "10.244.18.150:8080/insertdata",
+    "TimerInterval": 15,
+    "NodeName": "host-w10",
+    "dependencies": [ "Logger" ]
   }
 }

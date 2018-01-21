@@ -36,17 +36,21 @@ class LinkManager(ControllerModule):
     def initialize(self):
         self.register_cbt('Logger', 'LOG_INFO', "Module Loaded")
 
-    '''
-    The caller provides the overlay id which contains the link and the peer id
-    which the link connects. The link id is generated here and returned to the
-    caller. This is done only after the local enpoint is created, but can
-    occur before the link is ready. The link status can be queried to determine
-    when it is writeable.
-    We request creatation of the remote endpoint first to avoid cleaning up a
-    local endpoint if the peer denies our request. The link id is communicated
-    in the request and will be the same at both nodes.
-    '''
+        # Subscribe for data request notifications from OverlayVisualizer
+        self.CFxHandle.StartSubscription("OverlayVisualizer",
+                                         "VIS_DATA_REQ")
+
     def req_link_endpt_from_peer(self, cbt):
+        """
+        The caller provides the overlay id which contains the link and the peer id
+        which the link connects. The link id is generated here and returned to the
+        caller. This is done only after the local enpoint is created, but can
+        occur before the link is ready. The link status can be queried to determine
+        when it is writeable.
+        We request creatation of the remote endpoint first to avoid cleaning up a
+        local endpoint if the peer denies our request. The link id is communicated
+        in the request and will be the same at both nodes.
+        """
         olid = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["PeerId"]
 
@@ -59,7 +63,6 @@ class LinkManager(ControllerModule):
             lnkid = uuid.uuid4().hex
             self._overlays[olid]["Peers"][peerid] = lnkid
             self._overlays[olid]["Peers"][peerid]["Links"][lnkid] = dict(PeerId=peerid, Stats=dict())
-
         msg = {
             "OverlayId" : olid,
             "LinkId" : lnkid,
@@ -78,15 +81,16 @@ class LinkManager(ControllerModule):
         self.register_cbt("Signal", "SIG_FORWARD_CBT", payload)
         return lnkid
 
+
     def CreateLinkLocalEndpt(self, cbt):
         lcbt = self.create_linked_cbt(cbt)
         lcbt.SetRequest("TincanInterface", "TCI_CREATE_LINK", cbt.request.params)
         self.submit_cbt(lcbt)
 
     def SendLocalLinkEndptToPeer(self, cbt):
-        '''
+        """
         Completes the CBT to Signal which will send it to the remote peer
-        '''
+        """
         local_cas = cbt.response.data
         parent_cbt = self.get_parent_cbt(cbt)
         parent_cbt.set_response(local_cas, True)
@@ -109,26 +113,54 @@ class LinkManager(ControllerModule):
                     self.req_link_endpt_from_peer(cbt) #1 send via SIG
 
                 elif cbt.request.action == "LNK_REQ_LINK_ENDPT":
-                    self.CreateLinkLocalEndpt(cbt) #2 rcvd peer req for endpt, send via TCI 
+                    #2 rcvd peer req for endpt, send via TCI 
+                    self.CreateLinkLocalEndpt(cbt)
 
                 elif cbt.request.action == "LNK_ADD_PEER_CAS":
-                    self.CreateLinkLocalEndpt(cbt) #4 rcvd cas from peer, sends via TCI to add peer cas
+                    #4 rcvd cas from peer, sends via TCI to add peer cas
+                    self.CreateLinkLocalEndpt(cbt)
 
                 elif cbt.request.action == "LNK_REMOVE_LINK":
                     self.RemoveLink(cbt)
 
-                if cbt.request.action == "LNK_QUERY_LINK_DSCR":
+                elif cbt.request.action == "LNK_QUERY_LINK_DSCR":
                     pass
 
-                if cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
+                elif cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
                     pass
+
+                elif cbt.request.action == "VIS_DATA_REQ":
+                    # dummy data for testing the OverlayVisualizer
+                    dummy_link_data = {
+                        "LinkId": "test-link-id",
+                        "PeerId": "test-peer-id",
+                        "Stats": {
+                            "rem_addr": "10.24.95.100:53468",
+                            "sent_bytes_second": "50000"
+                        }
+                    }
+
+                    dummy_lmngr_data = {
+                        "LinkManager": {
+                            "test-overlay-id": {
+                                "test-link-id": dummy_link_data
+                            }
+                        }
+                    }
+                    cbt.SetResponse(initiator=self.ModuleName,
+                            recipient=cbt.Request.Initiator,
+                            data=vis_data_resp,
+                            status=True)
+                    self.CFxHandle.CompleteCBT(cbt)
+
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
                     self.register_cbt('Logger', 'LOG_WARNING', log)
 
             if cbt.op_type == "Response":
                 if (cbt.response.status == False):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                    self.register_cbt("Logger", "LOG_WARNING",
+                            "CBT failed {0}".format(cbt.response.Message))
                     return
                 if cbt.request.action == "SIG_FORWARD_CBT":
                     self.free_cbt(cbt)
@@ -141,7 +173,7 @@ class LinkManager(ControllerModule):
                     self.SendResponseToInitiator(cbt)
 
                 self.free_cbt(cbt)
-                
+
         except Exception as err:
             erlog = "Exception trace, continuing ...:\n{0}".format(traceback.format_exc())
             self.register_cbt('Logger', 'LOG_WARNING', erlog)
