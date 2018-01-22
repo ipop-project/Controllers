@@ -329,15 +329,15 @@ class Signal(ControllerModule):
                             CBTQ[peerid] = Queue(maxsize=0)
                             CBTQ[peerid].put(cbt_data)
                         xmppobj.send_presence(pstatus="uid?#" + peerid)
-                elif cbt.Request.Action == "QUERY_REPORTING_DATA":
+                elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
                     stats = {}
-                    for overlay_id in self.CMConfig["Overlays"]:
+                    for overlay_id in self._cm_config["Overlays"]:
                         stats[overlay_id] = {
-                            "xmpp_host": _circles[overlay_id]["Transport"].host,
-                            "xmpp_username": _circles[overlay_id]["Transport"].user
+                            "xmpp_host": self._circles[overlay_id]["Transport"].host,
+                            "xmpp_username": self._circles[overlay_id]["Transport"].overlay_descr.get("Username", None)
                         }
-                    cbt.SetResponse(self.ModuleName,cbt.RequestInitiator,stats,True)
-                    self.CFxHandle.CompleteCBT(cbt)
+                    cbt.set_response(stats, True)
+                    self.complete_cbt(cbt)
                     return
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
@@ -351,7 +351,7 @@ class Signal(ControllerModule):
                 self.free_cbt(cbt)
 
         except Exception as err:
-            erlog = "Exception trace, continuing ...:\n{0}".format(traceback.format_exc())
+            erlog = "Exception trace:\n{0}".format(str(err))
             self.register_cbt('Logger', 'LOG_WARNING', erlog)
 
     def timer_method(self):

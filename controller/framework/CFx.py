@@ -245,8 +245,8 @@ class CFX(object):
             elif module_name == "CFx":
                 if param_name == "ipopVerRel":
                     return self._config["ipopVerRel"]
-                if param_name == "NodeId":
-                    return self._node_id
+                if param_name == "Model":
+                    return self.model
             else:
                 if param_name == "":
                     return None
