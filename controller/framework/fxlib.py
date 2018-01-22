@@ -21,12 +21,15 @@
 
 import hashlib
 import socket
-ipopVerMjr = "17"
-ipopVerMnr = "07"
+ipopVerMjr = "18"
+ipopVerMnr = "01"
 ipopVerRev = "0"
 ipopVerRel = "{0}.{1}.{2}".format(ipopVerMjr, ipopVerMnr, ipopVerRev)
 
 # set default config values
+MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
+               "Signal", "LinkManager", "Topology", "Broadcast",
+               "IPMulticast", "ArpCache", "UsageReport"]
 CONFIG = {
     "CFx": {
         "NodeId": "",  # Attribute to store node UID needed by Statreport and SVPN
@@ -42,6 +45,13 @@ CONFIG = {
         "MaxFileSize": 1000000,   # 1MB sized log files
         "MaxArchives": 5,   # Keep up to 5 files of history
         "ConsoleLevel": None
+    },
+    "OverlayVisualizer": {
+        "Enabled": False,
+        "TimerInterval": 5,                # Timer thread interval
+        "WebServiceAddress": ":8080/IPOP", # Visualizer webservice URL
+        "NodeName": "",                    # Node Name as seen from the UI
+        "Dependencies": ["Logger"]
     },
     "TincanInterface": {
         "Enabled": False,
@@ -75,7 +85,7 @@ CONFIG = {
         "TimerInterval": 30,            # Timer thread interval in sec
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
-    "BroadcastForwarder": {
+    "Broadcast": {
         "Enabled": False,
         "TimerInterval": 10,                # Timer thread interval in sec
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
@@ -88,20 +98,11 @@ CONFIG = {
         "Enabled": False,
         "Dependencies": ["BroadcastForwarder"]
     },
-    "OverlayVisualizer": {
-        "Enabled": False,           # Set this field to True for sending data to the visualizer
-        "TimerInterval": 5,                         # Timer thread interval
-        "WebServiceAddress": ":8080/insertdata",    # Visualizer webservice URL
-        #"TopologyDataQueryInterval": 5,             # Interval to query TopologyManager to get network stats
-        #"WebServiceDataPostInterval": 5,            # Interval to send data to the visualizer
-        "NodeName": "",                             # Node Name as seen from the UI
-        "Dependencies": ["Logger"]
-    },
-    "StatReport": {
+    "UsageReport": {
         "Enabled": False,
         "TimerInterval": 200,
-        "StatServerAddress": "metrics.ipop-project.org",
-        "StatServerPort": 8080,
+        "ServerAddress": "metrics.ipop-project.org",
+        "ServerPort": 8080,
         "Dependencies": ["Logger"]
     }
 }
@@ -112,17 +113,3 @@ def gen_ip6(uid, ip6=None):
     for i in range(0, 16, 4):
         ip6 += ":" + uid[i:i + 4]
     return ip6
-
-# Generates UID from IPv4
-def gen_uid(ip4):
-    return hashlib.sha1(ip4.encode("utf-8")).hexdigest()[:CONFIG["CFx"]["uid_size"]]
-
-# Function to send UDP message to Tincan
-def send_msg(sock, msg):
-    if socket.has_ipv6:
-        dest = (CONFIG["TincanInterface"]["localhost6"],
-                CONFIG["TincanInterface"]["CtrlSendPort"])
-    else:
-        dest = (CONFIG["TincanInterface"]["localhost"],
-                CONFIG["TincanInterface"]["CtrlSendPort"])
-    return sock.sendto(bytes(msg.encode("utf-8")), dest)

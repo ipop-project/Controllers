@@ -33,12 +33,23 @@ class Topology(ControllerModule, CFX):
         self._overlays = {}
 
     def initialize(self):
-        self._sub_presence = self._cfx_handle.start_subscription("Signal", "SIG_PEER_PRESENCE_NOTIFY")
+        self._sub_presence = self._cfx_handle.start_subscription("Signal",
+                 "SIG_PEER_PRESENCE_NOTIFY")
         for olid in self._cm_config["Overlays"]:
             self._overlays[olid] = (
                 dict(Descriptor = dict(IsReady=False, State="Bootstrapping"),
                     Peers=set()))
             self.create_overlay(self._cm_config["Overlays"][olid], olid)
+        try:
+            # Subscribe for data request notifications from OverlayVisualizer
+            self._cfx_handle.start_subscription("OverlayVisualizer",
+                    "VIS_DATA_REQ")
+        except NameError as e:
+            #if "OverlayVisualizer" in e.args:
+            self.register_cbt("Logger", "LOG_WARNING",
+                        "OverlayVisualizer module not loaded." \
+                            " Visualization data will not be sent.")
+
         self.register_cbt("Logger", "LOG_INFO", "{0} Module loaded"
                           .format(self._module_name))
 
@@ -74,7 +85,7 @@ class Topology(ControllerModule, CFX):
                 "NodeData": self._overlays[overlay_id]["Descriptor"]
                 }
             self.register_cbt("LinkManger", "LNK_CREATE_LINK", peer_descr)
-        
+
     def update_overlay_info(self, cbt):
         if cbt.response.status:
             olid = cbt.request.params["OverlayId"]
@@ -114,6 +125,21 @@ class Topology(ControllerModule, CFX):
                 self.peer_presence_handler(cbt)
                 cbt.set_response(None, True)
                 self.complete_cbt(cbt)
+            elif cbt.request.action == "VIS_DATA_REQ":
+                dummy_topo_data = {
+                    "test-overlay-id": {
+                        "InterfaceName": "ipop_tap0",
+                        "GeoIP": "1.2.3.4",
+                        "VIP4": "2.3.4.5",
+                        "PrefixLen": 16, 
+                        "MAC": "FF:FF:FF:FF:FF"
+                    }
+                }
+                vis_data_resp = dict(Topology=dummy_topo_data)
+
+                cbt.set_response(data=vis_data_resp, status=True)
+                self.complete_cbt(cbt) 
+
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_CREATE_OVERLAY":
                 self.create_overlay_resp_handler(cbt)

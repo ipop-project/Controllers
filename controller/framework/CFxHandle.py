@@ -144,7 +144,7 @@ class CFxHandle(object):
                         initiator=self._cm_instance.__class__.__name__,
                         recipient="Logger",
                         action="LOG_WARNING",
-                        data="CBT exception:\n"
+                        params="CBT exception:\n"
                              "    initiator {0}\n"
                              "    recipient {1}:\n"
                              "    action    {2}:\n"
@@ -173,12 +173,12 @@ class CFxHandle(object):
                     initiator=self._cm_instance.__class__.__name__,
                     recipient="Logger",
                     action="LOG_WARNING",
-                    data="timer_method exception:\n{0}".format(traceback.format_exc())
+                    params="timer_method exception:\n{0}".format(traceback.format_exc())
                 )
                 self.submit_cbt(log_cbt)
 
-    def query_param(self, ModuleName, param_name=""):
-        pv = self.__cfx_object.query_param(ModuleName, param_name)
+    def query_param(self, param_name=""):
+        pv = self.__cfx_object.query_param(param_name)
         return pv
 
     # Caller is the subscription source
