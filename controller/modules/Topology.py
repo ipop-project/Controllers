@@ -43,9 +43,16 @@ class Topology(ControllerModule, CFX):
         self.register_cbt("Logger", "LOG_INFO", "{0} Module loaded"
                           .format(self._module_name))
 
-        # Subscribe for data request notifications from OverlayVisualizer
-        self._cfx_handle.start_subscription("OverlayVisualizer",
-                "VIS_DATA_REQ")
+        try:
+            # Subscribe for data request notifications from OverlayVisualizer
+            self._cfx_handle.start_subscription("OverlayVisualizer",
+                    "VIS_DATA_REQ")
+        except NameError as e:
+            if "OverlayVisualizer" in e.message:
+                self.register_cbt("Logger", "LOG_WARNING",
+                        "OverlayVisualizer module not loaded." \
+                            " Visualization data will not be sent.")
+            raise
 
     def terminate(self):
         pass

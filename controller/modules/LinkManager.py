@@ -36,9 +36,16 @@ class LinkManager(ControllerModule):
     def initialize(self):
         self.register_cbt('Logger', 'LOG_INFO', "Module Loaded")
 
-        # Subscribe for data request notifications from OverlayVisualizer
-        self._cfx_handle.start_subscription("OverlayVisualizer",
-                "VIS_DATA_REQ")
+        try:
+            # Subscribe for data request notifications from OverlayVisualizer
+            self._cfx_handle.start_subscription("OverlayVisualizer",
+                    "VIS_DATA_REQ")
+        except NameError as e:
+            if "OverlayVisualizer" in e.message:
+                self.register_cbt("Logger", "LOG_WARNING",
+                        "OverlayVisualizer module not loaded." \
+                            " Visualization data will not be sent.")
+            raise
 
     def req_link_endpt_from_peer(self, cbt):
         """
@@ -51,6 +58,7 @@ class LinkManager(ControllerModule):
         local endpoint if the peer denies our request. The link id is communicated
         in the request and will be the same at both nodes.
         """
+
         olid = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["PeerId"]
 

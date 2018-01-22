@@ -279,13 +279,16 @@ class CFX(object):
     def remove_subscription(self, sub):
         sub.post_update("SUBSCRIPTION_SOURCE_TERMINATED")
         if sub._owner_name not in self._subscriptions:
-            raise NameError("Failed to remove the subscription source. No such provider name exists")
+            raise NameError("Failed to remove subscription source \"{}\"." \
+                    " No such provider name exists." \
+                    .format(sub._owner_name))
         self._subscriptions[sub._owner_name].remove(sub)
 
     def find_subscription(self, owner_name, subscription_name):
         sub = None
         if owner_name not in self._subscriptions:
-            raise NameError("The specified subscription provider was not found. No such name exists")
+            raise NameError("The specified subscription provider \"{}\"" \
+                    " was not found. No such name exists.".format(owner_name))
         for sub in self._subscriptions[owner_name]:
             if sub._subscription_name == subscription_name:
                 return sub

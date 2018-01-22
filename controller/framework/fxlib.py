@@ -44,13 +44,11 @@ CONFIG = {
         "ConsoleLevel": None
     },
     "OverlayVisualizer": {
-        "Enabled": True,           # Set this field to True for sending data to the visualizer
+        "Enabled": False,           # Set this field to True for sending data to the visualizer
         "TimerInterval": 5,                         # Timer thread interval
         "WebServiceAddress": ":8080/insertdata",    # Visualizer webservice URL
-        #"TopologyDataQueryInterval": 5,             # Interval to query TopologyManager to get network stats
-        #"WebServiceDataPostInterval": 5,            # Interval to send data to the visualizer
         "NodeName": "",                             # Node Name as seen from the UI
-        "dependencies": ["Logger"]
+        "Dependencies": ["Logger"]
     },
     "TincanInterface": {
         "Enabled": False,
@@ -77,8 +75,7 @@ CONFIG = {
         "InitialLinkTTL": 120,              # Initial Time to Live for a p2p link in sec
         "LinkPulse": 180,                   # Time to Live for an online p2p link in sec
         "MaxConnRetry": 5,                  # Max Connection Retry attempts for each p2p link
-        "Dependencies": ["Logger", "TincanInterface", "Signal",
-                 "OverlayVisualizer"]
+        "Dependencies": ["Logger", "TincanInterface", "Signal"]
     },
     "Topology": {
         "Enabled": False,
@@ -97,15 +94,6 @@ CONFIG = {
     "ArpCache": {
         "Enabled": False,
         "Dependencies": ["BroadcastForwarder"]
-    },
-    "OverlayVisualizer": {
-        "Enabled": False,           # Set this field to True for sending data to the visualizer
-        "TimerInterval": 5,                         # Timer thread interval
-        "WebServiceAddress": ":8080/insertdata",    # Visualizer webservice URL
-        #"TopologyDataQueryInterval": 5,             # Interval to query TopologyManager to get network stats
-        #"WebServiceDataPostInterval": 5,            # Interval to send data to the visualizer
-        "NodeName": "",                             # Node Name as seen from the UI
-        "Dependencies": ["Logger"]
     },
     "StatReport": {
         "Enabled": False,
