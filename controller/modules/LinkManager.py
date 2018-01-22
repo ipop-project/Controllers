@@ -37,8 +37,8 @@ class LinkManager(ControllerModule):
         self.register_cbt('Logger', 'LOG_INFO', "Module Loaded")
 
         # Subscribe for data request notifications from OverlayVisualizer
-        self.CFxHandle.StartSubscription("OverlayVisualizer",
-                                         "VIS_DATA_REQ")
+        self._cfx_handle.start_subscription("OverlayVisualizer",
+                "VIS_DATA_REQ")
 
     def req_link_endpt_from_peer(self, cbt):
         """
@@ -151,7 +151,7 @@ class LinkManager(ControllerModule):
                             recipient=cbt.Request.Initiator,
                             data=vis_data_resp,
                             status=True)
-                    self.CFxHandle.CompleteCBT(cbt)
+                    self._cfx_handle.CompleteCBT(cbt)
 
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)

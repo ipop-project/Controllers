@@ -144,7 +144,7 @@ class CFxHandle(object):
                         initiator=self._cm_instance.__class__.__name__,
                         recipient="Logger",
                         action="LOG_WARNING",
-                        data="CBT exception:\n"
+                        params="CBT exception:\n"
                              "    initiator {0}\n"
                              "    recipient {1}:\n"
                              "    action    {2}:\n"
@@ -173,7 +173,7 @@ class CFxHandle(object):
                     initiator=self._cm_instance.__class__.__name__,
                     recipient="Logger",
                     action="LOG_WARNING",
-                    data="timer_method exception:\n{0}".format(traceback.format_exc())
+                    params="timer_method exception:\n{0}".format(traceback.format_exc())
                 )
                 self.submit_cbt(log_cbt)
 

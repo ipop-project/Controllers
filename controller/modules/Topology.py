@@ -44,8 +44,8 @@ class Topology(ControllerModule, CFX):
                           .format(self._module_name))
 
         # Subscribe for data request notifications from OverlayVisualizer
-        self.CFxHandle.StartSubscription("OverlayVisualizer",
-                                         "VIS_DATA_REQ")
+        self._cfx_handle.start_subscription("OverlayVisualizer",
+                "VIS_DATA_REQ")
 
     def terminate(self):
         pass
@@ -134,7 +134,7 @@ class Topology(ControllerModule, CFX):
                 cbt.SetResponse(initiator=self.ModuleName,
                              recipient=cbt.Request.Initiator, data=vis_data_resp,
                              status=True)
-                self.CFxHandle.CompleteCBT(cbt) 
+                self._cfx_handle.CompleteCBT(cbt) 
 
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_CREATE_OVERLAY":

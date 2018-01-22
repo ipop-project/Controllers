@@ -88,60 +88,21 @@ class CFX(object):
 
     def load_module(self, module_name):
         # import the modules dynamically
-        if 'Enabled' in self.CONFIG[module_name]:
-            module_enabled = self.CONFIG[module_name]['Enabled']
-        else:
-            module_enabled = True
-
-        if (module_name not in self.loaded_modules) and module_enabled and module_name != "Tincan":
-            # load the dependencies of the module
-            self.load_dependencies(module_name)
-
-            # import the modules dynamically
-            try:
-                module = importlib.import_module("controller.modules.{0}".format(module_name))
-            except ImportError as error:
-                # NOTE: this bit is important as importing a module may fail
-                # because an import inside it failed. If we don't handle this
-                # corner case, we will get an import error with the
-                # (incorrect) message that module_name does not exist.
-                if not module_name in error.message:
-                    failed_dep_name = error.message.split(" ")[-1]
-                    raise ImportError("Failed to load module \"{}\" due to an" \
-                                      " ImportError on dependency \"{}\"" \
-                                      .format(module_name, failed_dep_name))
-                if self.vpn_type == "GroupVPN":
-                    module = importlib.import_module("controller.modules.gvpn.{0}".format(module_name))
-                elif self.vpn_type == "SocialVPN":
-                    module = importlib.import_module("controller.modules.svpn.{0}".format(module_name))
-                else:
-                    module = importlib.import_module("controller.modules.{0}.{1}".format(self.vpn_type, module_name))
-
-            # get the class with name key from module
-            module_class = getattr(module, module_name)
-
-            # create a CFxHandle object for each module
-            handle = CFxHandle(self)
-            instance = module_class(handle, self.CONFIG[module_name], module_name)
-
-            handle.CMInstance = instance
-            handle.CMConfig = self.CONFIG[module_name]
-
-            # store the CFxHandle object references in the
-            # dict with module name as the key
-            self.CFxHandleDict[module_name] = handle
-
-            # intialize all the CFxHandles which in turn initialize the CMs
-            handle.initialize()
-
-            self.loaded_modules.append(module_name)
-
-    def load_dependencies(self, module_name):
-        # load the dependencies of the module as specified in the configuration file
         try:
-            module = importlib.import_module("controller.modules.{0}".format(module_name))
+            module = importlib.import_module("controller.modules.{0}" \
+                    .format(module_name))
         except ImportError as error:
-            module = importlib.import_module("controller.modules.{0}.{1}".format(self.model, module_name))
+            # NOTE: this bit is important as importing a module may fail
+            # because an import inside it failed. If we don't handle this
+            # corner case, we will get an import error with the
+            # (incorrect) message that module_name does not exist.
+            if not module_name in error.message:
+                failed_dep_name = error.message.split(" ")[-1]
+                raise ImportError("Failed to load module \"{}\" due to an" \
+                                  " ImportError on dependency \"{}\"" \
+                                  .format(module_name, failed_dep_name))
+            module = importlib.import_module("controller.modules.{0}.{1}" \
+                    .format(self.model, module_name))
 
         # get the class with name key from module
         module_class = getattr(module, module_name)
@@ -318,15 +279,13 @@ class CFX(object):
     def remove_subscription(self, sub):
         sub.post_update("SUBSCRIPTION_SOURCE_TERMINATED")
         if sub._owner_name not in self._subscriptions:
-            raise NameError("Failed to remove the subscription source." \
-                    " No such provider name exists")
+            raise NameError("Failed to remove the subscription source. No such provider name exists")
         self._subscriptions[sub._owner_name].remove(sub)
 
     def find_subscription(self, owner_name, subscription_name):
         sub = None
         if owner_name not in self._subscriptions:
-            raise NameError("The specified subscription provider was not" \
-                    " found. No such name exists")
+            raise NameError("The specified subscription provider was not found. No such name exists")
         for sub in self._subscriptions[owner_name]:
             if sub._subscription_name == subscription_name:
                 return sub

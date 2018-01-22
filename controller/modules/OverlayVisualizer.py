@@ -50,14 +50,14 @@ class OverlayVisualizer(ControllerModule):
         # Datastructure to store Node network details
         self.ipop_interface_details = {}
 
-        self.node_id = str(self.CFxHandle.queryParam("CFx", "NodeId"))
+        self.node_id = str(self._cfx_handle.query_param("CFx", "NodeId"))
         # The visualizer dataset which is forwarded to the collector service
         self.vis_ds = dict(NodeId=self.node_id, Data=defaultdict(dict))
         # Its lock
         self.vis_ds_lock = threading.Lock()
 
     def initialize(self):
-        self.register_cbt('Logger', 'info', "{0} Loaded".format(self.module_name))
+        self.register_cbt('Logger', 'info', "{0} Loaded".format(self._module_name))
         # Query VirtualNetwork Interface details from TincanInterface module
 
         ipop_interfaces = self._cfx_handle.query_param("TincanInterface", "Vnets")
@@ -71,10 +71,10 @@ class OverlayVisualizer(ControllerModule):
         # Using this publisher, the OverlayVisualizer publishes events in the
         # timer_method() and all subscribing modules are expected to reply
         # with the data they want to forward to the visualiser
-        self.vis_req_publisher = self.CFxHandle.PublishSubscription("VIS_DATA_REQ")
+        self.vis_req_publisher = self._cfx_handle.publish_subscription("VIS_DATA_REQ")
 
     def process_cbt(self, cbt):
-        msg = cbt.Response.Data
+        msg = cbt.response.data
 
         # self.vis_ds belongs to the critical section as
         # it may be updated in timer_method concurrently
@@ -91,7 +91,8 @@ class OverlayVisualizer(ControllerModule):
 
         try:
             self.vis_ds_lock.acquire()
-            print('Vis gonna send', self.vis_ds)
+            print "Visualizer is going to send" \
+                    " {}".format(json.dumps(self.vis_ds))
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
             resp = requests.put(req_url, data=json.dumps(self.vis_ds),
                           headers={"Content-Type": "application/json"})
@@ -102,15 +103,16 @@ class OverlayVisualizer(ControllerModule):
         except requests.exceptions.RequestException as err:
             # collect failed request
             # failed_reqs[ovrl_id] = ovrl_data
-            log = "Failed to send data to the IPOP Visualizer webservice({0}). Exception: {1}".\
-                format(self.vis_address, str(err))
+            log = "Failed to send data to the IPOP Visualizer" \
+                    " webservice({0}). Exception: {1}" \
+                            .format(self.vis_address, str(err))
             self.registerCBT('Logger', 'error', log)
         finally:
             self.vis_ds_lock.release()
 
         # Now that all the accumulated data has been dealth with, we request
         # more data
-        self.vis_req_publisher.PostUpdate(None)
+        self.vis_req_publisher.post_update(None)
 
     def terminate(self):
         pass
