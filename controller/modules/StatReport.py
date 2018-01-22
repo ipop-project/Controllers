@@ -70,15 +70,16 @@ class StatReport(ControllerModule):
         self.lck.acquire()
         if self._stat_data["ready"]:
         	data = self._stat_data["data"]
-        	self._stat_data = None
+        	self._stat_data = {}
         	self._stat_data["ready"] = False
+        	self._stat_data["pending_request"] = False
         	self.lck.release()
-            self.submit_report(data)
-            self.submit_time = datetime.datetime.now()
-        if not self._stat_data["pending_request"] and cur_time > self.submit_time:
-        	self._stat_data["pending_request"] = True
-        	self.lck.release()
-        	self.request_report()
+        	self.submit_report(data)
+        	self.submit_time = datetime.datetime.now()
+    	elif not self._stat_data["pending_request"] and cur_time > self.submit_time:
+    		self._stat_data["pending_request"] = True
+    		self.lck.release()
+    		self.request_report()
         	
 
 
