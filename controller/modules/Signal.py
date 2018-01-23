@@ -299,7 +299,7 @@ class Signal(ControllerModule):
         try:
             if cbt.op_type == "Request":
                 message = cbt.request.params
-                if cbt.request.action == "SIG_FORWARD_CBT":
+                if cbt.request.action == "SIG_REMOTE_ACTION":
                     peerid = message["PeerId"]
                     overlay_id = message["OverlayId"]
                     message["InitiatorId"] = self._cm_config["NodeId"]
@@ -308,7 +308,7 @@ class Signal(ControllerModule):
                         cbt.set_response("Overlay ID not found", False)
                         self.complete_cbt(cbt)
                         return
-                    cbt_data = message.get("CbtData")
+
                     xmppobj = self._circles[overlay_id]["Transport"]
                     jid_cache = self._circles[overlay_id]["JidCache"]
                     #cache_lk = self._circles[overlay_id]["CacheLock"]
@@ -317,17 +317,17 @@ class Signal(ControllerModule):
                     if cache_entry is not None:
                         peer_jid = cache_entry[0]
                         setup_load = "invk" + "#" + "None" + "#" + peer_jid
-                        msg_payload = json.dumps(cbt_data)
+                        msg_payload = json.dumps(message)
                         self._circles["overlay_id"]["Transport"].send_msg(peer_jid, setup_load, msg_payload)
                         self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".format(peerid, setup_load, msg_payload), "LOG_DEBUG")
                     else:
                         #cache_lk.release()
                         CBTQ = self._circles[overlay_id]["JidRefreshQ"]
                         if peerid in CBTQ.keys():
-                            CBTQ[peerid].put(cbt_data)
+                            CBTQ[peerid].put(message)
                         else:
                             CBTQ[peerid] = Queue(maxsize=0)
-                            CBTQ[peerid].put(cbt_data)
+                            CBTQ[peerid].put(message)
                         xmppobj.send_presence(pstatus="uid?#" + peerid)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
@@ -338,6 +338,7 @@ class Signal(ControllerModule):
                     self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
                     self.free_cbt(cbt)
                     return
+
                 self.free_cbt(cbt)
 
         except Exception as err:
