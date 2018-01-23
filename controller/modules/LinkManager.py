@@ -24,6 +24,7 @@ import time
 import json
 import threading
 import uuid
+import copy
 
 class LinkManager(ControllerModule):
 
@@ -93,21 +94,46 @@ class LinkManager(ControllerModule):
         lcbt.SetRequest("Signal", "SIG_REMOTE_ACTION", remote_act)
         self.submit_cbt(lcbt)
         return # not returning linkid here, seems not required.
+    
 
     def CreateLinkLocalEndpt(self, cbt):
+        # Add to local DS (at recipient) for bookkeeping
+        if cbt.request.action == "LNK_REQ_LINK_ENDPT":
+            olid = cbt.request.params["OverlayId"]
+            lnkid = cbt.request.params["LinkId"]
+            peerid = cbt.request.params["NodeData"]["UID"]
+            if self._overlays.get(olid) is None:
+                self._overlays[olid] = dict(Lock=threading.Lock(), Peers=dict())
+            self._overlays[olid]["Peers"][peerid] = lnkid  # index for quick peer->link lookup
+            self._links[lnkid] = dict(Stats=dict())
         lcbt = self.create_linked_cbt(cbt)
         lcbt.SetRequest("TincanInterface", "TCI_CREATE_LINK", cbt.request.params)
         self.submit_cbt(lcbt)
 
-    def SendLocalLinkEndptToPeer(self, cbt):
-        """
-        Completes the CBT to Signal which will send it to the remote peer
-        """
+    def send_local_link_endpt_to_peer(self, cbt):
         local_cas = cbt.response.data
         parent_cbt = self.get_parent_cbt(cbt)
-        parent_cbt.set_response(local_cas, True)
-        self.complete_cbt(parent_cbt) # goes back to signal module implicitly, handled by signal.
-
+        if self.get_parent_cbt(cbt).request.action == "LNK_REQ_LINK_ENDPT":
+            parent_cbt.set_response(local_cas, True)
+            self.complete_cbt(parent_cbt)  # goes back to signal module implicitly, handled by signal.
+        elif parent_cbt.request.action == "LNK_CREATE_LINK":
+            # handling response after sending TCI_CREATE_LINK with peer_cas
+            # create a wrapper method to frame SRA with A = "LNK_ADD_PEER_CAS", dont forget to link with LCL
+            msg = copy.deepcopy(cbt.request.params)
+            olid = parent_cbt.request.params["OverlayId"]
+            peerid=parent_cbt.request.params["PeerId"]
+            msg["NodeData"]={"IP4": "","UID": "","MAC": "","CAS": local_cas, "FPR": ""}
+            remote_act = dict(OverlayId=olid,
+                              PeerId=peerid,
+                              RecipientCM="LinkManager",
+                              Action="LNK_ADD_PEER_CAS",
+                              Params=json.dumps(msg))
+            lcbt = self.create_linked_cbt(parent_cbt)
+            lcbt.SetRequest(("Signal", "SIG_REMOTE_ACTION", remote_act))
+            self.submit_cbt(lcbt)
+        elif parent_cbt.request.action == "LNK_ADD_PEER_CAS":
+            parent_cbt.set_response(data="succesful", status=True)
+            self.complete(parent_cbt)
 
     def RemoveLink(self, cbt):
         olid = cbt.request.params["OverlayId"]
@@ -177,24 +203,24 @@ class LinkManager(ControllerModule):
                         cbt_data = cbt.response.data
                         if cbt_data["Action"] == "LNK_REQ_LINK_ENDPT":
                             peer_cas = json.loads(cbt_data["Response"])
-
-                            lcbt = self.create_linked_cbt(cbt_parent)
                             olid, lid, encr  = cbt_data["OverlayId"], cbt_data["LinkId"], cbt_data["EncryptionEnabled"]
                             ip4,uid,mac = cbt_data["NodeData"]["IP4"],cbt_data["NodeData"]["UID"], cbt_data["NodeData"]["MAC"]
                             fpr, cas = cbt_data["NodeData"]["FPR"], peer_cas
                             cbt_load = {"OverlayId": olid, "LinkId": lid, "EncryptionEnabled": encr, "NodeData":{"IP4": ip4,
                                          "UID": uid,"MAC": mac,"CAS": cas, "FPR": fpr}}
-                            self.free_cbt(cbt)
+                            lcbt = self.create_linked_cbt(cbt_parent)
                             lcbt.SetRequest(("TincanInterface", "TCI_CREATE_LINK", cbt_load))
                             self.submit_cbt(lcbt)
-
+                        elif cbt_data["Action"] == "LNK_ADD_PEER_CAS":
+                            cbt_parent.set_response(data="succesful", status=True)
+                            self.complete(cbt_parent)
 
                 elif cbt.request.action == "TCI_CREATE_LINK":
                     if (cbt.response.status == False):
                         self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
                     else:
-                        self.SendLocalLinkEndptToPeer(cbt) #3/5 send via SIG to peer to update CAS
-                        
+                       self.send_local_link_endpt_to_peer(cbt) #3/5 send via SIG to peer to update CAS
+
 
                 elif cbt.request.action == "TCI_REMOVE_LINK":
                     if (cbt.response.status == False):
@@ -209,8 +235,8 @@ class LinkManager(ControllerModule):
                     if (cbt.response.status == False):
                         self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
                     else:
-                        # do domething
-                        pass
+                        lnkid = cbt.request.params["LinkId"]
+                        self._links[lnkid] = dict(Stats=cbt.response.data)
                 self.free_cbt(cbt)
                 
         except Exception as err:
