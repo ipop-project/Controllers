@@ -177,8 +177,8 @@ class CFxHandle(object):
                 )
                 self.submit_cbt(log_cbt)
 
-    def query_param(self, ModuleName, param_name=""):
-        pv = self.__cfx_object.query_param(ModuleName, param_name)
+    def query_param(self, param_name=""):
+        pv = self.__cfx_object.query_param(param_name)
         return pv
 
     # Caller is the subscription source

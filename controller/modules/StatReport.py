@@ -104,8 +104,8 @@ class StatReport(ControllerModule):
         stat = {
             "NodeId": hashlib.sha1(nid.encode('utf-8')).hexdigest(),
             "Time": str(datetime.datetime.now()),
-            "Model": self._cfx_handle.query_param("CFx","Model")
-            #"Version": self.CFxHandle.queryparam("CFx","Version"), # currently not supported
+            "Model": self._cfx_handle.query_param("Model"),
+            "Version": self._cfx_handle.query_param("ipopVerRel")
         }
         stat.update(report_data)
         self.lck.acquire()
@@ -118,23 +118,24 @@ class StatReport(ControllerModule):
         
         
     def submit_report(self, report_data):
-        data = report_data
+        data = json.dumps(report_data)
         self.register_cbt('Logger', 'info', "data at submit report {0}".format(data)) # for debugging
-        # url = None
-        # try:
-        #     url = "http://" + self._cm_config["StatServerAddress"] + ":" +\
-        #         str(self._cm_config["StatServerPort"]) + "/api/submit"
-        #     req = urllib2.Request(url=url, data=data)
-        #     req.add_header("Content-Type", "application/json")
-        #     res = urllib2.urlopen(req)
+        url = None
+        try:
+            url = "http://" + self._cm_config["StatServerAddress"] + ":" +\
+                str(self._cm_config["StatServerPort"]) + "/api/submit"
+            req = urllib2.Request(url=url, data=data)
+            req.add_header("Content-Type", "application/json")
+            res = urllib2.urlopen(req)
 
-        #     if res.getcode() == 200:
-        #         log = "succesfully reported status to the stat-server {0}\n"\
-        #                 "HTTP response code:{1}, msg:{2}"\
-        #                 .format(url, res.getcode(), res.read())
-        #         self.register_cbt('Logger', 'info', log)
-        #     else:
-        #         raise
-        # except Exception as error:
-        #     log = "statistics report failed to the stat-server ({0}).Error: {1}".format(url, error)
-        #     self.register_cbt('Logger', 'warning', log)
+            if res.getcode() == 200:
+                log = "succesfully reported status to the stat-server {0}\n"\
+                        "HTTP response code:{1}, msg:{2}"\
+                        .format(url, res.getcode(), res.read())
+                self.register_cbt('Logger', 'info', log)
+            else:
+            	self.register_cbt('Logger', 'warning', "stat-server error code: {0}".format(res.getcode()))
+                raise
+        except Exception as error:
+            log = "statistics report failed to the stat-server ({0}).Error: {1}".format(url, error)
+            self.register_cbt('Logger', 'warning', log)

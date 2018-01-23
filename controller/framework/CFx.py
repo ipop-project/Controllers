@@ -238,23 +238,21 @@ class CFX(object):
                     self._cfx_handle_dict[handle]._timer_thread.join()
         sys.exit(0)
 
-    def query_param(self, module_name, param_name=""):
+
+    def query_param(self, param_name=""):
         try:
-            if module_name in [None, ""]:
-                return None
-            elif module_name == "CFx":
-                if param_name == "ipopVerRel":
-                    return self._config["ipopVerRel"]
-                if param_name == "Model":
-                    return self.model
-            else:
-                if param_name == "":
-                    return None
-                else:
-                    return self._config[module_name][param_name]
+            if param_name == "ipopVerRel":
+                return self._config["ipopVerRel"]
+            if param_name == "NodeId":
+                return self._node_id
+            if param_name == "Overlays":
+                return self._config["CFx"]["Overlays"]
+            if param_name == "Model":
+                return self.model
         except Exception as error:
             print("Exception occurred while querying data." + str(error))
             return None
+
 
     # Caller is the subscription source
     def publish_subscription(self, owner_name, subscription_name, owner):
