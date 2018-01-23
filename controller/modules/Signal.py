@@ -329,6 +329,16 @@ class Signal(ControllerModule):
                             CBTQ[peerid] = Queue(maxsize=0)
                             CBTQ[peerid].put(message)
                         xmppobj.send_presence(pstatus="uid?#" + peerid)
+                elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
+                    stats = {}
+                    for overlay_id in self._cm_config["Overlays"]:
+                        stats[overlay_id] = {
+                            "xmpp_host": self._circles[overlay_id]["Transport"].host,
+                            "xmpp_username": self._circles[overlay_id]["Transport"].overlay_descr.get("Username", None)
+                        }
+                    cbt.set_response(stats, True)
+                    self.complete_cbt(cbt)
+                    return
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
                     self.register_cbt("Logger", "LOG_WARNING", log)
@@ -344,6 +354,7 @@ class Signal(ControllerModule):
         except Exception as err:
             erlog = "Exception: {0}".format(str(err))
             self.register_cbt("Logger", "LOG_WARNING", erlog)
+
 
     def timer_method(self):
         # Clean up JID cache for all XMPP connections
