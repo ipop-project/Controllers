@@ -36,9 +36,9 @@ else:
     import thread
 
 
-class StatReport(ControllerModule):
+class UsageReport(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
-        super(StatReport, self).__init__(cfx_handle, module_config, module_name)
+        super(UsageReport, self).__init__(cfx_handle, module_config, module_name)
         self._stat_data = {"ready": False, "pending_request":False}
         self.submit_time = datetime.datetime(2015, 1, 1, 0, 0)
         self.lck = threading.Lock()
