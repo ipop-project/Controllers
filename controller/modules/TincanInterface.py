@@ -58,8 +58,8 @@ class TincanInterface(ControllerModule):
         self._tincan_listener_thread.setDaemon(True)
         self._tincan_listener_thread.start()
         self.CreateControlLink()
-        self.register_cbt('Logger', 'LOG_INFO', "Module loaded")
-        self.register_cbt('Logger', 'LOG_QUERY_CONFIG')
+        self.register_cbt("Logger", "LOG_INFO", "Module loaded")
+        self.register_cbt("Logger", "LOG_QUERY_CONFIG")
 
     def __tincan_listener(self):
         while True:
@@ -130,7 +130,7 @@ class TincanInterface(ControllerModule):
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
         req["EncryptionEnabled"] = msg["EncryptionEnabled"]
-        req["PeerInfo"]["VIP4"] = msg["NodeData"]['IP4']
+        req["PeerInfo"]["VIP4"] = msg["NodeData"]["IP4"]
         req["PeerInfo"]["UID"] = msg["NodeData"]["UID"]
         req["PeerInfo"]["MAC"] = msg["NodeData"]["MAC"]
         req["PeerInfo"]["CAS"] = msg["NodeData"]["CAS"]
@@ -254,7 +254,7 @@ class TincanInterface(ControllerModule):
             self.register_cbt("ICC", pl["Recipient"], pl)
         else:
             erlog = "Unsupported request received from Tincan"
-            self.register_cbt('Logger', 'LOG_WARNING', erlog)
+            self.register_cbt("Logger", "LOG_WARNING", erlog)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -305,7 +305,7 @@ class TincanInterface(ControllerModule):
 
 
     def SendControl(self, msg):
-        return self._sock.sendto(bytes(msg.encode('utf-8')), self._dest)
+        return self._sock.sendto(bytes(msg.encode("utf-8")), self._dest)
 
     def timer_method(self):
         pass

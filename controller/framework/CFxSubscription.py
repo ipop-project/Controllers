@@ -27,9 +27,9 @@ class CFxSubscription(object):
         self._subscription_name = subscription_name
         self._subscribers = []
 
-    '''
+    """
     sink must be an instance of a controller module
-    '''
+    """
 
     def add_subscriber(self, sink):
         self._subscribers.append(sink)

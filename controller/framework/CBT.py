@@ -23,14 +23,14 @@ import uuid
 class CBT(object):
     tag_counter = int(uuid.uuid4().hex[:7], base=16)
     class Request(object):
-        def __init__(self, initiator='', recipient='', action='', params=None):
+        def __init__(self, initiator="", recipient="", action="", params=None):
             self.initiator = initiator
             self.recipient = recipient
             self.action = action
             self.params = params
 
         def __repr__(self):
-            msg = "{\n\t\tInitiator: %s,\n\t\tRecipient: %s,\n\t\tAction: %s,\n\t\tData: %s\n\t}" % (self.initiator, self.recipient, self.action, str(self.params))
+            msg = "{\n\t\tinitiator: %s,\n\t\trecipient: %s,\n\t\taction: %s,\n\t\tparams: %s\n\t}" % (self.initiator, self.recipient, self.action, str(self.params))
             return msg
 
     class Response(object):
@@ -41,10 +41,10 @@ class CBT(object):
             self.data = None
 
         def __repr__(self):
-            msg = "{\n\t\tStatus: %s,\n\t\tInitiator: %s,\n\t\tRecipient: %s,\n\t\tData: %s\n\t}" % (self.status, self.initiator, self.recipient, str(self.data))
+            msg = "{\n\t\tstatus: %s,\n\t\tinitiator: %s,\n\t\trecipient: %s,\n\t\tdata: %s\n\t}" % (self.status, self.initiator, self.recipient, str(self.data))
             return msg
 
-    def __init__(self, initiator='', recipient='', action='', params=''):
+    def __init__(self, initiator="", recipient="", action="", params=""):
         self.tag = CBT.tag_counter
         CBT.tag_counter = CBT.tag_counter + 1
         self.parent = None
@@ -55,16 +55,16 @@ class CBT(object):
         self.response = None
 
     def __repr__(self):
-        msg = "{\n\tTag: %d,\n\tParent: %s,\n\tChildCount: %d,\n\tCompleted: %r,\n\tOpType: %s,\n\tRequest: %r,\n\tResponse: %r\n}" % (self.tag, str(self.parent), self.child_count, self.completed, self.op_type, self.request, self.response)
+        msg = "{\n\ttag: %d,\n\tparent: %s,\n\tchild_count: %d,\n\tcompleted: %r,\n\top_type: %s,\n\trequest: %r,\n\tresponse: %r\n}" % (self.tag, str(self.parent), self.child_count, self.completed, self.op_type, self.request, self.response)
         return msg
 
-    def set_request(self, initiator='', recipient='', action='', params=''):
+    def set_request(self, initiator="", recipient="", action="", params=""):
         self.request.initiator = initiator
         self.request.recipient = recipient
         self.request.action = action
         self.request.params = params
 
-    def set_response(self, data='', status = False):
+    def set_response(self, data="", status = False):
         self.op_type = "Response"
         self.response = self.Response()
         self.response.initiator = self.request.recipient

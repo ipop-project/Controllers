@@ -38,14 +38,14 @@ from controller.framework.CFxSubscription import CFxSubscription
 class CFX(object):
 
     def __init__(self):
-        self._config = {}
+        self._config = OrderedDict()
         self.parse_config()
-        '''
+        """
         CFxHandleDict is a dict containing the references to CFxHandles of all CMs with key as the module name and
         value as the CFxHandle reference
-        '''
+        """
         self._cfx_handle_dict = {}
-        self.model = self._config['CFx']['Model']
+        self.model = self._config["CFx"]["Model"]
         self._event = None
         self._subscriptions = {}
         self._node_id = self.set_node_id()
@@ -61,9 +61,9 @@ class CFX(object):
         # check for circular dependencies in the configuration file
         dependency_graph = {}
         for key in self._config:
-            if key != 'CFx':
+            if key != "CFx":
                 try:
-                    dependency_graph[key] = self._config[key]['Dependencies']
+                    dependency_graph[key] = self._config[key]["Dependencies"]
                 except Exception as error:
                     pass
 
@@ -89,9 +89,20 @@ class CFX(object):
     def load_module(self, module_name):
         # import the modules dynamically
         try:
-            module = importlib.import_module("controller.modules.{0}".format(module_name))
+            module = importlib.import_module("controller.modules.{0}" \
+                    .format(module_name))
         except ImportError as error:
-            module = importlib.import_module("controller.modules.{0}.{1}".format(self.model, module_name))
+            # NOTE: this bit is important as importing a module may fail
+            # because an import inside it failed. If we don't handle this
+            # corner case, we will get an import error with the
+            # (incorrect) message that module_name does not exist.
+            if not module_name in error.message:
+                failed_dep_name = error.message.split(" ")[-1]
+                raise ImportError("Failed to load module \"{}\" due to an" \
+                                  " ImportError on dependency \"{}\"" \
+                                  .format(module_name, failed_dep_name))
+            module = importlib.import_module("controller.modules.{0}.{1}" \
+                    .format(self.model, module_name))
 
         # get the class with name key from module
         module_class = getattr(module, module_name)
@@ -142,11 +153,11 @@ class CFX(object):
         return any(visit(v) for v in g)
 
     def __handler(self, signum=None, frame=None):
-        print('Signal handler called with signal ', signum)
+        print("Signal handler called with signal ", signum)
 
     def parse_config(self):
-        self._config = fxlib.CONFIG
-
+        for k in fxlib.MODULE_ORDER:
+            self._config[k] = fxlib.CONFIG.get(k)
         parser = argparse.ArgumentParser()
         parser.add_argument("-c", help="load configuration from a file",
                             dest="config_file", metavar="config_file")
@@ -168,12 +179,12 @@ class CFX(object):
             with open(args.config_file) as f:
                 # load the configuration file into an OrderedDict with the
                 # modules in the order in which they appear
-                self.json_data = json.load(f, object_pairs_hook=OrderedDict)
-                for key in self.json_data:
+                json_data = json.load(f, object_pairs_hook=OrderedDict)
+                for key in json_data:
                     if self._config.get(key, False):
-                        self._config[key].update(self.json_data[key])
+                        self._config[key].update(json_data[key])
                     else:
-                        self._config[key] = self.json_data[key]
+                        self._config[key] = json_data[key]
 
         if args.config_string:
             loaded_config = json.loads(args.config_string)
@@ -201,11 +212,11 @@ class CFX(object):
         self._event = threading.Event()
 
         # Since signal.pause() is not avaialble on windows, use event.wait()
-        # with a timeout to catch KeyboardInterrupt. Without timeout, it's
+        # with a timeout to catch KeyboardInterrupt. Without timeout, it"s
         # not possible to catch KeyboardInterrupt because event.wait() is
         # a blocking call without timeout. The if condition checks if the os
         # is windows.
-        if os.name == 'nt':
+        if os.name == "nt":
             while True:
                 try:
                     self._event.wait(1)
@@ -222,7 +233,7 @@ class CFX(object):
     def terminate(self):
         for key in self._cfx_handle_dict:
             # create a special terminate CBT to terminate all the CMs
-            terminate_cbt = self.create_cbt('CFx', key, 'CFX_TERMINATE', '')
+            terminate_cbt = self.create_cbt("CFx", key, "CFX_TERMINATE", "")
 
             # clear all the queues and put the terminate CBT in all the queues
             self._cfx_handle_dict[key]._cm_queue.queue.clear()
@@ -266,13 +277,15 @@ class CFX(object):
     def remove_subscription(self, sub):
         sub.post_update("SUBSCRIPTION_SOURCE_TERMINATED")
         if sub._owner_name not in self._subscriptions:
-            raise NameError("Failed to remove the subscription source. No such provider name exists")
+            raise NameError("Failed to remove subscription source \"{}\"." \
+                    " No such provider name exists." \
+                    .format(sub._owner_name))
         self._subscriptions[sub._owner_name].remove(sub)
 
     def find_subscription(self, owner_name, subscription_name):
         sub = None
         if owner_name not in self._subscriptions:
-            raise NameError("The specified subscription provider was not found. No such name exists")
+            raise NameError("The specified subscription provider {} was not found. No such name exists.".format(owner_name))
         for sub in self._subscriptions[owner_name]:
             if sub._subscription_name == subscription_name:
                 return sub

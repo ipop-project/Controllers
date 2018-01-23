@@ -40,7 +40,7 @@ class Logger(ControllerModule):
         # Check whether the Logging is set to File by the User
         if self._cm_config["Device"] == "Console":
             # Console logging
-            logging.basicConfig(format='[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s\n', datefmt='%H:%M:%S',
+            logging.basicConfig(format="[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s\n", datefmt="%H:%M:%S",
                                 level=level)
             self.logger = logging.getLogger("IPOP console logger");
         else:
@@ -56,7 +56,7 @@ class Logger(ControllerModule):
             handler = lh.RotatingFileHandler(filename=fqname, maxBytes=self._cm_config["MaxFileSize"],
                                              backupCount=self._cm_config["MaxArchives"])
             formatter = logging.Formatter(
-                "[%(asctime)s.%(msecs)03d] %(levelname)s:%(message)s", datefmt='%Y%m%d %H:%M:%S')
+                "[%(asctime)s.%(msecs)03d] %(levelname)s:%(message)s", datefmt="%Y%m%d %H:%M:%S")
             handler.setFormatter(formatter)
             # Adds the filehandler to the Python logger module
             self.logger.addHandler(handler)
@@ -68,22 +68,23 @@ class Logger(ControllerModule):
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
+            log_entry = "{0}: {1}".format(cbt.request.initiator, cbt.request.params)
             # Extracting the logging level information from the CBT action tag
             if cbt.request.action == "LOG_DEBUG" or cbt.request.action == "debug":
-                self.logger.debug("{0}: {1}".format(cbt.request.initiator, cbt.request.params))
+                self.logger.debug(log_entry)
                 cbt.set_response(None, True)
             elif cbt.request.action == "LOG_INFO" or cbt.request.action == "info":
-                self.logger.info(cbt.request.initiator + ": " + cbt.request.params)
+                self.logger.info(log_entry)
                 cbt.set_response(None, True)
-            elif cbt.request.action == "LOG_WARNING" or cbt.request.action == 'warning':
-                self.logger.warning(cbt.request.initiator + ": " + cbt.request.params)
+            elif cbt.request.action == "LOG_WARNING" or cbt.request.action == "warning":
+                self.logger.warning(log_entry)
                 cbt.set_response(None, True)
-            elif cbt.request.action == "LOG_ERROR" or cbt.request.action == 'error':
-                self.logger.error(cbt.request.initiator + ": " + cbt.request.params)
+            elif cbt.request.action == "LOG_ERROR" or cbt.request.action == "error":
+                self.logger.error(log_entry)
                 cbt.set_response(None, True)
             elif cbt.request.action == "pktdump":
-                self.pktdump(message=cbt.request.params.get('message'),
-                             dump=cbt.request.params.get('dump'))
+                self.pktdump(message=cbt.request.params.get("message"),
+                             dump=cbt.request.params.get("dump"))
                 cbt.set_response(None, True)
             elif cbt.request.action == "LOG_QUERY_CONFIG":
                 cbt.set_response(self._cm_config, True)

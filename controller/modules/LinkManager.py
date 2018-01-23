@@ -34,19 +34,30 @@ class LinkManager(ControllerModule):
         self._overlays = {}
 
     def initialize(self):
-        self.register_cbt('Logger', 'LOG_INFO', "Module Loaded")
+        self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
-    '''
-    The caller provides the overlay id which contains the link and the peer id
-    which the link connects. The link id is generated here and returned to the
-    caller. This is done only after the local enpoint is created, but can
-    occur before the link is ready. The link status can be queried to determine
-    when it is writeable.
-    We request creatation of the remote endpoint first to avoid cleaning up a
-    local endpoint if the peer denies our request. The link id is communicated
-    in the request and will be the same at both nodes.
-    '''
+        try:
+            # Subscribe for data request notifications from OverlayVisualizer
+            self._cfx_handle.start_subscription("OverlayVisualizer",
+                    "VIS_DATA_REQ")
+        except NameError as e:
+            if "OverlayVisualizer" in e.message:
+                self.register_cbt("Logger", "LOG_WARNING",
+                        "OverlayVisualizer module not loaded." \
+                            " Visualization data will not be sent.")
+
     def req_link_endpt_from_peer(self, cbt):
+        """
+        The caller provides the overlay id which contains the link and the peer id
+        which the link connects. The link id is generated here and returned to the
+        caller. This is done only after the local enpoint is created, but can
+        occur before the link is ready. The link status can be queried to determine
+        when it is writeable.
+        We request creatation of the remote endpoint first to avoid cleaning up a
+        local endpoint if the peer denies our request. The link id is communicated
+        in the request and will be the same at both nodes.
+        """
+
         olid = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["PeerId"]
 
@@ -84,9 +95,9 @@ class LinkManager(ControllerModule):
         self.submit_cbt(lcbt)
 
     def SendLocalLinkEndptToPeer(self, cbt):
-        '''
+        """
         Completes the CBT to Signal which will send it to the remote peer
-        '''
+        """
         local_cas = cbt.response.data
         parent_cbt = self.get_parent_cbt(cbt)
         parent_cbt.set_response(local_cas, True)
@@ -122,13 +133,35 @@ class LinkManager(ControllerModule):
 
                 if cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
                     pass
+
+                elif cbt.request.action == "VIS_DATA_REQ":
+                    # dummy data for testing the OverlayVisualizer
+                    dummy_link_data = {
+                        "LinkId": "test-link-id",
+                        "PeerId": "test-peer-id",
+                        "Stats": {
+                            "rem_addr": "10.24.95.100:53468",
+                            "sent_bytes_second": "50000"
+                        }
+                    }
+
+                    dummy_lmngr_data = {
+                        "LinkManager": {
+                            "test-overlay-id": {
+                                "test-link-id": dummy_link_data
+                            }
+                        }
+                    }
+                    vis_data_resp = dict(Topology=dummy_lmngr_data)
+                    cbt.set_response(data=vis_data_resp, status=True)
+                    self.complete_cbt(cbt)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
-                    self.register_cbt('Logger', 'LOG_WARNING', log)
-
+                    self.register_cbt("Logger", "LOG_WARNING", log)
             if cbt.op_type == "Response":
                 if (cbt.response.status == False):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                    self.register_cbt("Logger", "LOG_WARNING",
+                            "CBT failed {0}".format(cbt.response.data))
                     return
                 if cbt.request.action == "SIG_FORWARD_CBT":
                     self.free_cbt(cbt)
@@ -143,8 +176,8 @@ class LinkManager(ControllerModule):
                 self.free_cbt(cbt)
                 
         except Exception as err:
-            erlog = "Exception trace, continuing ...:\n{0}".format(traceback.format_exc())
-            self.register_cbt('Logger', 'LOG_WARNING', erlog)
+            erlog = "Exception in process cbt, continuing ...:\n{0}".format(str(err))
+            self.register_cbt("Logger", "LOG_WARNING", erlog)
 
     def timer_method(self):
         try:
@@ -159,7 +192,7 @@ class LinkManager(ControllerModule):
                 self._overlays[olid]["Lock"].release()
         except Exception as err:
             self._overlays[olid]["Lock"].release()
-            self.register_cbt('Logger', 'error', "Exception caught in LinkManager timer thread.\
+            self.register_cbt("Logger", "LOG_ERROR", "Exception caught in LinkManager timer thread.\
                              Error: {0}".format(str(err)))
 
     def terminate(self):
