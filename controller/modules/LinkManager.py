@@ -23,6 +23,7 @@ from controller.framework.ControllerModule import ControllerModule
 import time
 import json
 import threading
+import traceback
 import uuid
 
 class LinkManager(ControllerModule):
@@ -31,7 +32,8 @@ class LinkManager(ControllerModule):
         super(LinkManager, self).__init__(cfx_handle, module_config, module_name)
         self.maxretries = self._cm_config["MaxConnRetry"]
         self._peers = {}
-        self._overlays = {}
+        self._overlays = {} # indexed by overlay ID, taaged with an overlay ID
+        self._links = {} # indexed by link id, which is unique
 
     def initialize(self):
         self.register_cbt('Logger', 'LOG_INFO', "Module Loaded")
@@ -51,14 +53,16 @@ class LinkManager(ControllerModule):
         peerid = cbt.request.params["PeerId"]
 
         if self._overlays.get(olid) is None:
-            self._overlays[olid] = dict(Lock=threading.Lock(), Peers=dict(), Links=dict())
-
+            self._overlays[olid] = dict(Lock=threading.Lock(), Peers=dict())
         if peerid in self._overlays[olid]["Peers"]:
-            lnkid = self._overlays[olid]["Peers"][peerid] #index for quick peer->link lookup
+            # Link already exists ask TM to clean up first
+            cbt.set_response("LINK EXISTS", False)
+            self.complete_cbt(cbt)
+            return
         else:
             lnkid = uuid.uuid4().hex
-            self._overlays[olid]["Peers"][peerid] = lnkid
-            self._overlays[olid]["Peers"][peerid]["Links"][lnkid] = dict(PeerId=peerid, Stats=dict())
+            self._overlays[olid]["Peers"][peerid] = lnkid #index for quick peer->link lookup
+            self._links[lnkid]= dict(Stats=dict())
 
         msg = {
             "OverlayId" : olid,
@@ -69,14 +73,16 @@ class LinkManager(ControllerModule):
         }
 
         # Send the message via SIG server to peer node
-        cbt_descr = dict(OverlayId = olid,
+        remote_act = dict(OverlayId = olid,
+                       PeerId = peerid,
                        RecipientCM = "LinkManager",
                        Action = "LNK_REQ_LINK_ENDPT",
                        Params = json.dumps(msg))
 
-        payload = {"PeerId": peerid, "CbtData": cbt_descr}
-        self.register_cbt("Signal", "SIG_FORWARD_CBT", payload)
-        return lnkid
+        lcbt = self.create_linked_cbt(cbt)
+        lcbt.SetRequest("Signal", "SIG_REMOTE_ACTION", remote_act)
+        self.submit_cbt(lcbt)
+        return # not returning linkid here, seems not required.
 
     def CreateLinkLocalEndpt(self, cbt):
         lcbt = self.create_linked_cbt(cbt)
@@ -90,14 +96,16 @@ class LinkManager(ControllerModule):
         local_cas = cbt.response.data
         parent_cbt = self.get_parent_cbt(cbt)
         parent_cbt.set_response(local_cas, True)
-        self.complete_cbt(parent_cbt)
+        self.complete_cbt(parent_cbt) # goes back to signal module implicitly, handled by signal.
 
-        payload = {"PeerId": peerid, "CbtData": cbtdata}
-        self.register_cbt("Signal", "SIG_FORWARD_CBT", payload)
 
     def RemoveLink(self, cbt):
-        msg = cbt.request.params
-        #send courtesy terminate link ICC
+        olid = cbt.request.params["OverlayId"]
+        lid = cbt.request.params["LinkId"]
+        self.create_linked_cbt(cbt)
+        rl_cbt = self.create_cbt(self._module_name, "TincanInterface","TCI_REMOVE_LINK",{"OverlayId":olid, "LinkId":lid})
+        self.submit_cbt(rl_cbt)
+        #send courtesy terminate link ICC, later.
 
     def QueryLinkDescriptor(self, cbt):
         pass
@@ -105,7 +113,7 @@ class LinkManager(ControllerModule):
     def process_cbt(self, cbt):
         try:
             if cbt.op_type == "Request":
-                if cbt.request.action == "LNK_CREATE_LINK":
+                if cbt.request.action == "LNK_CREATE_LINK": # request CAS, ask peer to create end point and rtesturn cas info after reciving notification.
                     self.req_link_endpt_from_peer(cbt) #1 send via SIG
 
                 elif cbt.request.action == "LNK_REQ_LINK_ENDPT":
@@ -115,33 +123,69 @@ class LinkManager(ControllerModule):
                     self.CreateLinkLocalEndpt(cbt) #4 rcvd cas from peer, sends via TCI to add peer cas
 
                 elif cbt.request.action == "LNK_REMOVE_LINK":
-                    self.RemoveLink(cbt)
+                    self.RemoveLink(cbt) # call to Tincan to remove link, cbt should contain olod and link id.
 
-                if cbt.request.action == "LNK_QUERY_LINK_DSCR":
+                elif cbt.request.action == "LNK_QUERY_LINK_DSCR": # look into TCI, comes from topology, all link status
+                    # categorized by overlay ID's .
                     pass
 
-                if cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
+                elif cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY": # probably not going to be used
                     pass
+
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
                     self.register_cbt('Logger', 'LOG_WARNING', log)
 
             if cbt.op_type == "Response":
-                if (cbt.response.status == False):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
-                    return
-                if cbt.request.action == "SIG_FORWARD_CBT":
-                    self.free_cbt(cbt)
 
-                if cbt.request.action == "LNK_REQ_LINK_ENDPT":
-                    pass
+                if cbt.request.action == "SIG_REMOTE_ACTION":
+                    if (cbt.response.status == False):
+                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                    else:
+                        # look inside cbt for inner
+                        cbt_parent = cbt.parent
+                        cbt_data = cbt.response.data
+                        if cbt_data["Action"] == "LNK_REQ_LINK_ENDPT":
+                            peer_cas = json.loads(cbt_data["Response"])
 
-                if cbt.request.action == "TCI_CREATE_LINK":
-                    self.SendLocalLinkEndptToPeer(cbt) #3/5 send via SIG to peer to update CAS
-                    self.SendResponseToInitiator(cbt)
+                            lcbt = self.create_linked_cbt(cbt_parent)
+                            olid, lid, encr  = cbt_data["OverlayId"], cbt_data["LinkId"], cbt_data["EncryptionEnabled"]
+                            ip4,uid,mac = cbt_data["NodeData"]["IP4"],cbt_data["NodeData"]["UID"], cbt_data["NodeData"]["MAC"]
+                            fpr, cas = cbt_data["NodeData"]["FPR"], peer_cas
+                            cbt_load = {"OverlayId": olid, "LinkId": lid, "EncryptionEnabled": encr, "NodeData":{"IP4": ip4,
+                                         "UID": uid,"MAC": mac,"CAS": cas, "FPR": fpr}}
+                            self.free_cbt(cbt)
+                            lcbt.SetRequest(("TincanInterface", "TCI_CREATE_LINK", cbt_load))
+                            self.submit_cbt(lcbt)
 
+
+                elif cbt.request.action == "TCI_CREATE_LINK":
+                    if (cbt.response.status == False):
+                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                    else:
+                        self.SendLocalLinkEndptToPeer(cbt) #3/5 send via SIG to peer to update CAS
+                        
+
+                elif cbt.request.action == "TCI_REMOVE_LINK":
+                    if (cbt.response.status == False):
+                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                    else:
+                        # get parent, complete
+                        parent_cbt = self.get_parent_cbt(cbt)
+                        # is there a need to set up a response in parent cbt, when do we need to set up a response and when not?
+                        self.complete_cbt(cbt)
+
+                elif cbt.request.action == "TCI_QUERY_LINK_STATS":
+                    if (cbt.response.status == False):
+                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                    else:
+                        # do domething
+                        pass
                 self.free_cbt(cbt)
-                
+
+
+
+
         except Exception as err:
             erlog = "Exception trace, continuing ...:\n{0}".format(traceback.format_exc())
             self.register_cbt('Logger', 'LOG_WARNING', erlog)
