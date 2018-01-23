@@ -253,7 +253,7 @@ class CFX(object):
     def query_param(self, param_name=""):
         try:
             if param_name == "ipopVerRel":
-                return self._config["ipopVerRel"]
+                return self._config["CFx"]["ipopVerRel"]
             if param_name == "NodeId":
                 return self._node_id
             if param_name == "Overlays":
