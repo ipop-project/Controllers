@@ -228,7 +228,7 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["Request"]["Owner"] = cbt.request.initiator
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
-        #req["LinkId"] = msg["LinkId"]
+        req["LinkId"] = msg["LinkId"]
         req["RecipientMAC"] = msg["MAC"]
         req["Data"] = json.dumps(msg)
         self.SendControl(json.dumps(ctl))

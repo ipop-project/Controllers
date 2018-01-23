@@ -18,7 +18,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-
 import sys
 import datetime
 import hashlib
@@ -43,55 +42,46 @@ class UsageReport(ControllerModule):
         self.submit_time = datetime.datetime(2015, 1, 1, 0, 0)
         self.lck = threading.Lock()
 
-
     def initialize(self):
         self.register_cbt('Logger', 'info', "{0} Loaded".format(self._module_name))
 
-
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
-        	if cbt.request.action == "SIG_QUERY_REPORTING_DATA":
-	            if (cbt.response.status == False):
-	                self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.message))
-	                self.free_cbt(cbt)
-	                return
-	            else: 
-	                self.create_report(cbt)
-	        else:
-	        	self.free_cbt(cbt)
+            if cbt.request.action == "SIG_QUERY_REPORTING_DATA":
+                if (cbt.response.status == False):
+                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.message))
+                    self.free_cbt(cbt)
+                    return
+                else: 
+                    self.create_report(cbt)
+            else:
+                self.free_cbt(cbt)
         else:
             log = "No Request action is supported in StatModule {0}".format(cbt)
             self.register_cbt('Logger', 'LOG_WARNING', log)
             self.complete_cbt(cbt)
 
-
     def timer_method(self):
         cur_time = datetime.datetime.now()
         self.lck.acquire()
         if self._stat_data["ready"]:
-        	data = self._stat_data["data"]
-        	self._stat_data = {}
-        	self._stat_data["ready"] = False
-        	self._stat_data["pending_request"] = False
-        	self.lck.release()
-        	self.submit_report(data)
-        	self.submit_time = datetime.datetime.now()
-    	elif not self._stat_data["pending_request"] and cur_time > self.submit_time:
-    		self._stat_data["pending_request"] = True
-    		self.lck.release()
-    		self.request_report()
-        	
-
-
+            data = self._stat_data["data"]
+            self._stat_data = {}
+            self._stat_data["ready"] = False
+            self._stat_data["pending_request"] = False
+            self.lck.release()
+            self.submit_report(data)
+            self.submit_time = datetime.datetime.now()
+        elif not self._stat_data["pending_request"] and cur_time > self.submit_time:
+            self._stat_data["pending_request"] = True
+            self.lck.release()
+            self.request_report()
 
     def terminate(self):
         pass
 
-
     def request_report(self):
         self.register_cbt("Signal","SIG_QUERY_REPORTING_DATA")
-        
-
 
     def create_report(self, cbt):
         nid = self._cm_config["NodeId"]
@@ -115,26 +105,23 @@ class UsageReport(ControllerModule):
         self.lck.release()
         self.free_cbt(cbt)
 
-        
-        
     def submit_report(self, report_data):
         data = json.dumps(report_data)
         self.register_cbt('Logger', 'info', "data at submit report {0}".format(data)) # for debugging
         url = None
         try:
-            url = "http://" + self._cm_config["StatServerAddress"] + ":" +\
+            url = "http://" + self._cm_config["StatServerAddress"] + ":" + \
                 str(self._cm_config["StatServerPort"]) + "/api/submit"
             req = urllib2.Request(url=url, data=data)
             req.add_header("Content-Type", "application/json")
             res = urllib2.urlopen(req)
-
             if res.getcode() == 200:
                 log = "succesfully reported status to the stat-server {0}\n"\
                         "HTTP response code:{1}, msg:{2}"\
                         .format(url, res.getcode(), res.read())
                 self.register_cbt('Logger', 'info', log)
             else:
-            	self.register_cbt('Logger', 'warning', "stat-server error code: {0}".format(res.getcode()))
+                self.register_cbt('Logger', 'warning', "stat-server error code: {0}".format(res.getcode()))
                 raise
         except Exception as error:
             log = "statistics report failed to the stat-server ({0}).Error: {1}".format(url, error)
