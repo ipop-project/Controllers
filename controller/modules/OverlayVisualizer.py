@@ -48,7 +48,7 @@ class OverlayVisualizer(ControllerModule):
 
     def initialize(self):
         # Get the list of overlays
-        self._overlays = self._cfx_handle.query_param("CFx", "Overlays")
+        self._overlays = self._cfx_handle.query_param("Overlays")
 
         # We're using the pub-sub model here to gather data for the visualizer
         # from other modules
@@ -62,24 +62,33 @@ class OverlayVisualizer(ControllerModule):
                 "{0} Loaded".format(self._module_name))
 
     def process_cbt(self, cbt):
-        msg = cbt.response.data
-
-        # self._vis_ds belongs to the critical section as
-        # it may be updated in timer_method concurrently
-        self._vis_ds_lock.acquire()
-        for mod_name in msg:
-            for ovrl_id in msg[mod_name]:
-                self._vis_ds["Data"][ovrl_id][mod_name] \
-                        = msg[mod_name][ovrl_id]
-        self._vis_ds_lock.release()
+        if cbt.op_type == "Response":
+            if cbt.request.action == "VIS_DATA_REQ":
+                msg = cbt.response.data
+                # self._vis_ds belongs to the critical section as
+                # it may be updated in timer_method concurrently
+                self._vis_ds_lock.acquire()
+                for mod_name in msg:
+                    for ovrl_id in msg[mod_name]:
+                        self._vis_ds["Data"][ovrl_id][mod_name] \
+                                = msg[mod_name][ovrl_id]
+                self._vis_ds_lock.release()
+            self.free_cbt(cbt)
+        else:
+            self.register_cbt("Logger", "LOG_WARNING", "Overlay Visualizer does not accept CBT requests")
+            cbt.set_response("Overlay Visualizer does not accept CBT requests", False)
+            self.complete_cbt(cbt)
 
     def timer_method(self):
         with self._vis_ds_lock:
             vis_ds = self._vis_ds
+            # flush old data, next itr provides new data
+            self._vis_ds = dict(NodeId=self.node_id,
+                    Data=defaultdict(dict))
 
         if vis_ds["Data"]:
-            print "Visualizer is going to send" \
-                    " {}".format(json.dumps(vis_ds))
+            print ("Visualizer is going to send" \
+                    " {}".format(json.dumps(vis_ds)))
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
 
             try:
@@ -87,15 +96,11 @@ class OverlayVisualizer(ControllerModule):
                           headers={"Content-Type": "application/json"})
                 resp.raise_for_status()
 
-                with self._vis_ds_lock:
-                    # flush old data if request was successful
-                    self._vis_ds = dict(NodeId=self.node_id,
-                            Data=defaultdict(dict))
             except requests.exceptions.RequestException as err:
                 log = "Failed to send data to the IPOP Visualizer" \
                         " webservice({0}). Exception: {1}" \
                                 .format(self.vis_address, str(err))
-                self.registerCBT("Logger", "LOG_ERROR", log)
+                self.register_cbt("Logger", "LOG_ERROR", log)
 
         # Now that all the accumulated data has been dealth with, we request
         # more data

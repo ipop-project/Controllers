@@ -40,6 +40,16 @@ class Topology(ControllerModule, CFX):
                 dict(Descriptor = dict(IsReady=False, State="Bootstrapping"),
                     Peers=set()))
             self.create_overlay(self._cm_config["Overlays"][olid], olid)
+        try:
+            # Subscribe for data request notifications from OverlayVisualizer
+            self._cfx_handle.start_subscription("OverlayVisualizer",
+                    "VIS_DATA_REQ")
+        except NameError as e:
+            if "OverlayVisualizer" in str(e):
+                self.register_cbt("Logger", "LOG_WARNING",
+                        "OverlayVisualizer module not loaded." \
+                            " Visualization data will not be sent.")
+
         self.register_cbt("Logger", "LOG_INFO", "{0} Module loaded"
                           .format(self._module_name))
 
@@ -138,10 +148,8 @@ class Topology(ControllerModule, CFX):
                 }
                 vis_data_resp = dict(Topology=dummy_topo_data)
 
-                cbt.SetResponse(initiator=self.ModuleName,
-                             recipient=cbt.Request.Initiator, data=vis_data_resp,
-                             status=True)
-                self._cfx_handle.CompleteCBT(cbt) 
+                cbt.set_response(data=vis_data_resp, status=True)
+                self.complete_cbt(cbt) 
 
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_CREATE_OVERLAY":

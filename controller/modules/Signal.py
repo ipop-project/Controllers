@@ -57,7 +57,7 @@ class JidCache:
         self.cache = {}
         self.cm_mod = cm_mod
 
-    def _log(self, msg, severity="info"):
+    def _log(self, msg, severity="LOG_INFO"):
         self.cm_mod._log(msg, severity)
 
     def add_entry(self, node_id, jid):
@@ -93,7 +93,7 @@ class XmppTransport:
         self.jid_cache = jid_cache
         self.cbts = cbts
 
-    def _log(self, msg, severity="info"):
+    def _log(self, msg, severity="LOG_INFO"):
         self.cm_mod._log(msg, severity)
 
     # Triggered at start of XMPP session
@@ -114,7 +114,7 @@ class XmppTransport:
             else:
                 raise RuntimeError("Multiple invocations of start event handler")
         except Exception as err:
-            self._log("XmppTransport:Exception:{0} Event:{1}".format(err, event), severity="error")
+            self._log("XmppTransport:Exception:{0} Event:{1}".format(err, event), severity="LOG_ERROR")
 
     # Callback Function to keep track of Online XMPP Peers
     def presence_event_handler(self, presence):
@@ -138,7 +138,7 @@ class XmppTransport:
                     else:
                         self._log("Unrecognized PSTATUS: {0}".format(pstatus))
         except Exception as err:
-            self._log("XmppTransport:Exception:{0} presence:{1}".format(err, presence), severity="error")
+            self._log("XmppTransport:Exception:{0} presence:{1}".format(err, presence), severity="LOG_ERROR")
 
     # This handler listens for matched messages on the xmpp stream,
     # extracts the setup and payload, and takes suitable action.
@@ -176,9 +176,9 @@ class XmppTransport:
                 self.cm_mod.self.register_cbt(cbtdata["RecipientCM"], cbtdata["Action"], cbtdata["Params"])
                 return
             else:
-                self._log("Invalid message type received {0}".format(str(msg)), "warning")
+                self._log("Invalid message type received {0}".format(str(msg)), "LOG_WARNING")
         except Exception as err:
-            self._log("XmppTransport:Exception:{0} msg:{1}".format(err, msg), severity="error")
+            self._log("XmppTransport:Exception:{0} msg:{1}".format(err, msg), severity="LOG_ERROR")
 
     # Send message to Peer JID via XMPP server
     def send_msg(self, peer_jid, header=None, msg_payload=None):
@@ -266,7 +266,7 @@ class Signal(ControllerModule):
         self._circles = {}
         self._keyring_installed = False
 
-    def _log(self, msg, severity="info"):
+    def _log(self, msg, severity="LOG_INFO"):
         self.register_cbt("Logger", severity, msg)
 
     def create_transport_instance(self, overlay_id, overlay_descr, jid_cache, jid_refresh_q):
@@ -299,7 +299,7 @@ class Signal(ControllerModule):
         try:
             if cbt.op_type == "Request":
                 message = cbt.request.params
-                if cbt.request.action == "SIG_FORWARD_CBT":
+                if cbt.request.action == "SIG_REMOTE_ACTION":
                     peerid = message["PeerId"]
                     overlay_id = message["OverlayId"]
                     message["InitiatorId"] = self._cm_config["NodeId"]
@@ -308,7 +308,7 @@ class Signal(ControllerModule):
                         cbt.set_response("Overlay ID not found", False)
                         self.complete_cbt(cbt)
                         return
-                    cbt_data = message.get("CbtData")
+
                     xmppobj = self._circles[overlay_id]["Transport"]
                     jid_cache = self._circles[overlay_id]["JidCache"]
                     #cache_lk = self._circles[overlay_id]["CacheLock"]
@@ -317,18 +317,28 @@ class Signal(ControllerModule):
                     if cache_entry is not None:
                         peer_jid = cache_entry[0]
                         setup_load = "invk" + "#" + "None" + "#" + peer_jid
-                        msg_payload = json.dumps(cbt_data)
+                        msg_payload = json.dumps(message)
                         self._circles["overlay_id"]["Transport"].send_msg(peer_jid, setup_load, msg_payload)
                         self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".format(peerid, setup_load, msg_payload), "LOG_DEBUG")
                     else:
                         #cache_lk.release()
                         CBTQ = self._circles[overlay_id]["JidRefreshQ"]
                         if peerid in CBTQ.keys():
-                            CBTQ[peerid].put(cbt_data)
+                            CBTQ[peerid].put(message)
                         else:
                             CBTQ[peerid] = Queue(maxsize=0)
-                            CBTQ[peerid].put(cbt_data)
+                            CBTQ[peerid].put(message)
                         xmppobj.send_presence(pstatus="uid?#" + peerid)
+                elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
+                    stats = {}
+                    for overlay_id in self._cm_config["Overlays"]:
+                        stats[overlay_id] = {
+                            "xmpp_host": self._circles[overlay_id]["Transport"].host,
+                            "xmpp_username": self._circles[overlay_id]["Transport"].overlay_descr.get("Username", None)
+                        }
+                    cbt.set_response(stats, True)
+                    self.complete_cbt(cbt)
+                    return
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
                     self.register_cbt("Logger", "LOG_WARNING", log)
@@ -338,11 +348,13 @@ class Signal(ControllerModule):
                     self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
                     self.free_cbt(cbt)
                     return
+
                 self.free_cbt(cbt)
 
         except Exception as err:
             erlog = "Exception: {0}".format(str(err))
             self.register_cbt("Logger", "LOG_WARNING", erlog)
+
 
     def timer_method(self):
         # Clean up JID cache for all XMPP connections
