@@ -21,23 +21,22 @@
 
 
 class CFxSubscription(object):
-    def __init__(self, OwnerName, SubscriptionName):
-        self.OwnerName = OwnerName
-        self.Owner = None
-        self.SubscriptionName = SubscriptionName
-        self.subscribers = []
+    def __init__(self, owner_name, subscription_name):
+        self._owner_name = owner_name
+        self._owner = None
+        self._subscription_name = subscription_name
+        self._subscribers = []
 
-    '''
+    """
     sink must be an instance of a controller module
-    '''
+    """
 
-    def AddSubscriber(self, sink):
-        self.subscribers.append(sink)
+    def add_subscriber(self, sink):
+        self._subscribers.append(sink)
 
-    def RemoveSubscriber(self, sink):
-        self.subscribers.remove(sink)
+    def remove_subscriber(self, sink):
+        self._subscribers.remove(sink)
 
-    def PostUpdate(self, msg):
-        sink = None
-        for sink in self.subscribers:
-            self.Owner.registerCBT(sink.__class__.__name__, self.SubscriptionName, msg)
+    def post_update(self, msg):
+        for sink in self._subscribers:
+            self._owner.register_cbt(sink.__class__.__name__, self._subscription_name, msg)

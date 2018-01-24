@@ -24,19 +24,19 @@ import controller.framework.ipoplib as ipoplib
 
 
 class IPMulticast(ControllerModule):
-    def __init__(self, CFxHandle, paramDict, ModuleName):
-        super(IPMulticast, self).__init__(CFxHandle, paramDict, ModuleName)
+    def __init__(self, cfx_handle, module_config, module_name):
+        super(IPMulticast, self).__init__(cfx_handle, module_config, module_name)
         # Table to store Multicast Group address details for virtual network intefaces configured in the ipop-config.json
         self.multicast_details = {}
         # Query CFX to get properties of virtual networks configured by the user
-        tincanparams = self.CFxHandle.queryParam("TincanInterface", "Vnets")
+        tincanparams = self._cfx_handle.query_param("TincanInterface", "Vnets")
         # Iterate across the virtual networks to get UID,IPv4, IPv6 and TAPName
         for k in range(len(tincanparams)):
             interface_name = tincanparams[k]["TapName"]
             self.multicast_details[interface_name] = {}
-            self.multicast_details[interface_name]["uid"] = tincanparams[k]["uid"]
+            self.multicast_details[interface_name]["uid"] = tincanparams[k]["UID"]
             self.multicast_details[interface_name]["ip4"] = tincanparams[k]["IP4"]
-            self.multicast_details[interface_name]["ip6"] = tincanparams[k]["ip6"]
+            #self.multicast_details[interface_name]["ip6"] = tincanparams[k]["ip6"]
             # Stores local node's mac address obtained from LinkManager
             self.multicast_details[interface_name]["mac"] = ""
             # Table to store Peer UID which has subscribed to a multicast address
@@ -46,18 +46,18 @@ class IPMulticast(ControllerModule):
     def initialize(self):
         # Iterate across the IPOP interface to extract local node MAC details
         for interface_name in self.multicast_details.keys():
-            self.registerCBT("LinkManager", "GET_NODE_MAC_ADDRESS", {"interface_name": interface_name})
-        self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
+            self.register_cbt("LinkManager", "GET_NODE_MAC_ADDRESS", {"interface_name": interface_name})
+        self.register_cbt('Logger', 'info', "{0} Loaded".format(self.module_name))
 
     # Method to send multicast data as unicast messages to all the IPOP node UIDs subscribed
     # to the given multicast address
     def sendmulticastdata(self, dataframe, interface_name, multicast_address):
-        self.registerCBT("Logger", "debug", "Multicast Data: {0}".format(str(dataframe)))
+        self.register_cbt("Logger", "debug", "Multicast Data: {0}".format(str(dataframe)))
         # Check if there is an entry in Multicast table for the multicast group IP
         if multicast_address in self.multicast_details[interface_name]["Group"].keys():
             # Extract the subscriber UID list from the table
             multicast_dst_list = self.multicast_details[interface_name]["Group"][multicast_address]
-            self.registerCBT("Logger", "info", "Multicast Candidate List: {0}".format(str(multicast_dst_list)))
+            self.register_cbt("Logger", "info", "Multicast Candidate List: {0}".format(str(multicast_dst_list)))
             # Iterate across the subscriber list and send the multicast data as a unicast message
             for dst_uid in multicast_dst_list:
                 new_msg = {
@@ -68,7 +68,7 @@ class IPMulticast(ControllerModule):
                     "datagram": dataframe
                 }
                 # Send the mutlicast data to BTM for forwarding
-                self.registerCBT("BaseTopologyManager", "ICC_CONTROL", new_msg)
+                self.register_cbt("BaseTopologyManager", "ICC_CONTROL", new_msg)
 
     # Method to construct Membership Report version 3 message for Membership Query request received by the node
     def buildmembershipreportv3(self, multicast_address_list, interface_name):
@@ -139,7 +139,7 @@ class IPMulticast(ControllerModule):
             dataframe = "333300000016" + nodemac + "86DD" + ip_packet
         return dataframe
 
-    def processCBT(self, cbt):
+    def process_cbt(self, cbt):
         interface_name = cbt.data["interface_name"]
         # Populate Local UID's MAC details. Data is send by LinkManager
         if cbt.action == "NODE_MAC_ADDRESS":
@@ -147,18 +147,18 @@ class IPMulticast(ControllerModule):
             if cbt.data.get("localmac") != "":
                 self.multicast_details[interface_name]["mac"] = cbt.data.get("localmac")
             else:
-                self.registerCBT("LinkManager", "GET_NODE_MAC_ADDRESS", {"interface_name": interface_name})
+                self.register_cbt("LinkManager", "GET_NODE_MAC_ADDRESS", {"interface_name": interface_name})
             return
         elif cbt.action == "IPv4_MULTICAST":
-            self.registerCBT("Logger", "debug", "Inside IPv4 Multicast:: {0}".format(str(cbt.data)))
+            self.register_cbt("Logger", "debug", "Inside IPv4 Multicast:: {0}".format(str(cbt.data)))
             self.process_multicast_pkt(cbt, "4", interface_name)
         elif cbt.action == "IPv6_MULTICAST":
-            self.registerCBT("Logger", "debug", "Inside IPv6 Multicast:: {0}".format(str(cbt.data)))
+            self.register_cbt("Logger", "debug", "Inside IPv6 Multicast:: {0}".format(str(cbt.data)))
             self.process_multicast_pkt(cbt, "6", interface_name)
         else:
             log = '{0}: unrecognized CBT {1} received from {2}' \
                 .format(cbt.recipient, cbt.action, cbt.initiator)
-            self.registerCBT('Logger', 'warning', log)
+            self.register_cbt('Logger', 'warning', log)
 
     def process_multicast_pkt(self, cbt, ip_version, interface_name):
         dataframe = cbt.data.get("dataframe")
@@ -187,8 +187,8 @@ class IPMulticast(ControllerModule):
         if protocol == "02":
             # Check IGMP Membership Query message for IPv4 and IPv6 packets
             if operation in [ "1", "82"]:
-                self.registerCBT("Logger", "info", "IGMP Group Membership Query message received")
-                self.registerCBT("Logger", "debug", "Multicast Table::{0}".
+                self.register_cbt("Logger", "info", "IGMP Group Membership Query message received")
+                self.register_cbt("Logger", "debug", "Multicast Table::{0}".
                                  format(str(self.multicast_details[interface_name])))
                 # Extract multicast group address from the IGMP data
                 if ip_version == "4":
@@ -203,7 +203,7 @@ class IPMulticast(ControllerModule):
                         "type": "local"
                     }
                     # Broadcast the MembershipQuery packet to all IPOP nodes in the network
-                    self.registerCBT("BroadcastForwarder", "BroadcastPkt", msg)
+                    self.register_cbt("BroadcastForwarder", "BroadcastPkt", msg)
                     # Check whether message is a general membership query or not
                     if multicast_address in ["0" * bytelength] + self.multicast_details[interface_name].keys() and \
                                     self.multicast_details[interface_name]["mac"] not in [None, ""]:
@@ -220,21 +220,21 @@ class IPMulticast(ControllerModule):
                                 # support multiple multicast addresses into a single MembershipReport message
                                 for multicast_address in multicast_address_list:
                                     report_dataframe = self.buildmembershipreportv1_2([multicast_address], interface_name, "4")
-                                    self.registerCBT("TincanInterface", "DO_INSERT_DATA_PACKET", {
+                                    self.register_cbt("TincanInterface", "DO_INSERT_DATA_PACKET", {
                                         "dataframe": report_dataframe,
                                         "interface_name": interface_name
                                     })
                             else:
                                 # Insert IGMPv3 IPv4 Membership Report into the IPOP Tap
                                 report_dataframe = self.buildmembershipreportv3(multicast_address_list, interface_name)
-                                self.registerCBT("TincanInterface", "DO_INSERT_DATA_PACKET", {
+                                self.register_cbt("TincanInterface", "DO_INSERT_DATA_PACKET", {
                                     "dataframe": report_dataframe,
                                     "interface_name": interface_name
                                 })
                         else:
                             # Insert the IPv6 Membership Report into the IPOP Tap
                             report_dataframe = self.buildmembershipreportv1_2(multicast_address_list, interface_name, "6")
-                            self.registerCBT("TincanInterface", "DO_INSERT_DATA_PACKET", {
+                            self.register_cbt("TincanInterface", "DO_INSERT_DATA_PACKET", {
                                 "dataframe": report_dataframe,
                                 "interface_name": interface_name
                             })
@@ -263,7 +263,7 @@ class IPMulticast(ControllerModule):
                                         "interface_name": interface_name,
                                         "datagram": report_dataframe
                                     }
-                                    self.registerCBT("BaseTopologyManager", "ICC_CONTROL", new_msg)
+                                    self.register_cbt("BaseTopologyManager", "ICC_CONTROL", new_msg)
                             else:
                                 report_dataframe = self.buildmembershipreportv3(multicast_address_list, interface_name)
                                 new_msg = {
@@ -274,7 +274,7 @@ class IPMulticast(ControllerModule):
                                     "datagram": report_dataframe
                                 }
                                 # Send Membership Report as unicast to the Source Node
-                                self.registerCBT("BaseTopologyManager", "ICC_CONTROL", new_msg)
+                                self.register_cbt("BaseTopologyManager", "ICC_CONTROL", new_msg)
                         else:
                             report_dataframe = self.buildmembershipreportv1_2(multicast_address_list, interface_name, "6")
                             new_msg = {
@@ -285,10 +285,10 @@ class IPMulticast(ControllerModule):
                                 "datagram": report_dataframe
                             }
                             # Send Membership Report as unicast to the Source Node
-                            self.registerCBT("BaseTopologyManager", "ICC_CONTROL", new_msg)
+                            self.register_cbt("BaseTopologyManager", "ICC_CONTROL", new_msg)
             # IGMP Membership Report/Leave Group Message
             elif operation in ["2", "6", "7", "83", "84", "8F", "8f"]:
-                self.registerCBT("Logger", "info", "IGMP Membership Report packet received")
+                self.register_cbt("Logger", "info", "IGMP Membership Report packet received")
                 # Check whether the data is from local tap or remote node
                 if cbt.data.get("type") == "remote":
                     multicast_src_uid = cbt.data.get("init_uid")
@@ -298,7 +298,7 @@ class IPMulticast(ControllerModule):
                         # Convert IPv4 address from hex to ASCII format
                         multicast_add = '.'.join(
                             str(int(i, 16)) for i in [multicast_address[i:i + 2] for i in range(0, 8, 2)])
-                        self.registerCBT("Logger", "debug", "Multicast Address::" + str(multicast_add))
+                        self.register_cbt("Logger", "debug", "Multicast Address::" + str(multicast_add))
                         # Check whether there exists an entry in the Table for the Multicast group address
                         if multicast_address in self.multicast_details[interface_name]["Group"].keys():
                             # IGMP Membership Report
@@ -343,7 +343,7 @@ class IPMulticast(ControllerModule):
                                     list(set(self.multicast_details[interface_name]["Group"][multicast_address]))
                             else:
                                 self.multicast_details[interface_name]["Group"][multicast_address] = [multicast_src_uid]
-                    self.registerCBT("BroadcastForwarder", "BroadcastPkt", cbt.data)
+                    self.register_cbt("BroadcastForwarder", "BroadcastPkt", cbt.data)
                 else:
                     # MembershipReport obtained from an unmanaged node, route it to all other nodes in the network
                     msg = {
@@ -352,8 +352,8 @@ class IPMulticast(ControllerModule):
                         "type": "local"
                     }
                     # The message has originated from the local Tap interface send it to remaining nodes in the IPOP network
-                    self.registerCBT("BroadcastForwarder", "BroadcastPkt", msg)
-                self.registerCBT("Logger", "debug",
+                    self.register_cbt("BroadcastForwarder", "BroadcastPkt", msg)
+                self.register_cbt("Logger", "debug",
                                  "Multicast Table: {0}".format(str(self.multicast_details[interface_name])))
             else:
                 # IP Packet is Multicast data packet send it to all the UIDs subscribed to the Multicast address
