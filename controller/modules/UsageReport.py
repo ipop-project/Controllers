@@ -43,13 +43,13 @@ class UsageReport(ControllerModule):
         self.lck = threading.Lock()
 
     def initialize(self):
-        self.register_cbt('Logger', 'info', "{0} Loaded".format(self._module_name))
+        self.register_cbt("Logger", "LOG_INFO", "{0} Loaded".format(self._module_name))
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
             if cbt.request.action == "SIG_QUERY_REPORTING_DATA":
                 if (cbt.response.status == False):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.message))
+                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
                     self.free_cbt(cbt)
                     return
                 else: 
@@ -57,8 +57,8 @@ class UsageReport(ControllerModule):
             else:
                 self.free_cbt(cbt)
         else:
-            log = "No Request action is supported in StatModule {0}".format(cbt)
-            self.register_cbt('Logger', 'LOG_WARNING', log)
+            log = "No Request action is supported in usage report {0}".format(cbt)
+            self.register_cbt("Logger", "LOG_WARNING", log)
             self.complete_cbt(cbt)
 
     def timer_method(self):
@@ -88,11 +88,11 @@ class UsageReport(ControllerModule):
         report_data = cbt.response.data
         for overlay_id in report_data:
             report_data[overlay_id] = {
-                "xmpp_host": hashlib.sha1(report_data[overlay_id]["xmpp_host"].encode('utf-8')).hexdigest(),
-                "xmpp_username": hashlib.sha1(report_data[overlay_id]["xmpp_username"].encode('utf-8')).hexdigest(),
+                "xmpp_host": hashlib.sha1(report_data[overlay_id]["xmpp_host"].encode("utf-8")).hexdigest(),
+                "xmpp_username": hashlib.sha1(report_data[overlay_id]["xmpp_username"].encode("utf-8")).hexdigest(),
             }
         stat = {
-            "NodeId": hashlib.sha1(nid.encode('utf-8')).hexdigest(),
+            "NodeId": hashlib.sha1(nid.encode("utf-8")).hexdigest(),
             "Time": str(datetime.datetime.now()),
             "Model": self._cfx_handle.query_param("Model"),
             "Version": self._cfx_handle.query_param("ipopVerRel")
@@ -107,7 +107,7 @@ class UsageReport(ControllerModule):
 
     def submit_report(self, report_data):
         data = json.dumps(report_data)
-        self.register_cbt('Logger', 'info', "data at submit report {0}".format(data)) # for debugging
+        self.register_cbt("Logger", "LOG_INFO", "data at submit report {0}".format(data)) # for debugging
         url = None
         try:
             url = "http://" + self._cm_config["StatServerAddress"] + ":" + \
@@ -119,10 +119,10 @@ class UsageReport(ControllerModule):
                 log = "succesfully reported status to the stat-server {0}\n"\
                         "HTTP response code:{1}, msg:{2}"\
                         .format(url, res.getcode(), res.read())
-                self.register_cbt('Logger', 'info', log)
+                self.register_cbt("Logger", "LOG_INFO", log)
             else:
-                self.register_cbt('Logger', 'warning', "stat-server error code: {0}".format(res.getcode()))
+                self.register_cbt("Logger", "LOG_WARNING", "stat-server error code: {0}".format(res.getcode()))
                 raise
         except Exception as error:
             log = "statistics report failed to the stat-server ({0}).Error: {1}".format(url, error)
-            self.register_cbt('Logger', 'warning', log)
+            self.register_cbt("Logger", "LOG_WARNING", log)

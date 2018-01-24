@@ -96,8 +96,8 @@ class CFX(object):
             # because an import inside it failed. If we don't handle this
             # corner case, we will get an import error with the
             # (incorrect) message that module_name does not exist.
-            if not module_name in error.message:
-                failed_dep_name = error.message.split(" ")[-1]
+            if not module_name in str(error):
+                failed_dep_name = str(error).split(" ")[-1]
                 raise ImportError("Failed to load module \"{}\" due to an" \
                                   " ImportError on dependency \"{}\"" \
                                   .format(module_name, failed_dep_name))

@@ -21,7 +21,7 @@
 
 import uuid
 class CBT(object):
-    tag_counter = int(uuid.uuid4().hex[:7], base=16)
+    tag_counter = int(uuid.uuid4().hex[:3], base=16)
     class Request(object):
         def __init__(self, initiator="", recipient="", action="", params=None):
             self.initiator = initiator

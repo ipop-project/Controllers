@@ -43,7 +43,7 @@ class LinkManager(ControllerModule):
             self._cfx_handle.start_subscription("OverlayVisualizer",
                     "VIS_DATA_REQ")
         except NameError as e:
-            if "OverlayVisualizer" in e.message:
+            if "OverlayVisualizer" in str(e):
                 self.register_cbt("Logger", "LOG_WARNING",
                         "OverlayVisualizer module not loaded." \
                             " Visualization data will not be sent.")
