@@ -18,7 +18,6 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-
 import sys
 import datetime
 import hashlib
@@ -42,25 +41,6 @@ class UsageReport(ControllerModule):
         self._stat_data = {"ready": False, "pending_request":False}
         self.submit_time = datetime.datetime(2015, 1, 1, 0, 0)
         self.lck = threading.Lock()
-
-    def initialize(self):
-        self.register_cbt('Logger', 'info', "{0} Loaded".format(self._module_name))
-
-    def process_cbt(self, cbt):
-        if cbt.op_type == "Response":
-        	if cbt.request.action == "SIG_QUERY_REPORTING_DATA":
-	            if (cbt.response.status == False):
-	                self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.message))
-	                self.free_cbt(cbt)
-	                return
-	            else: 
-	                self.create_report(cbt)
-	        else:
-	        	self.free_cbt(cbt)
-        else:
-            log = "No Request action is supported in StatModule {0}".format(cbt)
-            self.register_cbt('Logger', 'LOG_WARNING', log)
-            self.complete_cbt(cbt)
 
     def initialize(self):
         self.register_cbt("Logger", "LOG_INFO", "{0} Loaded".format(self._module_name))
@@ -124,7 +104,6 @@ class UsageReport(ControllerModule):
         self._stat_data["pending_request"] = False
         self.lck.release()
         self.free_cbt(cbt)
-
 
     def submit_report(self, report_data):
         data = json.dumps(report_data)
