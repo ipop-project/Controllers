@@ -163,7 +163,11 @@ class LinkManager(ControllerModule):
 
                 elif cbt.request.action == "LNK_QUERY_LINK_DSCR": # look into TCI, comes from topology, all link status
                     # categorized by overlay ID's .
-                    pass
+                    olid = cbt.request.params["OverlayId"]
+                    peerid = cbt.request.params["LinkId"]
+                    lnkid = self._overlays[olid]["Peers"][peerid]
+                    cbt.set_response(self._overlays[lnkid]["Stats"], status=True)
+                    self.complete_cbt(cbt)
 
                 elif cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY": # probably not going to be used
                     pass
@@ -229,7 +233,8 @@ class LinkManager(ControllerModule):
                         # get parent, complete
                         parent_cbt = self.get_parent_cbt(cbt)
                         # is there a need to set up a response in parent cbt, when do we need to set up a response and when not?
-                        self.complete_cbt(cbt)
+                        parent_cbt.set_response(data="succesful", status = True)
+                        self.complete_cbt(parent_cbt)
 
                 elif cbt.request.action == "TCI_QUERY_LINK_STATS":
                     if (cbt.response.status == False):
