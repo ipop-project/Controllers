@@ -33,7 +33,7 @@ class Topology(ControllerModule, CFX):
         self._overlays = {}
 
     def initialize(self):
-        self._sub_presence = self._cfx_handle.start_subscription("Signal",
+        self._cfx_handle.start_subscription("Signal",
                  "SIG_PEER_PRESENCE_NOTIFY")
         for olid in self._cm_config["Overlays"]:
             self._overlays[olid] = (
@@ -44,8 +44,8 @@ class Topology(ControllerModule, CFX):
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
                     "VIS_DATA_REQ")
-        except NameError as e:
-            if "OverlayVisualizer" in str(e):
+        except NameError as err:
+            if "OverlayVisualizer" in str(err):
                 self.register_cbt("Logger", "LOG_WARNING",
                         "OverlayVisualizer module not loaded." \
                             " Visualization data will not be sent.")

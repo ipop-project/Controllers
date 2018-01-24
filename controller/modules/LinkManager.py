@@ -36,8 +36,6 @@ class LinkManager(ControllerModule):
         self._links = {} # indexed by link id, which is unique
 
     def initialize(self):
-        self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
-
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
@@ -47,6 +45,7 @@ class LinkManager(ControllerModule):
                 self.register_cbt("Logger", "LOG_WARNING",
                         "OverlayVisualizer module not loaded." \
                             " Visualization data will not be sent.")
+        self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
     def req_link_endpt_from_peer(self, cbt):
         """
@@ -190,8 +189,7 @@ class LinkManager(ControllerModule):
                             }
                         }
                     }
-                    vis_data_resp = dict(Topology=dummy_lmngr_data)
-                    cbt.set_response(data=vis_data_resp, status=True)
+                    cbt.set_response(data=dummy_lmngr_data, status=True)
                     self.complete_cbt(cbt)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)

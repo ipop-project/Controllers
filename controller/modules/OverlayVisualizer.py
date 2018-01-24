@@ -59,7 +59,7 @@ class OverlayVisualizer(ControllerModule):
                 self._cfx_handle.publish_subscription("VIS_DATA_REQ")
 
         self.register_cbt("Logger", "LOG_INFO",
-                "{0} Loaded".format(self._module_name))
+                "{0} Module loaded".format(self._module_name))
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
