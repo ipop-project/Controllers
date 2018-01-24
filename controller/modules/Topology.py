@@ -45,8 +45,8 @@ class Topology(ControllerModule, CFX):
             self._cfx_handle.start_subscription("OverlayVisualizer",
                     "VIS_DATA_REQ")
         except NameError as e:
-            #if "OverlayVisualizer" in e.args:
-            self.register_cbt("Logger", "LOG_WARNING",
+            if "OverlayVisualizer" in str(e):
+                self.register_cbt("Logger", "LOG_WARNING",
                         "OverlayVisualizer module not loaded." \
                             " Visualization data will not be sent.")
 

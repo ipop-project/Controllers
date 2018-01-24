@@ -57,7 +57,7 @@ class JidCache:
         self.cache = {}
         self.cm_mod = cm_mod
 
-    def _log(self, msg, severity="info"):
+    def _log(self, msg, severity="LOG_INFO"):
         self.cm_mod._log(msg, severity)
 
     def add_entry(self, node_id, jid):
@@ -93,7 +93,7 @@ class XmppTransport:
         self.jid_cache = jid_cache
         self.cbts = cbts
 
-    def _log(self, msg, severity="info"):
+    def _log(self, msg, severity="LOG_INFO"):
         self.cm_mod._log(msg, severity)
 
     # Triggered at start of XMPP session
@@ -114,7 +114,7 @@ class XmppTransport:
             else:
                 raise RuntimeError("Multiple invocations of start event handler")
         except Exception as err:
-            self._log("XmppTransport:Exception:{0} Event:{1}".format(err, event), severity="error")
+            self._log("XmppTransport:Exception:{0} Event:{1}".format(err, event), severity="LOG_ERROR")
 
     # Callback Function to keep track of Online XMPP Peers
     def presence_event_handler(self, presence):
@@ -138,7 +138,7 @@ class XmppTransport:
                     else:
                         self._log("Unrecognized PSTATUS: {0}".format(pstatus))
         except Exception as err:
-            self._log("XmppTransport:Exception:{0} presence:{1}".format(err, presence), severity="error")
+            self._log("XmppTransport:Exception:{0} presence:{1}".format(err, presence), severity="LOG_ERROR")
 
     # This handler listens for matched messages on the xmpp stream,
     # extracts the setup and payload, and takes suitable action.
@@ -176,9 +176,9 @@ class XmppTransport:
                 self.cm_mod.self.register_cbt(cbtdata["RecipientCM"], cbtdata["Action"], cbtdata["Params"])
                 return
             else:
-                self._log("Invalid message type received {0}".format(str(msg)), "warning")
+                self._log("Invalid message type received {0}".format(str(msg)), "LOG_WARNING")
         except Exception as err:
-            self._log("XmppTransport:Exception:{0} msg:{1}".format(err, msg), severity="error")
+            self._log("XmppTransport:Exception:{0} msg:{1}".format(err, msg), severity="LOG_ERROR")
 
     # Send message to Peer JID via XMPP server
     def send_msg(self, peer_jid, header=None, msg_payload=None):
@@ -266,7 +266,7 @@ class Signal(ControllerModule):
         self._circles = {}
         self._keyring_installed = False
 
-    def _log(self, msg, severity="info"):
+    def _log(self, msg, severity="LOG_INFO"):
         self.register_cbt("Logger", severity, msg)
 
     def create_transport_instance(self, overlay_id, overlay_descr, jid_cache, jid_refresh_q):
