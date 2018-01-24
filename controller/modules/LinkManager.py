@@ -187,8 +187,7 @@ class LinkManager(ControllerModule):
                             }
                         }
                     }
-                    vis_data_resp = dict(LinkManager=dummy_lmngr_data)
-                    cbt.set_response(data=vis_data_resp, status=True)
+                    cbt.set_response(data=dummy_lmngr_data, status=True)
                     self.complete_cbt(cbt)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
