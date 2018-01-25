@@ -128,7 +128,7 @@ class LinkManager(ControllerModule):
             lcbt.SetRequest(("Signal", "SIG_REMOTE_ACTION", remote_act))
             self.submit_cbt(lcbt)
         elif parent_cbt.request.action == "LNK_ADD_PEER_CAS":
-            parent_cbt.set_response(data="succesful", status=True)
+            parent_cbt.set_response(data="successful", status=True)
             self.complete(parent_cbt)
 
     def remove_link(self, cbt):
@@ -139,6 +139,10 @@ class LinkManager(ControllerModule):
         self.submit_cbt(rl_cbt)
         #send courtesy terminate link ICC, later.
 
+
+    def query_link_descriptor(self, cbt):
+        pass
+
     def req_link_descriptors_update(self, cbt):
         params = []
         for olid in self._overlays:
@@ -147,7 +151,16 @@ class LinkManager(ControllerModule):
 
     def update_visualizer_data(self, cbt):
         # TODO: dummy data for testing the OverlayVisualizer
-        dummy_link_data = {
+        vis_data = dict(LinkManager=dict())
+        for olid in self._overlays.keys():
+            for peerid in self._overlays["Peers"].keys():
+                lnkid = self._overlays["Peers"][peerid]
+                stats = self._links[lnkid]["Stats"]
+                vis_data["LinkManager"][olid] = {lnkid:dict(LinkId=lnkid,PeerId=peerid,Stats=stats)}
+        cbt.set_response(data=vis_data, status=True)
+        self.complete_cbt(cbt)
+
+        '''dummy_link_data = {
             "LinkId": "test-link-id",
             "PeerId": "test-peer-id",
             "Stats": {
@@ -162,7 +175,7 @@ class LinkManager(ControllerModule):
                 }
             }
         }
-        cbt.set_response(data=dummy_lmngr_data, status=True)
+        cbt.set_response(data=dummy_lmngr_data, status=True)'''
 
     def handle_link_descriptors_update(self, cbt):
         if (cbt.response.status == False):
@@ -172,6 +185,7 @@ class LinkManager(ControllerModule):
             for olid in cbt.request.params:
                 for lnkid in cbt.response.data[olid]:
                     self._links[lnkid] = dict(Stats=cbt.response.data[olid][lnkid])
+
 
     def process_cbt(self, cbt):
         try:
@@ -201,7 +215,6 @@ class LinkManager(ControllerModule):
 
                 elif cbt.request.action == "VIS_DATA_REQ":
                     self.update_visualizer_data(cbt)
-                    self.complete_cbt(cbt)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
                     self.register_cbt("Logger", "LOG_WARNING", log)
@@ -224,7 +237,7 @@ class LinkManager(ControllerModule):
                             lcbt.SetRequest(("TincanInterface", "TCI_CREATE_LINK", cbt_load))
                             self.submit_cbt(lcbt)
                         elif cbt_data["Action"] == "LNK_ADD_PEER_CAS":
-                            cbt_parent.set_response(data="succesful", status=True)
+                            cbt_parent.set_response(data="successful", status=True)
                             self.complete(cbt_parent)
                 elif cbt.request.action == "TCI_CREATE_LINK":
                     if (cbt.response.status == False):
@@ -238,10 +251,11 @@ class LinkManager(ControllerModule):
                         # get parent, complete
                         parent_cbt = self.get_parent_cbt(cbt)
                         # is there a need to set up a response in parent cbt, when do we need to set up a response and when not?
-                        parent_cbt.set_response(data="succesful", status = True)
+                        parent_cbt.set_response(data="successful", status = True)
                         self.complete_cbt(parent_cbt)
                 elif cbt.request.action == "TCI_QUERY_LINK_STATS":
                     self.handle_link_descriptors_update(cbt)
+
                 self.free_cbt(cbt)
         except Exception as err:
             erlog = "Exception in process cbt, continuing ...:\n{0}".format(str(err))

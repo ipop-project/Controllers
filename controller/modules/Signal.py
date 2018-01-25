@@ -65,7 +65,7 @@ class JidCache:
         self.cache[node_id] = (jid, time.time())
         self.lck.release()
 
-    def scavenage(self,):
+    def scavenge(self,):
         self.lck.acquire()
         curr_time = time.time()
         keys_to_be_deleted = [key for key, value in self.cache.items() if curr_time - value[1] >= 120]
@@ -359,7 +359,7 @@ class Signal(ControllerModule):
     def timer_method(self):
         # Clean up JID cache for all XMPP connections
         for overlay_id in self._circles.keys():
-            self._circles[overlay_id]["JidCache"].scavenage()
+            self._circles[overlay_id]["JidCache"].scavenge()
 
     def terminate(self):
         for overlay_id in self._circles.keys():
