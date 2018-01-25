@@ -58,7 +58,6 @@ class LinkManager(ControllerModule):
         local endpoint if the peer denies our request. The link id is communicated
         in the request and will be the same at both nodes.
         """
-
         olid = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["PeerId"]
 
@@ -81,7 +80,6 @@ class LinkManager(ControllerModule):
             "NodeData": cbt.request.params["NodeData"],
             "TTL": time.time() + self._cm_config["InitialLinkTTL"]
         }
-
         # Send the message via SIG server to peer node
         remote_act = dict(OverlayId = olid,
                        PeerId = peerid,
@@ -93,7 +91,6 @@ class LinkManager(ControllerModule):
         lcbt.SetRequest("Signal", "SIG_REMOTE_ACTION", remote_act)
         self.submit_cbt(lcbt)
         return # not returning linkid here, seems not required.
-    
 
     def create_link_local_endpt(self, cbt):
         # Add to local DS (at recipient) for bookkeeping
@@ -208,8 +205,7 @@ class LinkManager(ControllerModule):
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
                     self.register_cbt("Logger", "LOG_WARNING", log)
-            if cbt.op_type == "Response":
-
+            elif cbt.op_type == "Response":
                 if cbt.request.action == "SIG_REMOTE_ACTION":
                     if (cbt.response.status == False):
                         self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
@@ -230,14 +226,11 @@ class LinkManager(ControllerModule):
                         elif cbt_data["Action"] == "LNK_ADD_PEER_CAS":
                             cbt_parent.set_response(data="succesful", status=True)
                             self.complete(cbt_parent)
-
                 elif cbt.request.action == "TCI_CREATE_LINK":
                     if (cbt.response.status == False):
                         self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
                     else:
                        self.send_local_link_endpt_to_peer(cbt) #3/5 send via SIG to peer to update CAS
-
-
                 elif cbt.request.action == "TCI_REMOVE_LINK":
                     if (cbt.response.status == False):
                         self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
@@ -247,11 +240,9 @@ class LinkManager(ControllerModule):
                         # is there a need to set up a response in parent cbt, when do we need to set up a response and when not?
                         parent_cbt.set_response(data="succesful", status = True)
                         self.complete_cbt(parent_cbt)
-
                 elif cbt.request.action == "TCI_QUERY_LINK_STATS":
                     self.handle_link_descriptors_update(cbt)
                 self.free_cbt(cbt)
-                
         except Exception as err:
             erlog = "Exception in process cbt, continuing ...:\n{0}".format(str(err))
             self.register_cbt("Logger", "LOG_WARNING", erlog)
