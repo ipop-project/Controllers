@@ -128,7 +128,7 @@ class LinkManager(ControllerModule):
             lcbt.SetRequest(("Signal", "SIG_REMOTE_ACTION", remote_act))
             self.submit_cbt(lcbt)
         elif parent_cbt.request.action == "LNK_ADD_PEER_CAS":
-            parent_cbt.set_response(data="successful", status=True)
+            parent_cbt.set_response(data="Success", status=True)
             self.complete(parent_cbt)
 
     def remove_link(self, cbt):
@@ -143,43 +143,25 @@ class LinkManager(ControllerModule):
     def query_link_descriptor(self, cbt):
         pass
 
-    def req_link_descriptors_update(self, cbt):
+    def req_link_descriptors_update(self):
         params = []
         for olid in self._overlays:
             params.append(olid) 
         self.register_cbt("TincanInterface", "TCI_QUERY_LINK_STATS", params)
 
     def update_visualizer_data(self, cbt):
-        # TODO: dummy data for testing the OverlayVisualizer
         vis_data = dict(LinkManager=dict())
-        for olid in self._overlays.keys():
-            for peerid in self._overlays["Peers"].keys():
-                lnkid = self._overlays["Peers"][peerid]
+        for olid in self._overlays:
+            for peerid in self._overlays[olid]["Peers"]:
+                lnkid = self._overlays[olid]["Peers"][peerid]
                 stats = self._links[lnkid]["Stats"]
                 vis_data["LinkManager"][olid] = {lnkid:dict(LinkId=lnkid,PeerId=peerid,Stats=stats)}
         cbt.set_response(data=vis_data, status=True)
         self.complete_cbt(cbt)
 
-        '''dummy_link_data = {
-            "LinkId": "test-link-id",
-            "PeerId": "test-peer-id",
-            "Stats": {
-                "rem_addr": "10.24.95.100:53468",
-                "sent_bytes_second": "50000"
-            }
-        }
-        dummy_lmngr_data = {
-            "LinkManager": {
-                "test-overlay-id": {
-                    "test-link-id": dummy_link_data
-                }
-            }
-        }
-        cbt.set_response(data=dummy_lmngr_data, status=True)'''
-
     def handle_link_descriptors_update(self, cbt):
         if (cbt.response.status == False):
-            self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+            self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
             #can this type of error be corrected at runtime?
         else:
             for olid in cbt.request.params:
@@ -221,7 +203,7 @@ class LinkManager(ControllerModule):
             elif cbt.op_type == "Response":
                 if cbt.request.action == "SIG_REMOTE_ACTION":
                     if (cbt.response.status == False):
-                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
                     else:
                         # look inside cbt for inner
                         cbt_parent = cbt.parent
@@ -237,22 +219,25 @@ class LinkManager(ControllerModule):
                             lcbt.SetRequest(("TincanInterface", "TCI_CREATE_LINK", cbt_load))
                             self.submit_cbt(lcbt)
                         elif cbt_data["Action"] == "LNK_ADD_PEER_CAS":
-                            cbt_parent.set_response(data="successful", status=True)
+                            #cbt_parent.set_response(data="successful", status=True)
+                            #TODO: link_id is needed here, ensure it is avaiable in the CBT
+                            cbt_parent.set_response(data={"LinkId": link_id}, status=True)
                             self.complete(cbt_parent)
                 elif cbt.request.action == "TCI_CREATE_LINK":
                     if (cbt.response.status == False):
-                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
                     else:
                        self.send_local_link_endpt_to_peer(cbt) #3/5 send via SIG to peer to update CAS
                 elif cbt.request.action == "TCI_REMOVE_LINK":
                     if (cbt.response.status == False):
-                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
                     else:
                         # get parent, complete
                         parent_cbt = self.get_parent_cbt(cbt)
                         # is there a need to set up a response in parent cbt, when do we need to set up a response and when not?
                         parent_cbt.set_response(data="successful", status = True)
                         self.complete_cbt(parent_cbt)
+                        #TODO: Need to remove link from self._links
                 elif cbt.request.action == "TCI_QUERY_LINK_STATS":
                     self.handle_link_descriptors_update(cbt)
 
