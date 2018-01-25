@@ -58,7 +58,6 @@ class LinkManager(ControllerModule):
         local endpoint if the peer denies our request. The link id is communicated
         in the request and will be the same at both nodes.
         """
-
         olid = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["PeerId"]
 
@@ -81,7 +80,6 @@ class LinkManager(ControllerModule):
             "NodeData": cbt.request.params["NodeData"],
             "TTL": time.time() + self._cm_config["InitialLinkTTL"]
         }
-
         # Send the message via SIG server to peer node
         remote_act = dict(OverlayId = olid,
                        PeerId = peerid,
@@ -93,9 +91,8 @@ class LinkManager(ControllerModule):
         lcbt.SetRequest("Signal", "SIG_REMOTE_ACTION", remote_act)
         self.submit_cbt(lcbt)
         return # not returning linkid here, seems not required.
-    
 
-    def CreateLinkLocalEndpt(self, cbt):
+    def create_link_local_endpt(self, cbt):
         # Add to local DS (at recipient) for bookkeeping
         if cbt.request.action == "LNK_REQ_LINK_ENDPT":
             olid = cbt.request.params["OverlayId"]
@@ -134,7 +131,7 @@ class LinkManager(ControllerModule):
             parent_cbt.set_response(data="succesful", status=True)
             self.complete(parent_cbt)
 
-    def RemoveLink(self, cbt):
+    def remove_link(self, cbt):
         olid = cbt.request.params["OverlayId"]
         lid = cbt.request.params["LinkId"]
         self.create_linked_cbt(cbt)
@@ -142,8 +139,39 @@ class LinkManager(ControllerModule):
         self.submit_cbt(rl_cbt)
         #send courtesy terminate link ICC, later.
 
-    def QueryLinkDescriptor(self, cbt):
-        pass
+    def req_link_descriptors_update(self, cbt):
+        params = []
+        for olid in self._overlays:
+            params.append(olid) 
+        self.register_cbt("TincanInterface", "TCI_QUERY_LINK_STATS", params)
+
+    def update_visualizer_data(self, cbt):
+        # TODO: dummy data for testing the OverlayVisualizer
+        dummy_link_data = {
+            "LinkId": "test-link-id",
+            "PeerId": "test-peer-id",
+            "Stats": {
+                "rem_addr": "10.24.95.100:53468",
+                "sent_bytes_second": "50000"
+            }
+        }
+        dummy_lmngr_data = {
+            "LinkManager": {
+                "test-overlay-id": {
+                    "test-link-id": dummy_link_data
+                }
+            }
+        }
+        cbt.set_response(data=dummy_lmngr_data, status=True)
+
+    def handle_link_descriptors_update(self, cbt):
+        if (cbt.response.status == False):
+            self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+            #can this type of error be corrected at runtime?
+        else:
+            for olid in cbt.request.params:
+                for lnkid in cbt.response.data[olid]:
+                    self._links[lnkid] = dict(Stats=cbt.response.data[olid][lnkid])
 
     def process_cbt(self, cbt):
         try:
@@ -152,13 +180,13 @@ class LinkManager(ControllerModule):
                     self.req_link_endpt_from_peer(cbt) #1 send via SIG
 
                 elif cbt.request.action == "LNK_REQ_LINK_ENDPT":
-                    self.CreateLinkLocalEndpt(cbt) #2 rcvd peer req for endpt, send via TCI 
+                    self.create_link_local_endpt(cbt) #2 rcvd peer req for endpt, send via TCI 
 
                 elif cbt.request.action == "LNK_ADD_PEER_CAS":
-                    self.CreateLinkLocalEndpt(cbt) #4 rcvd cas from peer, sends via TCI to add peer cas
+                    self.create_link_local_endpt(cbt) #4 rcvd cas from peer, sends via TCI to add peer cas
 
                 elif cbt.request.action == "LNK_REMOVE_LINK":
-                    self.RemoveLink(cbt) # call to Tincan to remove link, cbt should contain olod and link id.
+                    self.remove_link(cbt) # call to Tincan to remove link, cbt should contain olod and link id.
 
                 elif cbt.request.action == "LNK_QUERY_LINK_DSCR": # look into TCI, comes from topology, all link status
                     # categorized by overlay ID's .
@@ -172,30 +200,12 @@ class LinkManager(ControllerModule):
                     pass
 
                 elif cbt.request.action == "VIS_DATA_REQ":
-                    # dummy data for testing the OverlayVisualizer
-                    dummy_link_data = {
-                        "LinkId": "test-link-id",
-                        "PeerId": "test-peer-id",
-                        "Stats": {
-                            "rem_addr": "10.24.95.100:53468",
-                            "sent_bytes_second": "50000"
-                        }
-                    }
-
-                    dummy_lmngr_data = {
-                        "LinkManager": {
-                            "test-overlay-id": {
-                                "test-link-id": dummy_link_data
-                            }
-                        }
-                    }
-                    cbt.set_response(data=dummy_lmngr_data, status=True)
+                    self.update_visualizer_data(cbt)
                     self.complete_cbt(cbt)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
                     self.register_cbt("Logger", "LOG_WARNING", log)
-            if cbt.op_type == "Response":
-
+            elif cbt.op_type == "Response":
                 if cbt.request.action == "SIG_REMOTE_ACTION":
                     if (cbt.response.status == False):
                         self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
@@ -216,14 +226,11 @@ class LinkManager(ControllerModule):
                         elif cbt_data["Action"] == "LNK_ADD_PEER_CAS":
                             cbt_parent.set_response(data="succesful", status=True)
                             self.complete(cbt_parent)
-
                 elif cbt.request.action == "TCI_CREATE_LINK":
                     if (cbt.response.status == False):
                         self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
                     else:
                        self.send_local_link_endpt_to_peer(cbt) #3/5 send via SIG to peer to update CAS
-
-
                 elif cbt.request.action == "TCI_REMOVE_LINK":
                     if (cbt.response.status == False):
                         self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
@@ -233,34 +240,19 @@ class LinkManager(ControllerModule):
                         # is there a need to set up a response in parent cbt, when do we need to set up a response and when not?
                         parent_cbt.set_response(data="succesful", status = True)
                         self.complete_cbt(parent_cbt)
-
                 elif cbt.request.action == "TCI_QUERY_LINK_STATS":
-                    if (cbt.response.status == False):
-                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
-                    else:
-                        lnkid = cbt.request.params["LinkId"]
-                        self._links[lnkid] = dict(Stats=cbt.response.data)
+                    self.handle_link_descriptors_update(cbt)
                 self.free_cbt(cbt)
-                
         except Exception as err:
             erlog = "Exception in process cbt, continuing ...:\n{0}".format(str(err))
             self.register_cbt("Logger", "LOG_WARNING", erlog)
 
     def timer_method(self):
         try:
-            for olid in self._overlays:
-                self._overlays[olid]["Lock"].acquire()
-                for linkid in self._overlays[olid]["Links"]:
-                    params = {
-                        "OverlayId": olid,
-                        "LinkId": linkid
-                        }
-                    self.register_cbt("TincanInterface", "TCI_QUERY_LINK_STATS", params)
-                self._overlays[olid]["Lock"].release()
+            self.req_link_descriptors_update()
         except Exception as err:
-            self._overlays[olid]["Lock"].release()
-            self.register_cbt("Logger", "LOG_ERROR", "Exception caught in LinkManager timer thread.\
-                             Error: {0}".format(str(err)))
+            self.register_cbt("Logger", "LOG_ERROR", "Exception LinkManager timer thread.\
+                             {0}".format(str(err)))
 
     def terminate(self):
         pass
