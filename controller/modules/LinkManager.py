@@ -36,8 +36,6 @@ class LinkManager(ControllerModule):
         self._links = {} # indexed by link id, which is unique
 
     def initialize(self):
-        self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
-
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
@@ -47,6 +45,7 @@ class LinkManager(ControllerModule):
                 self.register_cbt("Logger", "LOG_WARNING",
                         "OverlayVisualizer module not loaded." \
                             " Visualization data will not be sent.")
+        self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
     def req_link_endpt_from_peer(self, cbt):
         """
@@ -163,7 +162,11 @@ class LinkManager(ControllerModule):
 
                 elif cbt.request.action == "LNK_QUERY_LINK_DSCR": # look into TCI, comes from topology, all link status
                     # categorized by overlay ID's .
-                    pass
+                    olid = cbt.request.params["OverlayId"]
+                    peerid = cbt.request.params["LinkId"]
+                    lnkid = self._overlays[olid]["Peers"][peerid]
+                    cbt.set_response(self._overlays[lnkid]["Stats"], status=True)
+                    self.complete_cbt(cbt)
 
                 elif cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY": # probably not going to be used
                     pass
@@ -186,8 +189,7 @@ class LinkManager(ControllerModule):
                             }
                         }
                     }
-                    vis_data_resp = dict(Topology=dummy_lmngr_data)
-                    cbt.set_response(data=vis_data_resp, status=True)
+                    cbt.set_response(data=dummy_lmngr_data, status=True)
                     self.complete_cbt(cbt)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
@@ -229,7 +231,8 @@ class LinkManager(ControllerModule):
                         # get parent, complete
                         parent_cbt = self.get_parent_cbt(cbt)
                         # is there a need to set up a response in parent cbt, when do we need to set up a response and when not?
-                        self.complete_cbt(cbt)
+                        parent_cbt.set_response(data="succesful", status = True)
+                        self.complete_cbt(parent_cbt)
 
                 elif cbt.request.action == "TCI_QUERY_LINK_STATS":
                     if (cbt.response.status == False):
