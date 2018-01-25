@@ -104,6 +104,10 @@ CONFIG = {
         "ServerAddress": "metrics.ipop-project.org",
         "ServerPort": 8080,
         "Dependencies": ["Logger"]
+    },
+    "Broadcaster": {
+        "Enabled": False,
+        "Dependencies": ["Logger", "Topology", "InterControllerCommunicator"]
     }
 }
 
