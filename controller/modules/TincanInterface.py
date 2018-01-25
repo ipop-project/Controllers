@@ -182,8 +182,7 @@ class TincanInterface(ControllerModule):
         ctl = ipoplib.CTL_QUERY_LINK_STATS
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
-        req["OverlayId"] = msg["OverlayId"]
-        req["LinkId"] = msg["LinkId"]
+        req["OverlayIds"] = msg
         self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 

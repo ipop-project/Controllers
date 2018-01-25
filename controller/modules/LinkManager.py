@@ -95,7 +95,7 @@ class LinkManager(ControllerModule):
         return # not returning linkid here, seems not required.
     
 
-    def CreateLinkLocalEndpt(self, cbt):
+    def create_link_local_endpt(self, cbt):
         # Add to local DS (at recipient) for bookkeeping
         if cbt.request.action == "LNK_REQ_LINK_ENDPT":
             olid = cbt.request.params["OverlayId"]
@@ -134,7 +134,7 @@ class LinkManager(ControllerModule):
             parent_cbt.set_response(data="succesful", status=True)
             self.complete(parent_cbt)
 
-    def RemoveLink(self, cbt):
+    def remove_link(self, cbt):
         olid = cbt.request.params["OverlayId"]
         lid = cbt.request.params["LinkId"]
         self.create_linked_cbt(cbt)
@@ -142,8 +142,39 @@ class LinkManager(ControllerModule):
         self.submit_cbt(rl_cbt)
         #send courtesy terminate link ICC, later.
 
-    def QueryLinkDescriptor(self, cbt):
-        pass
+    def req_link_descriptors_update(self, cbt):
+        params = []
+        for olid in self._overlays:
+            params.append(olid) 
+        self.register_cbt("TincanInterface", "TCI_QUERY_LINK_STATS", params)
+
+    def update_visualizer_data(self, cbt):
+        # TODO: dummy data for testing the OverlayVisualizer
+        dummy_link_data = {
+            "LinkId": "test-link-id",
+            "PeerId": "test-peer-id",
+            "Stats": {
+                "rem_addr": "10.24.95.100:53468",
+                "sent_bytes_second": "50000"
+            }
+        }
+        dummy_lmngr_data = {
+            "LinkManager": {
+                "test-overlay-id": {
+                    "test-link-id": dummy_link_data
+                }
+            }
+        }
+        cbt.set_response(data=dummy_lmngr_data, status=True)
+
+    def handle_link_descriptors_update(self, cbt):
+        if (cbt.response.status == False):
+            self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
+            #can this type of error be corrected at runtime?
+        else:
+            for olid in cbt.request.params:
+                for lnkid in cbt.response.data[olid]:
+                    self._links[lnkid] = dict(Stats=cbt.response.data[olid][lnkid])
 
     def process_cbt(self, cbt):
         try:
@@ -152,13 +183,13 @@ class LinkManager(ControllerModule):
                     self.req_link_endpt_from_peer(cbt) #1 send via SIG
 
                 elif cbt.request.action == "LNK_REQ_LINK_ENDPT":
-                    self.CreateLinkLocalEndpt(cbt) #2 rcvd peer req for endpt, send via TCI 
+                    self.create_link_local_endpt(cbt) #2 rcvd peer req for endpt, send via TCI 
 
                 elif cbt.request.action == "LNK_ADD_PEER_CAS":
-                    self.CreateLinkLocalEndpt(cbt) #4 rcvd cas from peer, sends via TCI to add peer cas
+                    self.create_link_local_endpt(cbt) #4 rcvd cas from peer, sends via TCI to add peer cas
 
                 elif cbt.request.action == "LNK_REMOVE_LINK":
-                    self.RemoveLink(cbt) # call to Tincan to remove link, cbt should contain olod and link id.
+                    self.remove_link(cbt) # call to Tincan to remove link, cbt should contain olod and link id.
 
                 elif cbt.request.action == "LNK_QUERY_LINK_DSCR": # look into TCI, comes from topology, all link status
                     # categorized by overlay ID's .
@@ -172,24 +203,7 @@ class LinkManager(ControllerModule):
                     pass
 
                 elif cbt.request.action == "VIS_DATA_REQ":
-                    # dummy data for testing the OverlayVisualizer
-                    dummy_link_data = {
-                        "LinkId": "test-link-id",
-                        "PeerId": "test-peer-id",
-                        "Stats": {
-                            "rem_addr": "10.24.95.100:53468",
-                            "sent_bytes_second": "50000"
-                        }
-                    }
-
-                    dummy_lmngr_data = {
-                        "LinkManager": {
-                            "test-overlay-id": {
-                                "test-link-id": dummy_link_data
-                            }
-                        }
-                    }
-                    cbt.set_response(data=dummy_lmngr_data, status=True)
+                    self.update_visualizer_data(cbt)
                     self.complete_cbt(cbt)
                 else:
                     log = "Unsupported CBT action {0}".format(cbt)
@@ -235,11 +249,7 @@ class LinkManager(ControllerModule):
                         self.complete_cbt(parent_cbt)
 
                 elif cbt.request.action == "TCI_QUERY_LINK_STATS":
-                    if (cbt.response.status == False):
-                        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.Message))
-                    else:
-                        lnkid = cbt.request.params["LinkId"]
-                        self._links[lnkid] = dict(Stats=cbt.response.data)
+                    self.handle_link_descriptors_update(cbt)
                 self.free_cbt(cbt)
                 
         except Exception as err:
@@ -248,19 +258,10 @@ class LinkManager(ControllerModule):
 
     def timer_method(self):
         try:
-            for olid in self._overlays:
-                self._overlays[olid]["Lock"].acquire()
-                for linkid in self._overlays[olid]["Links"]:
-                    params = {
-                        "OverlayId": olid,
-                        "LinkId": linkid
-                        }
-                    self.register_cbt("TincanInterface", "TCI_QUERY_LINK_STATS", params)
-                self._overlays[olid]["Lock"].release()
+            self.req_link_descriptors_update()
         except Exception as err:
-            self._overlays[olid]["Lock"].release()
-            self.register_cbt("Logger", "LOG_ERROR", "Exception caught in LinkManager timer thread.\
-                             Error: {0}".format(str(err)))
+            self.register_cbt("Logger", "LOG_ERROR", "Exception LinkManager timer thread.\
+                             {0}".format(str(err)))
 
     def terminate(self):
         pass
