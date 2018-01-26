@@ -51,8 +51,7 @@ class Topology(ControllerModule, CFX):
                                   "OverlayVisualizer module not loaded."
                                   " Visualization data will not be sent.")
 
-        self.register_cbt("Logger", "LOG_INFO", "{0} Module loaded"
-                          .format(self._module_name))
+        self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
     def terminate(self):
         pass
@@ -79,13 +78,13 @@ class Topology(ControllerModule, CFX):
         # for creating the link
         if (self._overlays[overlay_id]["Descriptor"]["IsReady"]
                 and self._overlays[overlay_id]["Peers"].get(peer_id, "PeerStateUnknown") != "PeerStateConnected"):
-            local_descr = {
+            params = {
                 "OverlayId": overlay_id,
                 "PeerId": peer_id,
-                "EncryptionEnabled": self._cm_config["Overlays"][olid].get("EncryptionEnabled", True),
+                "EncryptionEnabled": self._cm_config["Overlays"][overlay_id].get("EncryptionEnabled", True),
                 "NodeData": self._overlays[overlay_id]["Descriptor"]
             }
-            self.register_cbt("LinkManger", "LNK_CREATE_LINK", peer_descr)
+            self.register_cbt("LinkManager", "LNK_CREATE_LINK", params)
 
     def create_link_handler(self, cbt):
         olid = cbt.request.params["OverlayId"]
@@ -127,9 +126,9 @@ class Topology(ControllerModule, CFX):
 
     def peer_presence_handler(self, cbt):
         peer = cbt.request.params
-        self._overlays[peer["overlay_id"]]["Peers"].add({peer["PeerId"]: "PeerStateAvailable"})
-        self._overlays[peer["overlay_id"]]["Descriptor"]["State"] = "Isolated"
-        self.connect_to_peer(peer["overlay_id"], peer["peer_id"])
+        self._overlays[peer["OverlayId"]]["Peers"][peer["PeerId"]] = "PeerStateAvailable"
+        self._overlays[peer["OverlayId"]]["Descriptor"]["State"] = "Isolated"
+        self.connect_to_peer(peer["OverlayId"], peer["PeerId"])
 
     def query_peer_ids(self, cbt):
         peer_ids = {}

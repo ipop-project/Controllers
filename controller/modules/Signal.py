@@ -127,7 +127,7 @@ class XmppTransport:
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
                     if (pstatus == "ident"):
-                        self.presence_publisher.post_update(dict(peer_id = peer_id, overlay_id = self.overlay_id))
+                        self.presence_publisher.post_update(dict(PeerId = peer_id, OverlayId = self.overlay_id))
                         self._log("Resolved Peer@Overlay {0}@{1} - {2}".format(peer_id[:7], self.overlay_id, presence_sender))
                         self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                     elif (pstatus == "uid?"):

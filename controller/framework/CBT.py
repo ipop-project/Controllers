@@ -60,8 +60,11 @@ class CBT(object):
         self.response = None
 
     def __repr__(self):
-        msg = "{\n\ttag: {0},\n\tparent: {1},\n\tchild_count: {2},\n\tcompleted: {3},\n\top_type: {4},\n\trequest: {5},\n\tresponse: {6}\n}"
-        .format(self.tag, str(self.parent), self.child_count, self.completed, self.op_type, self.request, self.response)
+        msg = ("{\n\ttag: %d,\n\tparent: %s,\n\tchild_count: %d, \
+                \n\tcompleted: %r,\n\top_type: %s,\n\trequest: %r, \
+                \n\tresponse: %r\n}"
+               % (self.tag, str(self.parent), self.child_count, self.completed,
+                 self.op_type, self.request, self.response))
         return msg
 
     def set_request(self, initiator="", recipient="", action="", params=""):

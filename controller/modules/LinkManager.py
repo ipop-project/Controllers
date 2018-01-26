@@ -89,7 +89,7 @@ class LinkManager(ControllerModule):
                           Params=json.dumps(msg))
 
         lcbt = self.create_linked_cbt(cbt)
-        lcbt.SetRequest("Signal", "SIG_REMOTE_ACTION", remote_act)
+        lcbt.set_request("Signal", "SIG_REMOTE_ACTION", remote_act)
         self.submit_cbt(lcbt)
         return  # not returning linkid here, seems not required.
 
@@ -104,7 +104,7 @@ class LinkManager(ControllerModule):
             self._overlays[olid]["Peers"][peerid] = lnkid  # index for quick peer->link lookup
             self._links[lnkid] = dict(Stats=dict())
         lcbt = self.create_linked_cbt(cbt)
-        lcbt.SetRequest("TincanInterface", "TCI_CREATE_LINK", cbt.request.params)
+        lcbt.set_request("TincanInterface", "TCI_CREATE_LINK", cbt.request.params)
         self.submit_cbt(lcbt)
 
     def send_local_link_endpt_to_peer(self, cbt):
@@ -129,7 +129,7 @@ class LinkManager(ControllerModule):
                               Action="LNK_ADD_PEER_CAS",
                               Params=json.dumps(msg))
             lcbt = self.create_linked_cbt(parent_cbt)
-            lcbt.SetRequest(("Signal", "SIG_REMOTE_ACTION", remote_act))
+            lcbt.set_request(("Signal", "SIG_REMOTE_ACTION", remote_act))
             self.submit_cbt(lcbt)
         elif parent_cbt.request.action == "LNK_ADD_PEER_CAS":
             parent_cbt.set_response(data="Success", status=True)
@@ -192,7 +192,7 @@ class LinkManager(ControllerModule):
                                 "CAS": peer_cas,
                                 "FPR": cbt_data["NodeData"]["FPR"]}}
                 lcbt = self.create_linked_cbt(cbt_parent)
-                lcbt.SetRequest(("TincanInterface", "TCI_CREATE_LINK", cbt_load))
+                lcbt.set_request(("TincanInterface", "TCI_CREATE_LINK", cbt_load))
                 self.submit_cbt(lcbt)
             elif cbt_data["Action"] == "LNK_ADD_PEER_CAS":
                 # cbt_parent.set_response(data="successful", status=True)
