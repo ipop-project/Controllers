@@ -114,7 +114,7 @@ class Topology(ControllerModule, CFX):
             self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", cbt.request.params)
 
     def create_overlay_resp_handler(self, cbt):
-        if cbt.response.status == True:
+        if cbt.response.status:
             self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", {
                               "OverlayId": cbt.request.params["OverlayId"]})
         else:
@@ -142,7 +142,7 @@ class Topology(ControllerModule, CFX):
             self.complete_cbt(cbt)
             self.register_cbt("Logger", "LOG_WARNING", "Overlay Id is not valid {0}".format(cbt.response.data))
 
-    def vis_data_reponse(self, cbt):
+    def vis_data_response(self, cbt):
         topo_data = dict()
         try:
             for olid in self._cm_config["Overlays"]:
