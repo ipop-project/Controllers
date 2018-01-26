@@ -74,7 +74,7 @@ class JidCache:
             self._log("Deleted entry from JID cache {0}".format(key), severity="debug")
         self.lck.release()
 
-    def lookup(node_id):
+    def lookup(self, node_id):
         self.lck.acquire()
         ent = self.cache.get(node_id, None)
         ent[1] = time.time()
