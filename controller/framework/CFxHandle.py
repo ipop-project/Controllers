@@ -145,13 +145,9 @@ class CFxHandle(object):
                         recipient="Logger",
                         action="LOG_WARNING",
                         params="CBT exception:\n"
-                             "    initiator {0}\n"
-                             "    recipient {1}:\n"
-                             "    action    {2}:\n"
-                             "    data      {3}:\n"
-                             "    traceback:\n{4}"
-                             .format(cbt.request.initiator, cbt.request.recipient, cbt.request.action,
-                                     cbt.request.params, traceback.format_exc())
+                             "  {0}\n"
+                             "  traceback:\n{1}"
+                             .format(cbt, traceback.format_exc())
                     )
 
                     self.submit_cbt(log_cbt)

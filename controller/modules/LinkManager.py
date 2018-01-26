@@ -19,12 +19,15 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from controller.framework.ControllerModule import ControllerModule
 import time
-import json
 import threading
 import uuid
 import copy
+try:
+    import simplejson as json
+except ImportError:
+    import json
+from controller.framework.ControllerModule import ControllerModule
 
 
 class LinkManager(ControllerModule):
@@ -96,15 +99,16 @@ class LinkManager(ControllerModule):
     def create_link_local_endpt(self, cbt):
         # Add to local DS (at recipient) for bookkeeping
         if cbt.request.action == "LNK_REQ_LINK_ENDPT":
-            olid = cbt.request.params["OverlayId"]
-            lnkid = cbt.request.params["LinkId"]
-            peerid = cbt.request.params["NodeData"]["UID"]
+            params = json.loads(cbt.request.params)
+            olid = params["OverlayId"]
+            lnkid = params["LinkId"]
+            peerid = params["NodeData"]["UID"]
             if self._overlays.get(olid) is None:
                 self._overlays[olid] = dict(Lock=threading.Lock(), Peers=dict())
             self._overlays[olid]["Peers"][peerid] = lnkid  # index for quick peer->link lookup
             self._links[lnkid] = dict(Stats=dict())
         lcbt = self.create_linked_cbt(cbt)
-        lcbt.set_request(self._module_name, "TCI_CREATE_LINK", cbt.request.params)
+        lcbt.set_request(self._module_name, "TincanInterface", "TCI_CREATE_LINK", params)
         self.submit_cbt(lcbt)
 
     def send_local_link_endpt_to_peer(self, cbt):
@@ -220,56 +224,48 @@ class LinkManager(ControllerModule):
         self.complete_cbt(cbt)
 
     def process_cbt(self, cbt):
-        try:
-            if cbt.op_type == "Request":
-                # request CAS, ask peer to create end point and rtesturn cas info after reciving notification.
-                if cbt.request.action == "LNK_CREATE_LINK":
-                    self.req_link_endpt_from_peer(cbt)  # 1 send via SIG
+        if cbt.op_type == "Request":
+            # request CAS, ask peer to create end point and rtesturn cas info after reciving notification.
+            if cbt.request.action == "LNK_CREATE_LINK":
+                self.req_link_endpt_from_peer(cbt)  # 1 send via SIG
 
-                elif cbt.request.action == "LNK_REQ_LINK_ENDPT":
-                    self.create_link_local_endpt(cbt)  # 2 rcvd peer req for endpt, send via TCI
+            elif cbt.request.action == "LNK_REQ_LINK_ENDPT":
+                self.create_link_local_endpt(cbt)  # 2 rcvd peer req for endpt, send via TCI
 
-                elif cbt.request.action == "LNK_ADD_PEER_CAS":
-                    self.create_link_local_endpt(cbt)  # 4 rcvd cas from peer, sends via TCI to add peer cas
+            elif cbt.request.action == "LNK_ADD_PEER_CAS":
+                self.create_link_local_endpt(cbt)  # 4 rcvd cas from peer, sends via TCI to add peer cas
 
-                elif cbt.request.action == "LNK_REMOVE_LINK":
-                    self.remove_link(cbt)  # call to Tincan to remove link, cbt should contain olod and link id.
+            elif cbt.request.action == "LNK_REMOVE_LINK":
+                self.remove_link(cbt)  # call to Tincan to remove link, cbt should contain olod and link id.
 
-                elif cbt.request.action == "LNK_QUERY_LINKS":  # look into TCI, comes from topology, all link status
-                    self.query_links(cbt)
+            elif cbt.request.action == "LNK_QUERY_LINKS":  # look into TCI, comes from topology, all link status
+                self.query_links(cbt)
 
-                elif cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":  # probably not going to be used
-                    pass
+            elif cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":  # probably not going to be used
+                pass
 
-                elif cbt.request.action == "VIS_DATA_REQ":
-                    self.update_visualizer_data(cbt)
-                else:
-                    log = "Unsupported CBT action {0}".format(cbt)
-                    self.register_cbt("Logger", "LOG_WARNING", log)
-            elif cbt.op_type == "Response":
-                if cbt.request.action == "SIG_REMOTE_ACTION":
-                    self.remote_action_handler(cbt)
+            elif cbt.request.action == "VIS_DATA_REQ":
+                self.update_visualizer_data(cbt)
+            else:
+                log = "Unsupported CBT action {0}".format(cbt)
+                self.register_cbt("Logger", "LOG_WARNING", log)
+        elif cbt.op_type == "Response":
+            if cbt.request.action == "SIG_REMOTE_ACTION":
+                self.remote_action_handler(cbt)
 
-                elif cbt.request.action == "TCI_CREATE_LINK":
-                    self.send_local_link_endpt_to_peer(cbt)  # 3/5 send via SIG to peer to update CAS
+            elif cbt.request.action == "TCI_CREATE_LINK":
+                self.send_local_link_endpt_to_peer(cbt)  # 3/5 send via SIG to peer to update CAS
 
-                elif cbt.request.action == "TCI_REMOVE_LINK":
-                    self.remove_link_handler(cbt)
+            elif cbt.request.action == "TCI_REMOVE_LINK":
+                self.remove_link_handler(cbt)
 
-                elif cbt.request.action == "TCI_QUERY_LINK_STATS":
-                    self.handle_link_descriptors_update(cbt)
+            elif cbt.request.action == "TCI_QUERY_LINK_STATS":
+                self.handle_link_descriptors_update(cbt)
 
-                self.free_cbt(cbt)
-        except Exception as err:
-            erlog = "Exception in process cbt, continuing ...:\n{0}".format(str(err))
-            self.register_cbt("Logger", "LOG_WARNING", erlog)
+            self.free_cbt(cbt)
 
     def timer_method(self):
-        try:
-            self.req_link_descriptors_update()
-        except Exception as err:
-            self.register_cbt("Logger", "LOG_ERROR", "Exception LinkManager timer thread.\
-                             {0}".format(str(err)))
+        self.req_link_descriptors_update()
 
     def terminate(self):
         pass

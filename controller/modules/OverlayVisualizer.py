@@ -25,9 +25,7 @@ except ImportError:
     import json
 import threading
 from collections import defaultdict
-
 from controller.framework.ControllerModule import ControllerModule
-
 import requests
 
 
