@@ -102,6 +102,11 @@ CONFIG = {
         "ServerAddress": "metrics.ipop-project.org",
         "ServerPort": 8080,
         "Dependencies": ["Logger"]
+    },
+    "Icc": {
+        "Enabled": False,
+        "TimerInterval": 30,
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     }
 }
 

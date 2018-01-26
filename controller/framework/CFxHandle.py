@@ -24,12 +24,7 @@ import logging
 import threading
 import traceback
 from controller.framework.CBT import CBT
-
-py_ver = sys.version_info[0]
-if py_ver == 3:
-    import queue as Queue
-else:
-    import Queue
+import queue as Queue
 
 
 class CFxHandle(object):
@@ -58,7 +53,6 @@ class CFxHandle(object):
         # create and return a CBT with optional parameters
         cbt = CBT(initiator, recipient, action, params)
         self._owned_cbts[cbt.tag] = cbt
-        print("create_cbt:{0}".format(cbt))
         return cbt
 
     def create_linked_cbt(self, parent):

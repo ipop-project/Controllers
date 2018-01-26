@@ -246,6 +246,10 @@ class LinkManager(ControllerModule):
 
             elif cbt.request.action == "VIS_DATA_REQ":
                 self.update_visualizer_data(cbt)
+
+            elif cbt.request.action == "LNK_GET_LINKID":  # look into TCI, comes from topology, all link status
+                cbt.set_response({"OverlayId": "1234", "LinkId":"1234"}, True)
+                self.complete_cbt(cbt)
             else:
                 log = "Unsupported CBT action {0}".format(cbt)
                 self.register_cbt("Logger", "LOG_WARNING", log)
