@@ -94,7 +94,7 @@ CONFIG = {
     },
     "ArpCache": {
         "Enabled": False,
-        "Dependencies": ["BroadcastForwarder"]
+        "Dependencies": ["Broadcaster"]
     },
     "UsageReport": {
         "Enabled": False,
@@ -105,7 +105,7 @@ CONFIG = {
     },
     "Broadcaster": {
         "Enabled": False,
-        "Dependencies": ["Logger", "Topology", "InterControllerCommunicator"]
+        "Dependencies": ["Logger", "Topology", "Icc"]
     },
     "Icc": {
         "Enabled": False,
