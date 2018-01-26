@@ -21,9 +21,6 @@
 
 from controller.framework.ControllerModule import ControllerModule
 from controller.framework.CFx import CFX
-import time
-import math
-import uuid
 import json
 
 
@@ -34,24 +31,27 @@ class Topology(ControllerModule, CFX):
 
     def initialize(self):
         self._cfx_handle.start_subscription("Signal",
-                 "SIG_PEER_PRESENCE_NOTIFY")
+                                            "SIG_PEER_PRESENCE_NOTIFY")
         for olid in self._cm_config["Overlays"]:
             self._overlays[olid] = (
-                dict(Descriptor = dict(IsReady=False, State="Bootstrapping"),
-                    Peers=set()))
+                dict(Descriptor=dict(IsReady=False, State="Bootstrapping"),
+                     Peers=dict()))
+            """
+            Peers is set of dictionaries indexed by peer id and maps to state
+            of peer, ex: Peers= {peer_id="peer_state"}
+            """
             self.create_overlay(self._cm_config["Overlays"][olid], olid)
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
-                    "VIS_DATA_REQ")
+                                                "VIS_DATA_REQ")
         except NameError as err:
             if "OverlayVisualizer" in str(err):
                 self.register_cbt("Logger", "LOG_WARNING",
-                        "OverlayVisualizer module not loaded." \
-                            " Visualization data will not be sent.")
+                                  "OverlayVisualizer module not loaded."
+                                  " Visualization data will not be sent.")
 
-        self.register_cbt("Logger", "LOG_INFO", "{0} Module loaded"
-                          .format(self._module_name))
+        self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
     def terminate(self):
         pass
@@ -73,18 +73,28 @@ class Topology(ControllerModule, CFX):
         self.register_cbt("TincanInterface", "TCI_CREATE_OVERLAY", param)
 
     def connect_to_peer(self, overlay_id, peer_id):
-        #only send the create link request is we have overlay info from tincan
-        #this is where we get the local fingerprint/mac and more which necessary
-        #for creating the link
+        # only send the create link request is we have overlay info from tincan
+        # this is where we get the local fingerprint/mac and more which necessary
+        # for creating the link
         if (self._overlays[overlay_id]["Descriptor"]["IsReady"]
-            and self._overlays[overlay_id]["Peers"][peer_id] != "PeerStateConnected"):
-            local_descr = {
+                and self._overlays[overlay_id]["Peers"].get(peer_id, "PeerStateUnknown") != "PeerStateConnected"):
+            params = {
                 "OverlayId": overlay_id,
                 "PeerId": peer_id,
-                "EncryptionEnabled": self._cm_config["Overlays"][olid].get("EncryptionEnabled", True),
+                "EncryptionEnabled": self._cm_config["Overlays"][overlay_id].get("EncryptionEnabled", True),
                 "NodeData": self._overlays[overlay_id]["Descriptor"]
-                }
-            self.register_cbt("LinkManger", "LNK_CREATE_LINK", peer_descr)
+            }
+            self.register_cbt("LinkManager", "LNK_CREATE_LINK", params)
+
+    def create_link_handler(self, cbt):
+        olid = cbt.request.params["OverlayId"]
+        peer_id = cbt.request.params["PeerId"]
+        if cbt.response.status:
+            self._overlays[olid]["Peers"][peer_id] = "PeerStateConnected"
+        else:
+            self._overlays[olid]["Peers"].pop(peer_id, None)
+            self.register_cbt("Logger", "LOG_WARNING",
+                              "Link Creation Failed {0}".format(cbt.response.data))
 
     def update_overlay_info(self, cbt):
         if cbt.response.status:
@@ -99,25 +109,61 @@ class Topology(ControllerModule, CFX):
             self._overlays[olid]["Descriptor"]["Fingerprint"] = cbt_data["Fingerprint"]
         else:
             self.register_cbt("Logger", "LOG_WARNING",
-                "Query overlay info failed {0}".format(cbt.response.data))
-            #retry the query
+                              "Query overlay info failed {0}".format(cbt.response.data))
+            # retry the query
             self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", cbt.request.params)
 
     def create_overlay_resp_handler(self, cbt):
         if cbt.response.status == True:
-            self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", {"OverlayId": cbt.request.params["OverlayId"]})
+            self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", {
+                              "OverlayId": cbt.request.params["OverlayId"]})
         else:
             self.register_cbt("Logger", "LOG_WARNING", cbt.response.data)
-            #retry creating the overlay once
+            # retry creating the overlay once
             if self._overlays[cbt.request.params["OverlayId"]].get("RetryCount", 0) < 1:
                 self._overlays[cbt.request.params["OverlayId"]]["RetryCount"] = 1
                 self.register_cbt("TincanInterface", "TCI_CREATE_OVERLAY", cbt.request.params)
 
     def peer_presence_handler(self, cbt):
         peer = cbt.request.params
-        self._overlays[peer["overlay_id"]]["Peers"].add(peer["peer_id"])
-        self._overlays[peer["overlay_id"]]["Descriptor"]["State"] = "Isolated"
-        self.connect_to_peer(peer["overlay_id"], peer["peer_id"])
+        self._overlays[peer["OverlayId"]]["Peers"][peer["PeerId"]] = "PeerStateAvailable"
+        self._overlays[peer["OverlayId"]]["Descriptor"]["State"] = "Isolated"
+        self.connect_to_peer(peer["OverlayId"], peer["PeerId"])
+
+    def query_peer_ids(self, cbt):
+        peer_ids = {}
+        try:
+            for olid in self._cm_config["Overlays"]:
+                peer_ids[olid] = set(self._overlays[olid]["Peers"].keys())
+            cbt.set_response(data=peer_ids, status=True)
+            self.complete_cbt(cbt)
+        except KeyError:
+            cbt.set_response(data=None, status=False)
+            self.complete_cbt(cbt)
+            self.register_cbt("Logger", "LOG_WARNING", "Overlay Id is not valid {0}".format(cbt.response.data))
+
+    def vis_data_reponse(self, cbt):
+        topo_data = dict()
+        try:
+            for olid in self._cm_config["Overlays"]:
+                if self._overlays[olid]["Descriptor"]["IsReady"]:
+                    topo_data[olid]["TapName"] = self._overlays[olid]["Descriptor"]["TapName"]
+                    # self._overlays[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
+                    topo_data[olid]["GeoIP"] = "128.277.9.98"
+                    topo_data[olid]["VIP4"] = self._overlays[olid]["Descriptor"]["VIP4"]
+                    topo_data[olid]["PrefixLen"] = self._overlays[olid]["Descriptor"]["PrefixLen"]
+                    topo_data[olid]["MAC"] = self._overlays[olid]["Descriptor"]["MAC"]
+            if len(topo_data) == 0:
+                topo_data = None
+                status = False
+            else:
+                status = True
+            cbt.set_response(topo_data, status)
+            self.complete_cbt(cbt)
+        except KeyError:
+            cbt.set_response(data=None, status=False)
+            self.complete_cbt(cbt)
+            self.register_cbt("Logger", "LOG_WARNING", "Topology data not available {0}".format(cbt.response.data))
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -126,32 +172,24 @@ class Topology(ControllerModule, CFX):
                 cbt.set_response(None, True)
                 self.complete_cbt(cbt)
             elif cbt.request.action == "VIS_DATA_REQ":
-                dummy_topo_data = {
-                    "test-overlay-id": {
-                        "InterfaceName": "ipop_tap0",
-                        "GeoIP": "1.2.3.4",
-                        "VIP4": "2.3.4.5",
-                        "PrefixLen": 16, 
-                        "MAC": "FF:FF:FF:FF:FF"
-                    }
-                }
-                vis_data_resp = dict(Topology=dummy_topo_data)
-
-                cbt.set_response(data=vis_data_resp, status=True)
-                self.complete_cbt(cbt) 
-
+                self.vis_data_response(cbt)
+            elif cbt.request == "TOP_QUERY_PEER_IDS":
+                self.query_peer_ids(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_CREATE_OVERLAY":
                 self.create_overlay_resp_handler(cbt)
             if cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
                 self.update_overlay_info(cbt)
+            if cbt.request.action == "LNK_CREATE_LINK":
+                self.create_link_handler(cbt)
             self.free_cbt(cbt)
 
         pass
 
     def timer_method(self):
         try:
-            #for overlay_id in self._overlays:
+            # self.register_cbt("LinkManger","LNK_QUERY_LINKS")
+            # for overlay_id in self._overlays:
             #    for peer_id in self._overlays[overlay_id]["Peers"]:
             #        self.connect_to_peer(overlay_id, peer_id)
             pass

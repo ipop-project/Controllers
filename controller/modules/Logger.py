@@ -22,7 +22,6 @@
 import logging
 import logging.handlers as lh
 import os
-import sys
 from controller.framework.ControllerModule import ControllerModule
 
 
@@ -42,14 +41,14 @@ class Logger(ControllerModule):
             # Console logging
             logging.basicConfig(format="[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s\n", datefmt="%H:%M:%S",
                                 level=level)
-            self.logger = logging.getLogger("IPOP console logger");
+            self.logger = logging.getLogger("IPOP console logger")
         else:
             # Extracts the filepath else sets logs to current working directory
             filepath = self._cm_config.get("Directory", "./")
             fqname = filepath + \
                 self._cm_config.get("CtrlLogFileName", "ctrl.log")
             if not os.path.isdir(filepath):
-              os.mkdir(filepath)
+                os.mkdir(filepath)
             self.logger = logging.getLogger("IPOP Rotating Log")
             self.logger.setLevel(level)
             # Creates rotating filehandler
@@ -93,7 +92,7 @@ class Logger(ControllerModule):
                 self.logger.warning("{0}: {1}".format(self._module_name, log))
             self._cfx_handle.complete_cbt(cbt)
         elif cbt.op_type == "Response":
-            print(cbt) #TODO remove before release
+            print(cbt)  # TODO remove before release
             self.free_cbt(cbt)
 
     def timer_method(self):
@@ -103,7 +102,7 @@ class Logger(ControllerModule):
         hext = ""
         if dump:
             for i in range(0, len(dump), 2):
-                hext += dump[i:i+2].encode("hex")
+                hext += dump[i:i + 2].encode("hex")
                 hext += " "
                 if i % 16 == 14:
                     hext += "\n"
@@ -112,4 +111,4 @@ class Logger(ControllerModule):
             logging.log(5, message, *args, **argv)
 
     def terminate(self):
-      pass
+        pass

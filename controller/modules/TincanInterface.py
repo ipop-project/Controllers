@@ -23,11 +23,8 @@ from controller.framework.ControllerModule import ControllerModule
 import socket
 import select
 import json
-import ast
 import controller.framework.ipoplib as ipoplib
-import controller.framework.fxlib as fxlib
 from threading import Thread
-import uuid
 
 
 class TincanInterface(ControllerModule):
@@ -60,7 +57,7 @@ class TincanInterface(ControllerModule):
         self.CreateControlLink()
         self.ConfigureTincanLogging(None, True)
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
-        #self.register_cbt("Logger", "LOG_QUERY_CONFIG")
+        # self.register_cbt("Logger", "LOG_QUERY_CONFIG")
 
     def __tincan_listener(self):
         while True:
@@ -72,8 +69,8 @@ class TincanInterface(ControllerModule):
                     data, addr = sock.recvfrom(self._cm_config["MaxReadSize"])
                     ctl = json.loads(data.decode("utf-8"))
                     if ctl["IPOP"]["ProtocolVersion"] != 5:
-                        raise ValueError("Invalid control version detected");
-                    #Get the original CBT if this is the response
+                        raise ValueError("Invalid control version detected")
+                    # Get the original CBT if this is the response
                     if ctl["IPOP"]["ControlType"] == "TincanResponse":
                         cbt = self.control_cbt[ctl["IPOP"]["TransactionId"]]
                         cbt.set_response(ctl["IPOP"]["Response"]["Message"], ctl["IPOP"]["Response"]["Success"])
@@ -87,7 +84,7 @@ class TincanInterface(ControllerModule):
         ctl = ipoplib.CTL_CREATE_CTRL_LINK
         ctl["IPOP"]["TransactionId"] = cbt.tag
         if self._cm_config["CtrlRecvPort"] is not None:
-          ctl["IPOP"]["Request"]["Port"] = self._cm_config["CtrlRecvPort"]
+            ctl["IPOP"]["Request"]["Port"] = self._cm_config["CtrlRecvPort"]
         if socket.has_ipv6 is False:
             ctl["IPOP"]["Request"]["AddressFamily"] = "af_inet"
             ctl["IPOP"]["Request"]["IP"] = self._cm_config["ServiceAddress"]
@@ -220,8 +217,7 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
-        req["RecipientMAC"] = msg["MAC"]
-        req["Data"] = json.dumps(msg)
+        req["Data"] = msg["Data"]
         self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
@@ -235,16 +231,19 @@ class TincanInterface(ControllerModule):
         self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
-    #rework ICC messaging necessary
+    # rework ICC messaging necessary
     def ProcessTincanRequest(self, cbt):
         if cbt.request.params["Command"] == "ICC":
-            pl = cbt.request.params["Data"]
             msg = {
-                }
-            self.register_cbt("ICC", pl["Recipient"], pl)
+                "OverlayId": cbt.request.params["OverlayId"],
+                "LinkId": cbt.request.params["LinkId"],
+                "Data": cbt.request.params["Data"]
+            }
+            self.register_cbt("InterControllerCommunicator", "ICC_RECIEVE", msg)
         else:
             erlog = "Unsupported request received from Tincan"
             self.register_cbt("Logger", "LOG_WARNING", erlog)
+        self.complete_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -292,7 +291,6 @@ class TincanInterface(ControllerModule):
                 self.ConfigureTincanLoggingResp(cbt)
 
             self.free_cbt(cbt)
-
 
     def SendControl(self, msg):
         return self._sock.sendto(bytes(msg.encode("utf-8")), self._dest)

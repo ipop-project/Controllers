@@ -65,7 +65,7 @@ class JidCache:
         self.cache[node_id] = (jid, time.time())
         self.lck.release()
 
-    def scavenage(self,):
+    def scavenge(self,):
         self.lck.acquire()
         curr_time = time.time()
         keys_to_be_deleted = [key for key, value in self.cache.items() if curr_time - value[1] >= 120]
@@ -74,10 +74,13 @@ class JidCache:
             self._log("Deleted entry from JID cache {0}".format(key), severity="debug")
         self.lck.release()
 
-    def lookup(node_id):
+    def lookup(self, node_id):
+        jid = None
         self.lck.acquire()
-        ent = self.cache.get(node_id, None)
-        ent[1] = time.time()
+        ent = self.cache.pop(node_id)
+        if (ent is not None):
+            jid = ent[0]
+            self.cache[node_id] = (jid, time.time())
         self.lck.release()
         return jid
 
@@ -127,7 +130,7 @@ class XmppTransport:
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
                     if (pstatus == "ident"):
-                        self.presence_publisher.post_update(dict(peer_id = peer_id, overlay_id = self.overlay_id))
+                        self.presence_publisher.post_update(dict(PeerId = peer_id, OverlayId = self.overlay_id))
                         self._log("Resolved Peer@Overlay {0}@{1} - {2}".format(peer_id[:7], self.overlay_id, presence_sender))
                         self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                     elif (pstatus == "uid?"):
@@ -173,7 +176,7 @@ class XmppTransport:
                 return
             elif msg_type == "invk":
                 cbtdata = json.loads(payload)
-                self.cm_mod.self.register_cbt(cbtdata["RecipientCM"], cbtdata["Action"], cbtdata["Params"])
+                self.cm_mod.register_cbt(cbtdata["RecipientCM"], cbtdata["Action"], cbtdata["Params"])
                 return
             else:
                 self._log("Invalid message type received {0}".format(str(msg)), "LOG_WARNING")
@@ -313,13 +316,13 @@ class Signal(ControllerModule):
                     jid_cache = self._circles[overlay_id]["JidCache"]
                     #cache_lk = self._circles[overlay_id]["CacheLock"]
                     #cache_lk.acquire()
-                    cache_entry = jid_cache.lookup(peerid)
-                    if cache_entry is not None:
-                        peer_jid = cache_entry[0]
-                        setup_load = "invk" + "#" + "None" + "#" + peer_jid
+                    peer_jid = jid_cache.lookup(peerid)
+                    if peer_jid is not None:
+                        setup_load = "invk" + "#" + "None" + "#" + str(peer_jid)
                         msg_payload = json.dumps(message)
-                        self._circles["overlay_id"]["Transport"].send_msg(peer_jid, setup_load, msg_payload)
-                        self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".format(peerid, setup_load, msg_payload), "LOG_DEBUG")
+                        xmppobj.send_msg(str(peer_jid), setup_load, msg_payload)
+                        self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".
+                                  format(peerid, setup_load, msg_payload), "LOG_DEBUG")
                     else:
                         #cache_lk.release()
                         CBTQ = self._circles[overlay_id]["JidRefreshQ"]
@@ -346,8 +349,6 @@ class Signal(ControllerModule):
             elif cbt.op_type == "Response":
                 if (cbt.response.status == False):
                     self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
-                    self.free_cbt(cbt)
-                    return
 
                 self.free_cbt(cbt)
 
@@ -359,7 +360,7 @@ class Signal(ControllerModule):
     def timer_method(self):
         # Clean up JID cache for all XMPP connections
         for overlay_id in self._circles.keys():
-            self._circles[overlay_id]["JidCache"].scavenage()
+            self._circles[overlay_id]["JidCache"].scavenge()
 
     def terminate(self):
         for overlay_id in self._circles.keys():
