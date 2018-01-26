@@ -54,10 +54,10 @@ class ControllerModule(object):
     # create and submit CBT mask method
     def register_cbt(self, _recipient, _action, _params=None):
         cbt = self._cfx_handle.create_cbt(
-            initiator = self._module_name,
-            recipient = _recipient,
-            action = _action,
-            params = _params
+            initiator=self._module_name,
+            recipient=_recipient,
+            action=_action,
+            params=_params
         )
         self._cfx_handle.submit_cbt(cbt)
         return cbt

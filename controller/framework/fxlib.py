@@ -19,8 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import hashlib
-import socket
 ipopVerMjr = "18"
 ipopVerMnr = "01"
 ipopVerRev = "0"
@@ -28,8 +26,8 @@ ipopVerRel = "{0}.{1}.{2}".format(ipopVerMjr, ipopVerMnr, ipopVerRev)
 
 # set default config values
 MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
-               "Signal", "LinkManager", "Topology", "Broadcast",
-               "IPMulticast", "ArpCache", "UsageReport"]
+                "Signal", "LinkManager", "Topology", "Broadcast",
+                "IPMulticast", "ArpCache", "UsageReport"]
 CONFIG = {
     "CFx": {
         "NodeId": "",  # Attribute to store node UID needed by Statreport and SVPN
@@ -49,7 +47,7 @@ CONFIG = {
     "OverlayVisualizer": {
         "Enabled": False,
         "TimerInterval": 5,                # Timer thread interval
-        "WebServiceAddress": ":8080/IPOP", # Visualizer webservice URL
+        "WebServiceAddress": ":8080/IPOP",  # Visualizer webservice URL
         "NodeName": "",                    # Node Name as seen from the UI
         "Dependencies": ["Logger"]
     },
@@ -106,6 +104,7 @@ CONFIG = {
         "Dependencies": ["Logger"]
     }
 }
+
 
 def gen_ip6(uid, ip6=None):
     if ip6 is None:

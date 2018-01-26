@@ -23,8 +23,6 @@ try:
     import simplejson as json
 except ImportError:
     import json
-import time
-import sys
 import threading
 from collections import defaultdict
 
@@ -37,7 +35,7 @@ class OverlayVisualizer(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(OverlayVisualizer, self).__init__(cfx_handle, module_config, module_name)
         # Visualizer webservice URL
-        self.vis_address = "http://"+self._cm_config["WebServiceAddress"]
+        self.vis_address = "http://" + self._cm_config["WebServiceAddress"]
         # Datastructure to store Node network details
 
         self.node_id = str(self._cm_config["NodeId"])
@@ -56,10 +54,10 @@ class OverlayVisualizer(ControllerModule):
         # timer_method() and all subscribing modules are expected to reply
         # with the data they want to forward to the visualiser
         self._vis_req_publisher = \
-                self._cfx_handle.publish_subscription("VIS_DATA_REQ")
+            self._cfx_handle.publish_subscription("VIS_DATA_REQ")
 
         self.register_cbt("Logger", "LOG_INFO",
-                "{0} Module loaded".format(self._module_name))
+                          "{0} Module loaded".format(self._module_name))
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
@@ -71,7 +69,7 @@ class OverlayVisualizer(ControllerModule):
                 for mod_name in msg:
                     for ovrl_id in msg[mod_name]:
                         self._vis_ds["Data"][ovrl_id][mod_name] \
-                                = msg[mod_name][ovrl_id]
+                            = msg[mod_name][ovrl_id]
                 self._vis_ds_lock.release()
             self.free_cbt(cbt)
         else:
@@ -84,22 +82,22 @@ class OverlayVisualizer(ControllerModule):
             vis_ds = self._vis_ds
             # flush old data, next itr provides new data
             self._vis_ds = dict(NodeId=self.node_id,
-                    Data=defaultdict(dict))
+                                Data=defaultdict(dict))
 
         if vis_ds["Data"]:
-            print ("Visualizer is going to send" \
-                    " {}".format(json.dumps(vis_ds)))
+            print("Visualizer is going to send"
+                  " {}".format(json.dumps(vis_ds)))
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
 
             try:
                 resp = requests.put(req_url, data=json.dumps(vis_ds),
-                          headers={"Content-Type": "application/json"})
+                                    headers={"Content-Type": "application/json"})
                 resp.raise_for_status()
 
             except requests.exceptions.RequestException as err:
                 log = "Failed to send data to the IPOP Visualizer" \
-                        " webservice({0}). Exception: {1}" \
-                                .format(self.vis_address, str(err))
+                    " webservice({0}). Exception: {1}" \
+                    .format(self.vis_address, str(err))
                 self.register_cbt("Logger", "LOG_ERROR", log)
 
         # Now that all the accumulated data has been dealth with, we request

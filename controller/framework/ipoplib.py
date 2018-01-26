@@ -33,7 +33,7 @@ CTL_CREATE_CTRL_LINK = {
             "Protocol": "proto_datagram",
             "IP": "::1",
             "Port": 5801
-            }
+        }
     }
 }
 CTL_CONFIGURE_LOGGING = {
@@ -42,13 +42,13 @@ CTL_CONFIGURE_LOGGING = {
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-          "Command": "ConfigureLogging",
-          "Level": "DEBUG",
-          "Device": "File",
-          "Directory": "./logs/",
-          "Filename": "tincan_log",
-          "MaxArchives": 10,
-          "MaxFileSize": 1048576
+            "Command": "ConfigureLogging",
+            "Level": "DEBUG",
+            "Device": "File",
+            "Directory": "./logs/",
+            "Filename": "tincan_log",
+            "MaxArchives": 10,
+            "MaxFileSize": 1048576
         }
     }
 }
@@ -58,8 +58,8 @@ CTL_QUERY_OVERLAY_INFO = {
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-          "Command": "QueryOverlayInfo",
-          "OverlayId": ""
+            "Command": "QueryOverlayInfo",
+            "OverlayId": ""
         }
     }
 }
@@ -69,16 +69,16 @@ CTL_CREATE_OVERLAY = {
         "ControlType": "TincanRequest",
         "TransactionId": 0,
         "Request": {
-          "Command": "CreateOverlay",
-          "TapName": "",
-          "IP4": "",
-          "PrefixLen4": "",
-          "MTU4": "",
-          "StunAddress": "",
-          "TurnAddress": "",
-          "TurnUser": "",
-          "TurnPass": "",
-          "EnableIPMapping": False,
+            "Command": "CreateOverlay",
+            "TapName": "",
+            "IP4": "",
+            "PrefixLen4": "",
+            "MTU4": "",
+            "StunAddress": "",
+            "TurnAddress": "",
+            "TurnUser": "",
+            "TurnPass": "",
+            "EnableIPMapping": False,
         }
     }
 }
@@ -88,16 +88,16 @@ CTL_CREATE_LINK = {
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-          "Command": "CreateLink",
-          "OverlayId": "",
-          "LinkId": "",
-          "EncryptionEnabled": True,
-          "PeerInfo": {
-            "VIP4": "",
-            "UID": "",
-            "MAC": "",
-            "Fingerprint": ""
-          }
+            "Command": "CreateLink",
+            "OverlayId": "",
+            "LinkId": "",
+            "EncryptionEnabled": True,
+            "PeerInfo": {
+                "VIP4": "",
+                "UID": "",
+                "MAC": "",
+                "Fingerprint": ""
+            }
         }
     }
 }
@@ -107,25 +107,25 @@ CTL_SET_IGNORED_NET_INTERFACES = {
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-          "Command": "SetIgnoredNetInterfaces",
-          "OverlayId": "",
-          "IgnoredNetInterfaces": []
+            "Command": "SetIgnoredNetInterfaces",
+            "OverlayId": "",
+            "IgnoredNetInterfaces": []
         }
-    }    
+    }
 }
 CTL_SEND_ICC = {
     "IPOP": {
-      "ProtocolVersion": 5,
-      "Tag": 0,
-      "ControlType": "TincanRequest",
-      "Request": {
-        "Command": "SendIcc",
-        "RecipientMac": "",
-        "TapName": "",
-        "Recipient": "peer_uid",
-        "Data": "encoded string"
-      }
-     }
+        "ProtocolVersion": 5,
+        "Tag": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "SendIcc",
+            "RecipientMac": "",
+            "TapName": "",
+            "Recipient": "peer_uid",
+            "Data": "encoded string"
+        }
+    }
 }
 
 PACKET = {
@@ -138,7 +138,7 @@ PACKET = {
             "TapName": "",
             "Data": "encoded_string"
         }
-     }
+    }
 }
 
 INSERT_TAP_PACKET = {
@@ -151,8 +151,8 @@ INSERT_TAP_PACKET = {
             "TapName": "",
             "Data": "encoded_string"
         }
-     }
-  }
+    }
+}
 CTL_REMOVE_OVERLAY = {
     "IPOP": {
         "ProtocolVersion": 5,
@@ -162,8 +162,8 @@ CTL_REMOVE_OVERLAY = {
             "Command": "RemoveOverlay",
             "OverlayId": ""
         }
-     }
-  }
+    }
+}
 CTL_REMOVE_LINK = {
     "IPOP": {
         "ProtocolVersion": 5,
@@ -172,10 +172,10 @@ CTL_REMOVE_LINK = {
         "Request": {
             "Command": "RemoveLink",
             "OverlayId": "",
-            "LinkId" : ""
+            "LinkId": ""
         }
-     }
-  }
+    }
+}
 RESP = {
     "IPOP": {
         "ProtocolVersion": 5,
@@ -191,56 +191,58 @@ RESP = {
 }
 
 ADD_FORWARDING_RULE = {
-        "IPOP": {
-            "ProtocolVersion": 5,
-            "TransactionId": 0,
-            "ControlType": "TincanRequest",
-            "Request": {
-                "Command": "UpdateMap",
-                "TapName": "",
-                "Routes": []
-                }
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "UpdateMap",
+            "TapName": "",
+            "Routes": []
         }
+    }
 }
 
 DELETE_FORWARDING_RULE = {
-        "IPOP": {
-            "ProtocolVersion": 5,
-            "TransactionId": 0,
-            "ControlType": "TincanRequest",
-            "Request": {
-                "Command": "RemoveRoutes",
-                "TapName": "",
-                "Routes": []
-                }
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "RemoveRoutes",
+            "TapName": "",
+            "Routes": []
         }
+    }
 }
 CTL_QUERY_LINK_STATS = {
     "IPOP": {
         "ProtocolVersion": 5,
-        "TransactionId" : 0,
-        "Owner" : "ModuleName",
+        "TransactionId": 0,
+        "Owner": "ModuleName",
         "ControlType": "TincanRequest",
         "Request": {
-        "Command": "QueryLinkStats",
-        "TapName": "",
-        "MAC" : ""
+            "Command": "QueryLinkStats",
+            "TapName": "",
+            "MAC": ""
         }
     }
 }
 CTL_QUERY_CAS = {
     "IPOP": {
         "ProtocolVersion": 5,
-        "TransactionId" : 0,
-        "Owner" : "",
+        "TransactionId": 0,
+        "Owner": "",
         "ControlType": "TincanRequest",
         "Request": {
-          "Command": "QueryCandidateAddressSet",
-          "OverlayId": "",
-          "LinkId" : ""
+            "Command": "QueryCandidateAddressSet",
+            "OverlayId": "",
+            "LinkId": ""
         }
     }
 }
+
+
 def ip4_a2hex(ipstr):
     return "".join(hex(int(x, 10))[2:] for x in ipstr.split("."))
 
@@ -251,12 +253,14 @@ def ip6_a2b(str_ip6):
     else:
         return "".join(x.decode("hex") for x in str_ip6.split(":"))
 
+
 def ip6_b2a(bin_ip6):
     if py_ver == 3:
-        return "".join("%04x" % int.from_bytes(bin_ip6[i:i+2], byteorder="big") + ":"\
-                for i in range(0, 16, 2))[:-1]
+        return "".join("%04x" % int.from_bytes(bin_ip6[i:i + 2], byteorder="big") + ":"
+                       for i in range(0, 16, 2))[:-1]
     else:
-        return "".join(bin_ip6[x:x+2].encode("hex") + ":" for x in range(0, 16, 2))[:-1]
+        return "".join(bin_ip6[x:x + 2].encode("hex") + ":" for x in range(0, 16, 2))[:-1]
+
 
 def ip4_a2b(str_ip4):
     if py_ver == 3:
@@ -264,12 +268,14 @@ def ip4_a2b(str_ip4):
     else:
         return "".join(chr(int(x)) for x in str_ip4.split("."))
 
+
 def ip4_b2a(bin_ip4):
     if py_ver == 3:
-        return "".join(str(int.from_bytes(bin_ip4[i:i+1], byteorder="big")) + "."\
-                for i in range(0, 4, 1))[:-1]
+        return "".join(str(int.from_bytes(bin_ip4[i:i + 1], byteorder="big")) + "."
+                       for i in range(0, 4, 1))[:-1]
     else:
         return "".join(str(ord(bin_ip4[x])) + "." for x in range(0, 4))[:-1]
+
 
 def mac_a2b(str_mac):
     if py_ver == 3:
@@ -277,10 +283,11 @@ def mac_a2b(str_mac):
     else:
         return "".join(x.decode("hex") for x in str_mac.split(":"))
 
+
 def mac_b2a(bin_mac):
     if py_ver == 3:
-        return "".join("%02x" % int.from_bytes(bin_mac[i:i+1], byteorder="big") + ":"\
-                for i in range(0, 6, 1))[:-1]
+        return "".join("%02x" % int.from_bytes(bin_mac[i:i + 1], byteorder="big") + ":"
+                       for i in range(0, 6, 1))[:-1]
     else:
         return "".join(bin_mac[x].encode("hex") + ":" for x in range(0, 6))[:-1]
 
@@ -301,14 +308,14 @@ def uid_b2a(bin_uid):
 
 def hexstr2b(hexstr):
     if py_ver == 3:
-        return b"".join(int(hexstr[i:i+2], 16).to_bytes(1, byteorder="big") for i in range(0, len(hexstr), 2))
+        return b"".join(int(hexstr[i:i + 2], 16).to_bytes(1, byteorder="big") for i in range(0, len(hexstr), 2))
     else:
         return hexstr.decode("hex")
 
 
 def b2hexstr(binary):
     if py_ver == 3:
-        return "".join("%02x" % int.from_bytes(binary[i:i+1], byteorder="big") for i in range(0, len(binary), 1))
+        return "".join("%02x" % int.from_bytes(binary[i:i + 1], byteorder="big") for i in range(0, len(binary), 1))
     else:
         return binary.encode("hex")
 
