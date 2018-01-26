@@ -68,6 +68,7 @@ class JidCache:
         self.cache[node_id] = (jid, time.time())
         self.lck.release()
 
+
     def scavenge(self,):
         self.lck.acquire()
         curr_time = time.time()
@@ -76,6 +77,7 @@ class JidCache:
             del self.cache[key]
             self._log("Deleted entry from JID cache {0}".format(key), severity="debug")
         self.lck.release()
+
 
     def lookup(self, node_id):
         jid = None
