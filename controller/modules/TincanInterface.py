@@ -22,7 +22,10 @@
 from controller.framework.ControllerModule import ControllerModule
 import socket
 import select
-import json
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import controller.framework.ipoplib as ipoplib
 from threading import Thread
 
@@ -127,7 +130,7 @@ class TincanInterface(ControllerModule):
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
         req["EncryptionEnabled"] = msg["EncryptionEnabled"]
-        req["PeerInfo"]["VIP4"] = msg["NodeData"]["IP4"]
+        req["PeerInfo"]["VIP4"] = msg["NodeData"]["VIP4"]
         req["PeerInfo"]["UID"] = msg["NodeData"]["UID"]
         req["PeerInfo"]["MAC"] = msg["NodeData"]["MAC"]
         req["PeerInfo"]["CAS"] = msg["NodeData"]["CAS"]

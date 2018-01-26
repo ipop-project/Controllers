@@ -75,7 +75,7 @@ class ControllerModule(object):
         self._cfx_handle.free_cbt(cbt)
 
     def get_parent_cbt(self, cbt):
-        self._cfx_handle.get_parent_cbt(cbt)
+        return self._cfx_handle.get_parent_cbt(cbt)
 
     def submit_cbt(self, cbt):
         self._cfx_handle.submit_cbt(cbt)

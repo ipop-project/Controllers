@@ -20,11 +20,14 @@
 # THE SOFTWARE.
 import sys
 import ssl
-import json
 import time
 from controller.framework.ControllerModule import ControllerModule
 from collections import defaultdict
 import threading
+try:
+    import simplejson as json
+except ImportError:
+    import json
 
 try:
     import sleekxmpp
@@ -299,62 +302,57 @@ class Signal(ControllerModule):
         self._log("Module loaded")
 
     def process_cbt(self, cbt):
-        try:
-            if cbt.op_type == "Request":
-                message = cbt.request.params
-                if cbt.request.action == "SIG_REMOTE_ACTION":
-                    peerid = message["PeerId"]
-                    overlay_id = message["OverlayId"]
-                    message["InitiatorId"] = self._cm_config["NodeId"]
-                    message["InitiatorCM"] = cbt.request.initiator
-                    if (overlay_id not in self._circles):
-                        cbt.set_response("Overlay ID not found", False)
-                        self.complete_cbt(cbt)
-                        return
-
-                    xmppobj = self._circles[overlay_id]["Transport"]
-                    jid_cache = self._circles[overlay_id]["JidCache"]
-                    #cache_lk = self._circles[overlay_id]["CacheLock"]
-                    #cache_lk.acquire()
-                    peer_jid = jid_cache.lookup(peerid)
-                    if peer_jid is not None:
-                        setup_load = "invk" + "#" + "None" + "#" + str(peer_jid)
-                        msg_payload = json.dumps(message)
-                        xmppobj.send_msg(str(peer_jid), setup_load, msg_payload)
-                        self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".
-                                  format(peerid, setup_load, msg_payload), "LOG_DEBUG")
-                    else:
-                        #cache_lk.release()
-                        CBTQ = self._circles[overlay_id]["JidRefreshQ"]
-                        if peerid in CBTQ.keys():
-                            CBTQ[peerid].put(message)
-                        else:
-                            CBTQ[peerid] = Queue(maxsize=0)
-                            CBTQ[peerid].put(message)
-                        xmppobj.send_presence(pstatus="uid?#" + peerid)
-                elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
-                    stats = {}
-                    for overlay_id in self._cm_config["Overlays"]:
-                        stats[overlay_id] = {
-                            "xmpp_host": self._circles[overlay_id]["Transport"].host,
-                            "xmpp_username": self._circles[overlay_id]["Transport"].overlay_descr.get("Username", None)
-                        }
-                    cbt.set_response(stats, True)
+        if cbt.op_type == "Request":
+            message = cbt.request.params
+            if cbt.request.action == "SIG_REMOTE_ACTION":
+                peerid = message["PeerId"]
+                overlay_id = message["OverlayId"]
+                message["InitiatorId"] = self._cm_config["NodeId"]
+                message["InitiatorCM"] = cbt.request.initiator
+                if (overlay_id not in self._circles):
+                    cbt.set_response("Overlay ID not found", False)
                     self.complete_cbt(cbt)
                     return
+
+                xmppobj = self._circles[overlay_id]["Transport"]
+                jid_cache = self._circles[overlay_id]["JidCache"]
+                #cache_lk = self._circles[overlay_id]["CacheLock"]
+                #cache_lk.acquire()
+                peer_jid = jid_cache.lookup(peerid)
+                if peer_jid is not None:
+                    setup_load = "invk" + "#" + "None" + "#" + str(peer_jid)
+                    msg_payload = json.dumps(message)
+                    xmppobj.send_msg(str(peer_jid), setup_load, msg_payload)
+                    self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".
+                                format(peerid, setup_load, msg_payload), "LOG_DEBUG")
                 else:
-                    log = "Unsupported CBT action {0}".format(cbt)
-                    self.register_cbt("Logger", "LOG_WARNING", log)
+                    #cache_lk.release()
+                    CBTQ = self._circles[overlay_id]["JidRefreshQ"]
+                    if peerid in CBTQ.keys():
+                        CBTQ[peerid].put(message)
+                    else:
+                        CBTQ[peerid] = Queue(maxsize=0)
+                        CBTQ[peerid].put(message)
+                    xmppobj.send_presence(pstatus="uid?#" + peerid)
+            elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
+                stats = {}
+                for overlay_id in self._cm_config["Overlays"]:
+                    stats[overlay_id] = {
+                        "xmpp_host": self._circles[overlay_id]["Transport"].host,
+                        "xmpp_username": self._circles[overlay_id]["Transport"].overlay_descr.get("Username", None)
+                    }
+                cbt.set_response(stats, True)
+                self.complete_cbt(cbt)
+                return
+            else:
+                log = "Unsupported CBT action {0}".format(cbt)
+                self.register_cbt("Logger", "LOG_WARNING", log)
 
-            elif cbt.op_type == "Response":
-                if (cbt.response.status == False):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
+        elif cbt.op_type == "Response":
+            if (cbt.response.status == False):
+                self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
 
-                self.free_cbt(cbt)
-
-        except Exception as err:
-            erlog = "Exception: {0}".format(str(err))
-            self.register_cbt("Logger", "LOG_WARNING", erlog)
+            self.free_cbt(cbt)
 
 
     def timer_method(self):

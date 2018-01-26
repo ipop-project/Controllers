@@ -21,7 +21,10 @@
 
 from controller.framework.ControllerModule import ControllerModule
 from controller.framework.CFx import CFX
-import json
+try:
+    import simplejson as json
+except ImportError:
+    import json
 
 
 class Topology(ControllerModule, CFX):
@@ -84,6 +87,7 @@ class Topology(ControllerModule, CFX):
                 "EncryptionEnabled": self._cm_config["Overlays"][overlay_id].get("EncryptionEnabled", True),
                 "NodeData": self._overlays[overlay_id]["Descriptor"]
             }
+            params["NodeData"]["UID"] = self._cm_config["NodeId"]
             self.register_cbt("LinkManager", "LNK_CREATE_LINK", params)
 
     def create_link_handler(self, cbt):

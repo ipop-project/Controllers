@@ -106,6 +106,11 @@ CONFIG = {
     "Broadcaster": {
         "Enabled": False,
         "Dependencies": ["Logger", "Topology", "InterControllerCommunicator"]
+    },
+    "Icc": {
+        "Enabled": False,
+        "TimerInterval": 30,
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     }
 }
 
