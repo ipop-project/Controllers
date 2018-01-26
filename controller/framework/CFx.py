@@ -28,9 +28,7 @@ import threading
 import importlib
 import uuid
 import controller.framework.fxlib as fxlib
-import controller.framework.ipoplib as ipoplib
 from collections import OrderedDict
-from controller.framework.CBT import CBT as CBT
 from controller.framework.CFxHandle import CFxHandle
 from controller.framework.CFxSubscription import CFxSubscription
 
@@ -49,7 +47,7 @@ class CFX(object):
         self._event = None
         self._subscriptions = {}
         self._node_id = self.set_node_id()
-        self._load_order = [] #OrderedDict()
+        self._load_order = []
 
     def submit_cbt(self, cbt):
         recipient = cbt.request.recipient
@@ -89,20 +87,20 @@ class CFX(object):
     def load_module(self, module_name):
         # import the modules dynamically
         try:
-            module = importlib.import_module("controller.modules.{0}" \
-                    .format(module_name))
+            module = importlib.import_module("controller.modules.{0}"
+                                             .format(module_name))
         except ImportError as error:
             # NOTE: this bit is important as importing a module may fail
             # because an import inside it failed. If we don't handle this
             # corner case, we will get an import error with the
             # (incorrect) message that module_name does not exist.
-            if not module_name in str(error):
+            if module_name not in str(error):
                 failed_dep_name = str(error).split(" ")[-1]
-                raise ImportError("Failed to load module \"{}\" due to an" \
-                                  " ImportError on dependency \"{}\"" \
+                raise ImportError("Failed to load module \"{}\" due to an"
+                                  " ImportError on dependency \"{}\""
                                   .format(module_name, failed_dep_name))
-            module = importlib.import_module("controller.modules.{0}.{1}" \
-                    .format(self.model, module_name))
+            module = importlib.import_module("controller.modules.{0}.{1}"
+                                             .format(self.model, module_name))
 
         # get the class with name key from module
         module_class = getattr(module, module_name)
@@ -198,13 +196,13 @@ class CFX(object):
         nodeid = config.get("NodeId", None)
         if nodeid is None or len(nodeid) == 0:
             try:
-                with open("nid","r") as f:
+                with open("nid", "r") as f:
                     nodeid = f.read()
             except IOError:
                 pass
         if nodeid is None or len(nodeid) == 0:
             nodeid = str(uuid.uuid4().hex)
-            with open("nid","w") as f:
+            with open("nid", "w") as f:
                 f.write(nodeid)
         return nodeid
 
@@ -249,7 +247,6 @@ class CFX(object):
                     self._cfx_handle_dict[handle]._timer_thread.join()
         sys.exit(0)
 
-
     def query_param(self, param_name=""):
         try:
             if param_name == "ipopVerRel":
@@ -264,7 +261,6 @@ class CFX(object):
             print("Exception occurred while querying data." + str(error))
             return None
 
-
     # Caller is the subscription source
     def publish_subscription(self, owner_name, subscription_name, owner):
         sub = CFxSubscription(owner_name, subscription_name)
@@ -277,15 +273,15 @@ class CFX(object):
     def remove_subscription(self, sub):
         sub.post_update("SUBSCRIPTION_SOURCE_TERMINATED")
         if sub._owner_name not in self._subscriptions:
-            raise NameError("Failed to remove subscription source \"{}\"." \
-                    " No such provider name exists." \
-                    .format(sub._owner_name))
+            raise NameError("Failed to remove subscription source \"{}\"."
+                            " No such provider name exists."
+                            .format(sub._owner_name))
         self._subscriptions[sub._owner_name].remove(sub)
 
     def find_subscription(self, owner_name, subscription_name):
         sub = None
         if owner_name not in self._subscriptions:
-            raise NameError("The specified subscription provider {} was not found. No such name exists.".format(owner_name))
+            raise NameError("The specified subscription provider {} was not found.".format(owner_name))
         for sub in self._subscriptions[owner_name]:
             if sub._subscription_name == subscription_name:
                 return sub

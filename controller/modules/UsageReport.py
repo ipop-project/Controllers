@@ -18,27 +18,18 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-import sys
 import datetime
 import hashlib
 import json
 import threading
-import controller.framework.fxlib as fxlib
+import urllib.request as urllib2
 from controller.framework.ControllerModule import ControllerModule
-
-py_ver = sys.version_info[0]
-if py_ver == 3:
-    import urllib.request as urllib2
-    import _thred as thread
-else:
-    import urllib2
-    import thread
 
 
 class UsageReport(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(UsageReport, self).__init__(cfx_handle, module_config, module_name)
-        self._stat_data = {"ready": False, "pending_request":False}
+        self._stat_data = {"ready": False, "pending_request": False}
         self.submit_time = datetime.datetime(2015, 1, 1, 0, 0)
         self.lck = threading.Lock()
 
@@ -48,11 +39,11 @@ class UsageReport(ControllerModule):
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
             if cbt.request.action == "SIG_QUERY_REPORTING_DATA":
-                if (cbt.response.status == False):
+                if (not cbt.response.status):
                     self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
                     self.free_cbt(cbt)
                     return
-                else: 
+                else:
                     self.create_report(cbt)
             else:
                 self.free_cbt(cbt)
@@ -81,7 +72,7 @@ class UsageReport(ControllerModule):
         pass
 
     def request_report(self):
-        self.register_cbt("Signal","SIG_QUERY_REPORTING_DATA")
+        self.register_cbt("Signal", "SIG_QUERY_REPORTING_DATA")
 
     def create_report(self, cbt):
         nid = self._cm_config["NodeId"]
@@ -107,7 +98,7 @@ class UsageReport(ControllerModule):
 
     def submit_report(self, report_data):
         data = json.dumps(report_data)
-        self.register_cbt("Logger", "LOG_INFO", "data at submit report {0}".format(data)) # for debugging
+        self.register_cbt("Logger", "LOG_INFO", "data at submit report {0}".format(data))  # for debugging
         url = None
         try:
             url = "http://" + self._cm_config["StatServerAddress"] + ":" + \
@@ -117,8 +108,8 @@ class UsageReport(ControllerModule):
             res = urllib2.urlopen(req)
             if res.getcode() == 200:
                 log = "succesfully reported status to the stat-server {0}\n"\
-                        "HTTP response code:{1}, msg:{2}"\
-                        .format(url, res.getcode(), res.read())
+                    "HTTP response code:{1}, msg:{2}"\
+                    .format(url, res.getcode(), res.read())
                 self.register_cbt("Logger", "LOG_INFO", log)
             else:
                 self.register_cbt("Logger", "LOG_WARNING", "stat-server error code: {0}".format(res.getcode()))
