@@ -182,8 +182,7 @@ class TincanInterface(ControllerModule):
         ctl = ipoplib.CTL_QUERY_LINK_STATS
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
-        req["OverlayId"] = msg["OverlayId"]
-        req["LinkId"] = msg["LinkId"]
+        req["OverlayIds"] = msg
         self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
@@ -221,8 +220,7 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
-        req["RecipientMAC"] = msg["MAC"]
-        req["Data"] = json.dumps(msg)
+        req["Data"] = msg["Data"]
         self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
@@ -239,13 +237,16 @@ class TincanInterface(ControllerModule):
     #rework ICC messaging necessary
     def ProcessTincanRequest(self, cbt):
         if cbt.request.params["Command"] == "ICC":
-            pl = cbt.request.params["Data"]
             msg = {
+                "OverlayId": cbt.request.params["OverlayId"],
+                "LinkId": cbt.request.params["LinkId"],
+                "Data": cbt.request.params["Data"]
                 }
-            self.register_cbt("ICC", pl["Recipient"], pl)
+            self.register_cbt("InterControllerCommunicator", "ICC_RECIEVE", msg)
         else:
             erlog = "Unsupported request received from Tincan"
             self.register_cbt("Logger", "LOG_WARNING", erlog)
+        self.complete_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
