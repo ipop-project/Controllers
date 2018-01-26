@@ -75,9 +75,12 @@ class JidCache:
         self.lck.release()
 
     def lookup(self, node_id):
+        jid = None
         self.lck.acquire()
-        ent = self.cache.get(node_id, None)
-        ent[1] = time.time()
+        ent = self.cache.pop(node_id)
+        if (ent is not None):
+            jid = ent[0]
+            self.cache[node_id] = (jid, time.time())
         self.lck.release()
         return jid
 
@@ -173,7 +176,7 @@ class XmppTransport:
                 return
             elif msg_type == "invk":
                 cbtdata = json.loads(payload)
-                self.cm_mod.self.register_cbt(cbtdata["RecipientCM"], cbtdata["Action"], cbtdata["Params"])
+                self.cm_mod.register_cbt(cbtdata["RecipientCM"], cbtdata["Action"], cbtdata["Params"])
                 return
             else:
                 self._log("Invalid message type received {0}".format(str(msg)), "LOG_WARNING")
@@ -313,13 +316,13 @@ class Signal(ControllerModule):
                     jid_cache = self._circles[overlay_id]["JidCache"]
                     #cache_lk = self._circles[overlay_id]["CacheLock"]
                     #cache_lk.acquire()
-                    cache_entry = jid_cache.lookup(peerid)
-                    if cache_entry is not None:
-                        peer_jid = cache_entry[0]
-                        setup_load = "invk" + "#" + "None" + "#" + peer_jid
+                    peer_jid = jid_cache.lookup(peerid)
+                    if peer_jid is not None:
+                        setup_load = "invk" + "#" + "None" + "#" + str(peer_jid)
                         msg_payload = json.dumps(message)
-                        self._circles["overlay_id"]["Transport"].send_msg(peer_jid, setup_load, msg_payload)
-                        self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".format(peerid, setup_load, msg_payload), "LOG_DEBUG")
+                        xmppobj.send_msg(str(peer_jid), setup_load, msg_payload)
+                        self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".
+                                  format(peerid, setup_load, msg_payload), "LOG_DEBUG")
                     else:
                         #cache_lk.release()
                         CBTQ = self._circles[overlay_id]["JidRefreshQ"]
@@ -346,8 +349,6 @@ class Signal(ControllerModule):
             elif cbt.op_type == "Response":
                 if (cbt.response.status == False):
                     self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
-                    self.free_cbt(cbt)
-                    return
 
                 self.free_cbt(cbt)
 
