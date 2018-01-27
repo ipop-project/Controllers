@@ -21,53 +21,139 @@
 
 from controller.framework.ControllerModule import ControllerModule
 
-
 class Icc(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(Icc, self).__init__(cfx_handle, module_config, module_name)
+        #Dictionary to hold data about overlayID->peerID->linkID mappings
+        self._links = {}
 
     def initialize(self):
-        self._flag = True
-        self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
+        # self.register_cbt("Logger", "LOG_INFO", "{0} Loaded".format(self.module_name))
+        self.register_cbt("Logger", "LOG_INFO", "ICC Module Loaded")
+        # Subscribe for link updates notifications from LinkManager
+        self._cfx_handle.start_subscription("LinkManager",
+                    "LNK_DATA_UPDATES")
+
+    def update_links(self,cbt):
+        if cbt.request.params["UpdateType"] == "ADDED":
+            olid = cbt.request.params["OverlayId"]
+            peerid = cbt.request.params["PeerId"]
+            lnkid = cbt.request.params["LinkId"]
+            if olid in self._links:
+                self._links[olid]["Peers"][peerid] = lnkid
+            else:
+                self._links[olid] = {}
+                self._links[olid]["Peers"] = {}
+                self._links[olid]["Peers"][peerid] = lnkid
+
+        else if cbt.request.params["UpdateType"] == "REMOVED":
+            olid = cbt.request.params["OverlayId"]
+            lnkid = cbt.request.params["LinkId"]
+            for peerid in self._links[olid]["Peers"]:
+                if self._links[olid]["Peers"][peerid] == lnkid:
+                   del self._links[olid]["Peers"][peerid]
+
+    def send_icc_data(self,cbt):
+        param = {}
+        olid = cbt.request.params["OverlayId"]
+        peerid = cbt.request.params["PeerId"]
+        param["OverlayId"] = olid
+        param["LinkId"] = self._links[olid]["Peers"][peerid]
+        param["IccType"] = "DATA"
+        
+        lcbt = self.create_linked_cbt(cbt)
+        lcbt.set_request("TincanInterface", "TCI_ICC", param)
+        self.submit_cbt(lcbt)
+
+        #TODO: As these CBTs won't get any response, should they be completed  ??
+        cbt.set_response(data="Data Sent", status=True)
+        self.complete_cbt(cbt)
+
+    def broadcast_icc_data(self,cbt):
+        peer_list = cbt.request.params["PeerId"]
+        olid = cbt.request.params["OverlayId"]
+        for peerid in peer_list:
+            param = {}
+            param["OverlayId"] = olid
+            param["LinkId"] = self._links[olid]["Peers"][peerid]
+            param["IccType"] = "DATA"
+
+            lcbt = self.create_linked_cbt(pcbt)
+            lcbt.set_request("TincanInterface", "TCI_ICC", param)
+            self.submit_cbt(lcbt)
+
+            #TODO: As these CBTs won't get any response, should they be completed  ??
+            cbt.set_response(data="Data Sent", status=True)
+            self.complete_cbt(cbt)
+
+    def send_icc_remote_action(self,cbt):
+        param = {}
+        olid = cbt.request.params["OverlayId"]
+        peerid = cbt.request.params["PeerId"]
+        param["OverlayId"] = olid
+        param["LinkId"] = self._links[olid]["Peers"][peerid]
+        param["IccType"] = "ACTION"
+        
+        lcbt = self.create_linked_cbt(cbt)
+        lcbt.set_request("TincanInterface", "TCI_ICC", param)
+        self.submit_cbt(lcbt)
+
+
+    def recieve_icc_data(self,cbt):
+        if cbt.request.params["IccType"] == "DATA":
+            pcbt = self.get_parent_cbt(cbt)
+            target_module_name = pcbt.request.params["ModuleName"]
+            msg = pcbt.reuqest.params["Data"]
+
+            self.register_cbt(target_module_name, "ICC_DELIVER_DATA", msg)
+
+            #TODO: The CBTs from TCI to the receiver ICC for "DATA", should they be completed  ??
+            cbt.set_response(data="Data Delivered", status=True)
+            self.complete_cbt(cbt)
+
+        elif cbt.request.params["IccType"] == "ACTION":
+            pcbt = self.get_parent_cbt(cbt)
+            target_module_name = pcbt.request.params["ModuleName"]
+            remote_action_code = pcbt.request.params["ActionCode"]
+            params = pcbt.reuqest.params["Params"]
+
+            self.register_cbt(target_module_name, remote_action_code, params)
+
+    def complete_remote_response(self,cbt):
+        rcbt = self._cfx_handle._pending_cbts[cbt.tag]
+        resp_data = cbt.response.data
+        rcbt.set_response(data=resp_data, status=True)
+        self.complete_cbt(rcbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
-            if cbt.request.action == "ICC_SEND_DATA":
-                self.convert_peerid_to_linkid(cbt)
+            if cbt.request.action == "LNK_DATA_UPDATES":
+                self.update_links(cbt)
+                
+            elif cbt.request.action == "ICC_SEND_DATA":
+                self.send_icc_data(cbt)
+
+            elif cbt.request.action == "ICC_BROADCAST_DATA":
+                self.broadcast_icc_data(cbt)
+
+            elif cbt.request.action == "ICC_REMOTE_ACTION":
+                self.send_icc_remote_action(cbt)
+
+            elif cbt.request.action == "ICC_RECIEVE":
+                self.recieve_icc_data(cbt)
+
         elif cbt.op_type == "Response":
-            if cbt.request.action == "LNK_GET_LINKID":
-                if (not cbt.response.status):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.message))
-                else:
-                    self.send_icc_data(cbt)
+            if cbt.request.action == "ICC_REMOTE_RESPONSE":
+                self.complete_remote_response(cbt)
+
+            elif cbt.request.action == "ICC_RECIEVE":
+                self.complete_remote_response(cbt)
+
             self.free_cbt(cbt)
 
-    def convert_peerid_to_linkid(self, cbt):
-        param = {}
-        param["OverlayId"] = cbt.request.params["OverlayId"]
-        param["PeerId"] = cbt.request.params["PeerId"]
-        lcbt = self.create_linked_cbt(cbt)
-        lcbt.set_request(self._module_name, "LinkManager", "LNK_GET_LINKID", param)
-        self.submit_cbt(lcbt)
-
-    def send_icc_data(self, cbt):
-        param = {}
-        param["OverlayId"] = cbt.response.data["OverlayId"]
-        param["LinkId"] = cbt.response.data["LinkId"]
-        pcbt = self.get_parent_cbt(cbt)
-        param["Data"] = pcbt.request.params["Data"]
-        param["ModuleName"] = pcbt.request.params["ModuleName"]
 
     def terminate(self):
         pass
 
     def timer_method(self):
-        if self._flag:
-            msg = {}
-            msg["OverlayId"] = "OLN1"
-            msg["PeerId"] = "Peer1"
-            msg["ModuleName"] = "ICC"
-            msg["Data"] = "Test ICC Data"
-            cbt = self.create_cbt(self._module_name, self._module_name, "ICC_SEND_DATA", msg)
-            self.submit_cbt(cbt)
-            self._flag = False
+        pass
