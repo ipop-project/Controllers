@@ -40,6 +40,8 @@ class LinkManager(ControllerModule):
         self._links = {}  # indexed by link id, which is unique
 
     def initialize(self):
+        self._link_updates_publisher = \
+                self._cfx_handle.publish_subscription("LNK_DATA_UPDATES")
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
@@ -204,6 +206,14 @@ class LinkManager(ControllerModule):
                 cbt_parent.set_response(data={"LinkId": link_id}, status=True)
                 self.complete(cbt_parent)
 
+                # TODO: olid, peerid, linkid should be properly derived for sending post_updates  
+                param = {}
+                param["UpdateType"] = "ADDED"
+                param["OverlayId"] = olid
+                param["PeerId"] = peerid
+                param["LinkId"] = lnkid
+                self._link_updates_publisher.post_update(param)
+
     def remove_link_handler(self, cbt):
         if (not cbt.response.status):
             self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
@@ -214,6 +224,12 @@ class LinkManager(ControllerModule):
             parent_cbt.set_response(data="successful", status=True)
             self.complete_cbt(parent_cbt)
             # TODO: Need to remove link from self._links
+            # TODO: olid, linkid should be properly derived for sending post_updates
+            param = {}
+            param["UpdateType"] = "REMOVED"
+            param["OverlayId"] = olid
+            param["LinkId"] = lid
+            self._link_updates_publisher.post_update(param)
 
     def query_links(self, cbt):
         # categorized by overlay ID's .
@@ -247,9 +263,6 @@ class LinkManager(ControllerModule):
             elif cbt.request.action == "VIS_DATA_REQ":
                 self.update_visualizer_data(cbt)
 
-            elif cbt.request.action == "LNK_GET_LINKID":  # look into TCI, comes from topology, all link status
-                cbt.set_response({"OverlayId": "1234", "LinkId":"1234"}, True)
-                self.complete_cbt(cbt)
             else:
                 log = "Unsupported CBT action {0}".format(cbt)
                 self.register_cbt("Logger", "LOG_WARNING", log)
