@@ -96,7 +96,7 @@ class LinkManager(ControllerModule):
         }
         # Send the message via SIG server to peer node
         remote_act = dict(OverlayId=olid,
-                          PeerId=peerid,
+                          RecipientId=peerid,
                           RecipientCM="LinkManager",
                           Action="LNK_REQ_LINK_ENDPT",
                           Params=json.dumps(msg))
@@ -109,14 +109,16 @@ class LinkManager(ControllerModule):
     def create_link_local_endpt(self, cbt):
         # Add to local DS (at recipient) for bookkeeping
         if cbt.request.action == "LNK_REQ_LINK_ENDPT":
-            self._lock.acquire()
             params = json.loads(cbt.request.params)
             olid = params["OverlayId"]
             lnkid = params["LinkId"]
             peerid = params["NodeData"]["UID"]
+            self._lock.acquire()
             self._overlays[olid]["Peers"][peerid] = lnkid  # index for quick peer->link lookup
             self._links[lnkid] = dict(Stats=dict())
             self._lock.release()
+        elif cbt.request.action == "LNK_ADD_PEER_CAS":
+            params = json.loads(cbt.request.params)
         lcbt = self.create_linked_cbt(cbt)
         lcbt.set_request(self._module_name, "TincanInterface", "TCI_CREATE_LINK", params)
         self.submit_cbt(lcbt)
@@ -139,7 +141,7 @@ class LinkManager(ControllerModule):
             peerid = parent_cbt.request.params["PeerId"]
             msg["NodeData"] = {"IP4": "", "UID": "", "MAC": "", "CAS": local_cas, "FPR": ""}
             remote_act = dict(OverlayId=olid,
-                              PeerId=peerid,
+                              RecipientId=peerid,
                               RecipientCM="LinkManager",
                               Action="LNK_ADD_PEER_CAS",
                               Params=json.dumps(msg))
@@ -200,26 +202,27 @@ class LinkManager(ControllerModule):
         else:
             # look inside cbt for inner
             cbt_parent = cbt.parent
-            cbt_data = cbt.response.data
+            rem_act = cbt.response.data
             self.free_cbt(cbt)
-            if cbt_data["Action"] == "LNK_REQ_LINK_ENDPT":
-                peer_cas = json.loads(cbt_data["Response"])
-                olid = cbt_data["OverlayId"]
-                lid = cbt_data["LinkId"]
-                params = {"OverlayId": olid, "LinkId": lid,
-                            "EncryptionEnabled": cbt_data["EncryptionEnabled"],
-                            "NodeData": {
-                                "IP4": cbt_data["NodeData"]["IP4"],
-                                "UID": cbt_data["NodeData"]["UID"],
-                                "MAC": cbt_data["NodeData"]["MAC"],
-                                "CAS": peer_cas,
-                                "FPR": cbt_data["NodeData"]["FPR"]}}
+            if rem_act["Action"] == "LNK_REQ_LINK_ENDPT":
+                peer_cas = rem_act["Data"]
+                olid = rem_act["OverlayId"]
+                params = json.loads(rem_act["Params"])
+                link_id = params["LinkId"]
+                cbt_params = {"OverlayId": olid, "LinkId": params["LinkId"],
+                        "EncryptionEnabled": params["EncryptionEnabled"],
+                        "NodeData": {
+                            "IP4": params["NodeData"]["VIP4"],
+                            "UID": params["NodeData"]["UID"],
+                            "MAC": params["NodeData"]["MAC"],
+                            "CAS": peer_cas,
+                            "FPR": params["NodeData"]["FPR"]}}
                 lcbt = self.create_linked_cbt(cbt_parent)
-                lcbt.set_request(self._module_name, "TincanInterface", "TCI_CREATE_LINK", params)
+                lcbt.set_request(self._module_name, "TincanInterface", "TCI_CREATE_LINK", cbt_params)
                 self.submit_cbt(lcbt)
             elif cbt_data["Action"] == "LNK_ADD_PEER_CAS":
                 olid = cbt_parent.request.params["OverlayId"]
-                peerid = cbt_parent.request.params["PeerId"]
+                peerid = cbt_parent.request.params["RecipientId"]
                 self._lock.acquire()
                 lnkid = self._overlays[olid]["Peers"][peerid]
                 self._lock.release()
