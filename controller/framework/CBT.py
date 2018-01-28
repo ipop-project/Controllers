@@ -80,3 +80,7 @@ class CBT(object):
         self.response.recipient = self.request.initiator
         self.response.status = status
         self.response.data = data
+
+    def set_as_parent(self, cbt):
+        self.parent = cbt
+        cbt.child_count = cbt.child_ount + 1

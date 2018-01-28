@@ -30,7 +30,7 @@ class ControllerModule(object):
     __metaclass__ = ABCMeta
 
     def __init__(self, cfx_handle, module_config, module_name):
-        self._pending_cbt = {}
+        #self._pending_cbt = {}
         self._cfx_handle = cfx_handle
         self._cm_config = module_config
         self._module_name = module_name

@@ -134,16 +134,15 @@ class CFxHandle(object):
                 except SystemExit:
                     sys.exit()
                 except:
+                    # should free cbt, potential leak
                     log_cbt = self.create_cbt(
                         initiator=self._cm_instance.__class__.__name__,
                         recipient="Logger",
                         action="LOG_WARNING",
-                        params="CBT exception:\n"
+                        params="Process CBT exception:\n"
                              "  {0}\n"
                              "  traceback:\n{1}"
-                             .format(cbt, traceback.format_exc())
-                    )
-
+                             .format(cbt, traceback.format_exc()))
                     self.submit_cbt(log_cbt)
 
     def __timer_worker(self):
@@ -163,8 +162,10 @@ class CFxHandle(object):
                     initiator=self._cm_instance.__class__.__name__,
                     recipient="Logger",
                     action="LOG_WARNING",
-                    params="timer_method exception:\n{0}".format(traceback.format_exc())
-                )
+                    params="Timer Method exception:\n"
+                             "  {0}\n"
+                             "  traceback:\n{1}"
+                             .format(cbt, traceback.format_exc()))
                 self.submit_cbt(log_cbt)
 
     def query_param(self, param_name=""):
