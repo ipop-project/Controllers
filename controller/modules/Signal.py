@@ -177,19 +177,19 @@ class XmppTransport:
                 return
             elif msg_type == "invk":
                 cbtdata = json.loads(payload)
-                n_cbt = self.create_cbt(self._module_name, cbtdata["RecipientCM"],
+                n_cbt = self.cm_mod.create_cbt(self.cm_mod._module_name, cbtdata["RecipientCM"],
                                  cbtdata["Action"], cbtdata["Params"])
                 self._cbt_to_action_tag[n_cbt.tag] = dict(actionTag=_remote_action_tag,peerId=cbtdata["PeerId"],senderJid=msg["from"])
-                self.submit_cbt(n_cbt)
+                self.cm_mod.submit_cbt(n_cbt)
                 return
             elif msg_type == "response":
                 action_response = json.loads(payload)
                 cbt_tag = action_response["ActionTag"]
                 cbt_response = action_response["Response"]
                 cbt_status = action_response["Status"]
-                pendingCbt = self.cfx_handle._pending_cbts[cbt_tag]
+                pendingCbt = self.cm_mod.cfx_handle._pending_cbts[cbt_tag]
                 pendingCbt.set_response(data=cbt_response, status=cbt_status)
-                self.complete_cbt(pendingCbt)
+                self.cm_mod.complete_cbt(pendingCbt)
             else:
                 self._log("Invalid message type received {0}".format(str(msg)), "LOG_WARNING")
         except Exception as err:
@@ -199,8 +199,6 @@ class XmppTransport:
     def send_msg(self, peer_jid, header=None, msg_payload=None, cbt_tag=None):
         if header is None:
             header = "regular_msg" + "#" + "None" + "#" + peer_jid.full
-        if py_ver != 3:
-            header = unicode(header)
         if msg_payload is None:
             msg_payload = "IDENTITY: {0}".format(xmppobj.username)
         msg = self.transport.Message()
@@ -247,10 +245,7 @@ class XmppTransport:
             if pswd is None:
                 # Prompt user to enter password
                 print("{0}@{1} Password: ".format(user, self.overlay_id))
-                if py_ver == 3:
-                    pswd = str(input())
-                else:
-                    pswd = str(raw_input())
+                pswd = str(raw_input())
                 if self._keyring_installed is True:
                     try:
                         keyring.set_password("ipop", xmpp_ele["Username"], pswd)
@@ -363,7 +358,7 @@ class Signal(ControllerModule):
                 if cbt.request.action in ["LNK_REQ_LINK_ENDPT", "LNK_ADD_PEER_CAS"]:
                     response = cbt.response.data
                     status = cbt.response.status
-                    olid = cbt.request.params["OverlayId"]
+                    olid = json.loads(cbt.request.params)["OverlayId"]
                     action_tag = self._cbt_to_action_tag[cbt.tag]["actionTag"]
                     peer_ID = self._cbt_to_action_tag[cbt.tag]["peerId"]
                     target_jid = self._cbt_to_action_tag[cbt.tag]["senderJid"]

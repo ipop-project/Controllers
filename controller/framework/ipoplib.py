@@ -96,7 +96,7 @@ CTL_CREATE_LINK = {
                 "VIP4": "",
                 "UID": "",
                 "MAC": "",
-                "Fingerprint": ""
+                "FPR": ""
             }
         }
     }
