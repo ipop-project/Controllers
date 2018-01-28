@@ -25,9 +25,7 @@ except ImportError:
     import json
 import threading
 from collections import defaultdict
-
 from controller.framework.ControllerModule import ControllerModule
-
 import requests
 
 
@@ -63,15 +61,21 @@ class OverlayVisualizer(ControllerModule):
         if cbt.op_type == "Response":
             if cbt.request.action == "VIS_DATA_REQ":
                 msg = cbt.response.data
-                # self._vis_ds belongs to the critical section as
-                # it may be updated in timer_method concurrently
-                self._vis_ds_lock.acquire()
-                for mod_name in msg:
-                    for ovrl_id in msg[mod_name]:
-                        self._vis_ds["Data"][ovrl_id][mod_name] \
-                            = msg[mod_name][ovrl_id]
-                self._vis_ds_lock.release()
-            self.free_cbt(cbt)
+
+                if msg:
+                    # self._vis_ds belongs to the critical section as
+                    # it may be updated in timer_method concurrently
+                    self._vis_ds_lock.acquire()
+                    for mod_name in msg:
+                        for ovrl_id in msg[mod_name]:
+                            self._vis_ds["Data"][ovrl_id][mod_name] \
+                                = msg[mod_name][ovrl_id]
+                    self._vis_ds_lock.release()
+                else:
+                    warn_msg = "Got no data in CBT response from module" \
+                        " {}".format(cbt.request.recipient)
+                    self.register_cbt("Logger", "LOG_WARNING", warn_msg)
+                self.free_cbt(cbt)
         else:
             self.register_cbt("Logger", "LOG_WARNING", "Overlay Visualizer does not accept CBT requests")
             cbt.set_response("Overlay Visualizer does not accept CBT requests", False)
@@ -84,7 +88,8 @@ class OverlayVisualizer(ControllerModule):
             self._vis_ds = dict(NodeId=self.node_id,
                                 Data=defaultdict(dict))
 
-        if vis_ds["Data"]:
+        if "Topology" in vis_ds and "LinkManager" in vis_ds \
+                and vis_ds["Topology"] and vis_ds["LinkManager"]:
             print("Visualizer is going to send"
                   " {}".format(json.dumps(vis_ds)))
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
@@ -95,10 +100,15 @@ class OverlayVisualizer(ControllerModule):
                 resp.raise_for_status()
 
             except requests.exceptions.RequestException as err:
-                log = "Failed to send data to the IPOP Visualizer" \
+                err_msg = "Failed to send data to the IPOP Visualizer" \
                     " webservice({0}). Exception: {1}" \
                     .format(self.vis_address, str(err))
-                self.register_cbt("Logger", "LOG_ERROR", log)
+                self.register_cbt("Logger", "LOG_ERROR", err_msg)
+        else:
+            warn_msg = "Don't have enough data to send. Not forwarding" \
+                    " anything to the collector service. Data:" \
+                    " {}".format(vis_ds)
+            self.register_cbt("Logger", "LOG_WARNING", warn_msg)
 
         # Now that all the accumulated data has been dealth with, we request
         # more data

@@ -20,11 +20,13 @@
 # THE SOFTWARE.
 import sys
 import ssl
-import json
 import time
 from controller.framework.ControllerModule import ControllerModule
-from collections import defaultdict
 import threading
+try:
+    import simplejson as json
+except ImportError:
+    import json
 
 try:
     import sleekxmpp
@@ -36,20 +38,15 @@ try:
 except:
     raise ImportError("Sleekxmpp Module not installed")
 
-py_ver = sys.version_info[0]
-if py_ver == 3:
-    from queue import Queue
-    import _thread as thread
-else:
-    from Queue import Queue
-    import thread
+from queue import Queue
+import _thread as thread
 
 # set up a new custom message stanza
 class IpopMsg(ElementBase):
     namespace = "Signal"
     name = "Ipop"
     plugin_attrib = "Ipop"
-    interfaces = set(("setup", "payload", "node_id", "overlay_id"))
+    interfaces = set(("setup", "payload", "node_id", "overlay_id","remote_action_tag"))
 
 class JidCache:
     def __init__(self, cm_mod):
@@ -65,6 +62,7 @@ class JidCache:
         self.cache[node_id] = (jid, time.time())
         self.lck.release()
 
+
     def scavenge(self,):
         self.lck.acquire()
         curr_time = time.time()
@@ -74,10 +72,14 @@ class JidCache:
             self._log("Deleted entry from JID cache {0}".format(key), severity="debug")
         self.lck.release()
 
+
     def lookup(self, node_id):
+        jid = None
         self.lck.acquire()
-        ent = self.cache.get(node_id, None)
-        ent[1] = time.time()
+        ent = self.cache.pop(node_id)
+        if (ent is not None):
+            jid = ent[0]
+            self.cache[node_id] = (jid, time.time())
         self.lck.release()
         return jid
 
@@ -92,6 +94,7 @@ class XmppTransport:
         self.presence_publisher = presence_publisher
         self.jid_cache = jid_cache
         self.cbts = cbts
+        self._cbt_to_action_tag={} # maps remote action tags to cbt tags
 
     def _log(self, msg, severity="LOG_INFO"):
         self.cm_mod._log(msg, severity)
@@ -155,6 +158,7 @@ class XmppTransport:
             # extract setup and content
             setup = msg["Ipop"]["setup"]
             payload = msg["Ipop"]["payload"]
+            _remote_action_tag = msg["Ipop"]["remote_action_tag"]
             msg_type, target_uid, target_jid = setup.split("#")
 
             if msg_type == "uid!":
@@ -173,15 +177,26 @@ class XmppTransport:
                 return
             elif msg_type == "invk":
                 cbtdata = json.loads(payload)
-                self.cm_mod.self.register_cbt(cbtdata["RecipientCM"], cbtdata["Action"], cbtdata["Params"])
+                n_cbt = self.create_cbt(self._module_name, cbtdata["RecipientCM"],
+                                 cbtdata["Action"], cbtdata["Params"])
+                self._cbt_to_action_tag[n_cbt.tag] = dict(actionTag=_remote_action_tag,peerId=cbtdata["PeerId"],senderJid=msg["from"])
+                self.submit_cbt(n_cbt)
                 return
+            elif msg_type == "response":
+                action_response = json.loads(payload)
+                cbt_tag = action_response["ActionTag"]
+                cbt_response = action_response["Response"]
+                cbt_status = action_response["Status"]
+                pendingCbt = self.cfx_handle._pending_cbts[cbt_tag]
+                pendingCbt.set_response(data=cbt_response, status=cbt_status)
+                self.complete_cbt(pendingCbt)
             else:
                 self._log("Invalid message type received {0}".format(str(msg)), "LOG_WARNING")
         except Exception as err:
             self._log("XmppTransport:Exception:{0} msg:{1}".format(err, msg), severity="LOG_ERROR")
 
     # Send message to Peer JID via XMPP server
-    def send_msg(self, peer_jid, header=None, msg_payload=None):
+    def send_msg(self, peer_jid, header=None, msg_payload=None, cbt_tag=None):
         if header is None:
             header = "regular_msg" + "#" + "None" + "#" + peer_jid.full
         if py_ver != 3:
@@ -194,6 +209,7 @@ class XmppTransport:
         msg["type"] = "chat"
         msg["Ipop"]["setup"] = header
         msg["Ipop"]["payload"] = msg_payload
+        msg["Ipop"]["remote_action_tag"] = cbt_tag
         msg.send()
         self._log("XMPP send msg: {0}".format(str(msg)),"LOG_DEBUG")
 
@@ -296,65 +312,67 @@ class Signal(ControllerModule):
         self._log("Module loaded")
 
     def process_cbt(self, cbt):
-        try:
-            if cbt.op_type == "Request":
-                message = cbt.request.params
-                if cbt.request.action == "SIG_REMOTE_ACTION":
-                    peerid = message["PeerId"]
-                    overlay_id = message["OverlayId"]
-                    message["InitiatorId"] = self._cm_config["NodeId"]
-                    message["InitiatorCM"] = cbt.request.initiator
-                    if (overlay_id not in self._circles):
-                        cbt.set_response("Overlay ID not found", False)
-                        self.complete_cbt(cbt)
-                        return
 
-                    xmppobj = self._circles[overlay_id]["Transport"]
-                    jid_cache = self._circles[overlay_id]["JidCache"]
-                    #cache_lk = self._circles[overlay_id]["CacheLock"]
-                    #cache_lk.acquire()
-                    cache_entry = jid_cache.lookup(peerid)
-                    if cache_entry is not None:
-                        peer_jid = cache_entry[0]
-                        setup_load = "invk" + "#" + "None" + "#" + peer_jid
-                        msg_payload = json.dumps(message)
-                        self._circles["overlay_id"]["Transport"].send_msg(peer_jid, setup_load, msg_payload)
-                        self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".format(peerid, setup_load, msg_payload), "LOG_DEBUG")
-                    else:
-                        #cache_lk.release()
-                        CBTQ = self._circles[overlay_id]["JidRefreshQ"]
-                        if peerid in CBTQ.keys():
-                            CBTQ[peerid].put(message)
-                        else:
-                            CBTQ[peerid] = Queue(maxsize=0)
-                            CBTQ[peerid].put(message)
-                        xmppobj.send_presence(pstatus="uid?#" + peerid)
-                elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
-                    stats = {}
-                    for overlay_id in self._cm_config["Overlays"]:
-                        stats[overlay_id] = {
-                            "xmpp_host": self._circles[overlay_id]["Transport"].host,
-                            "xmpp_username": self._circles[overlay_id]["Transport"].overlay_descr.get("Username", None)
-                        }
-                    cbt.set_response(stats, True)
+        if cbt.op_type == "Request":
+            message = cbt.request.params
+            if cbt.request.action == "SIG_REMOTE_ACTION":
+                peerid = message["PeerId"]
+                overlay_id = message["OverlayId"]
+                message["InitiatorId"] = self._cm_config["NodeId"]
+                message["InitiatorCM"] = cbt.request.initiator
+                if (overlay_id not in self._circles):
+                    cbt.set_response("Overlay ID not found", False)
                     self.complete_cbt(cbt)
                     return
+
+                xmppobj = self._circles[overlay_id]["Transport"]
+                jid_cache = self._circles[overlay_id]["JidCache"]
+                #cache_lk = self._circles[overlay_id]["CacheLock"]
+                #cache_lk.acquire()
+                peer_jid = jid_cache.lookup(peerid)
+                if peer_jid is not None:
+                    setup_load = "invk" + "#" + "None" + "#" + str(peer_jid)
+                    msg_payload = json.dumps(message)
+                    xmppobj.send_msg(str(peer_jid), setup_load, msg_payload, str(cbt.tag))
+                    self._log("CBT forwarded: [Peer: {0}] [Setup: {1}] [Msg: {2}]".
+                              format(peerid, setup_load, msg_payload), "LOG_DEBUG")
                 else:
-                    log = "Unsupported CBT action {0}".format(cbt)
-                    self.register_cbt("Logger", "LOG_WARNING", log)
+                    #cache_lk.release()
+                    CBTQ = self._circles[overlay_id]["JidRefreshQ"]
+                    if peerid in CBTQ.keys():
+                        CBTQ[peerid].put(message)
+                    else:
+                        CBTQ[peerid] = Queue(maxsize=0)
+                        CBTQ[peerid].put(message)
+                    xmppobj.send_presence(pstatus="uid?#" + peerid)
+            elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
+                stats = {}
+                for overlay_id in self._cm_config["Overlays"]:
+                    stats[overlay_id] = {
+                        "xmpp_host": self._circles[overlay_id]["Transport"].host,
+                        "xmpp_username": self._circles[overlay_id]["Transport"].overlay_descr.get("Username", None)
+                    }
+                cbt.set_response(stats, True)
+                self.complete_cbt(cbt)
+                return
 
-            elif cbt.op_type == "Response":
-                if (cbt.response.status == False):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
-                    self.free_cbt(cbt)
-                    return
-
-                self.free_cbt(cbt)
-
-        except Exception as err:
-            erlog = "Exception: {0}".format(str(err))
-            self.register_cbt("Logger", "LOG_WARNING", erlog)
-
+        elif cbt.op_type == "Response":
+            if (cbt.response.status == False):
+                self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
+            else:
+                if cbt.request.action in ["LNK_REQ_LINK_ENDPT", "LNK_ADD_PEER_CAS"]:
+                    response = cbt.response.data
+                    status = cbt.response.status
+                    olid = cbt.request.params["OverlayId"]
+                    action_tag = self._cbt_to_action_tag[cbt.tag]["actionTag"]
+                    peer_ID = self._cbt_to_action_tag[cbt.tag]["peerId"]
+                    target_jid = self._cbt_to_action_tag[cbt.tag]["senderJid"]
+                    xmppobj = self._circles[olid]["Transport"]
+                    message = dict(Response=response, Status=status, ActionTag=action_tag)
+                    msg_payload = json.dumps(message)
+                    setup = "response" + "#" + "None" + "#" + str(target_jid)
+                    xmppobj.send_msg(str(target_jid), setup, msg_payload, action_tag)
+            self.free_cbt(cbt)
 
     def timer_method(self):
         # Clean up JID cache for all XMPP connections

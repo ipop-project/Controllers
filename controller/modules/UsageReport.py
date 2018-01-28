@@ -20,8 +20,11 @@
 # THE SOFTWARE.
 import datetime
 import hashlib
-import json
 import threading
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import urllib.request as urllib2
 from controller.framework.ControllerModule import ControllerModule
 

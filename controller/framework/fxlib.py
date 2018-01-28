@@ -94,7 +94,7 @@ CONFIG = {
     },
     "ArpCache": {
         "Enabled": False,
-        "Dependencies": ["BroadcastForwarder"]
+        "Dependencies": ["Broadcaster"]
     },
     "UsageReport": {
         "Enabled": False,
@@ -102,6 +102,15 @@ CONFIG = {
         "ServerAddress": "metrics.ipop-project.org",
         "ServerPort": 8080,
         "Dependencies": ["Logger"]
+    },
+    "Broadcaster": {
+        "Enabled": False,
+        "Dependencies": ["Logger", "Topology", "Icc"]
+    },
+    "Icc": {
+        "Enabled": False,
+        "TimerInterval": 30,
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     }
 }
 
