@@ -35,7 +35,8 @@ class Topology(ControllerModule, CFX):
     def initialize(self):
         self._cfx_handle.start_subscription("Signal",
                                             "SIG_PEER_PRESENCE_NOTIFY")
-        for olid in self._cm_config["Overlays"]:
+        overlay_ids = self._cfx_handle.query_param("Overlays")
+        for olid in overlay_ids:
             self._overlays[olid] = (
                 dict(Descriptor=dict(IsReady=False, State="Bootstrapping"),
                      Peers=dict()))
