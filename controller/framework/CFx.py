@@ -231,7 +231,7 @@ class CFX(object):
     def terminate(self):
         for key in self._cfx_handle_dict:
             # create a special terminate CBT to terminate all the CMs
-            terminate_cbt = self.create_cbt("CFx", key, "CFX_TERMINATE", "")
+            terminate_cbt = self._cfx_handle_dict[key].create_cbt("CFx", key, "CFX_TERMINATE", None)
 
             # clear all the queues and put the terminate CBT in all the queues
             self._cfx_handle_dict[key]._cm_queue.queue.clear()
@@ -249,8 +249,8 @@ class CFX(object):
 
     def query_param(self, param_name=""):
         try:
-            if param_name == "ipopVerRel":
-                return self._config["CFx"]["ipopVerRel"]
+            if param_name == "ipop_ver_rel":
+                return self._config["CFx"]["ipop_ver_rel"]
             if param_name == "NodeId":
                 return self._node_id
             if param_name == "Overlays":
