@@ -19,19 +19,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-ipopVerMjr = "18"
-ipopVerMnr = "01"
-ipopVerRev = "0"
-ipop_ver_rel = "{0}.{1}.{2}".format(ipopVerMjr, ipopVerMnr, ipopVerRev)
+ipop_ver_mjr = "18"
+ipop_ver_mnr = "02"
+ipop_ver_rev = "0"
+ipop_ver_rel = "{0}.{1}.{2}".format(ipop_ver_mjr, ipop_ver_mnr, ipop_ver_rev)
 
 # set default config values
 MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
-                "Signal", "LinkManager", "Topology", "Broadcaster",
-                "ArpCache", "UsageReport"]
+                "Signal", "LinkManager", "Topology", "Icc", "Broadcaster",
+                "UsageReport"]
 CONFIG = {
     "CFx": {
         "NodeId": "",  # Single unique node Id for all overlays
-        "ipop_ver_rel": ipop_ver_rel,
+        "IpopVersion": ipop_ver_rel,
     },
     "Logger": {
         "Enabled": True,
@@ -94,10 +94,6 @@ CONFIG = {
         "Enabled": False,
         "TimerInterval": 30,
         "Dependencies": ["Logger", "Topology", "Icc"]
-    },
-    "ArpCache": {
-        "Enabled": False,
-        "Dependencies": ["Broadcaster"]
     },
     "UsageReport": {
         "Enabled": False,

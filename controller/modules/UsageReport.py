@@ -89,7 +89,7 @@ class UsageReport(ControllerModule):
             "NodeId": hashlib.sha1(nid.encode("utf-8")).hexdigest(),
             "Time": str(datetime.datetime.now()),
             "Model": self._cfx_handle.query_param("Model"),
-            "Version": self._cfx_handle.query_param("ipop_ver_rel")
+            "Version": self._cfx_handle.query_param("IpopVersion")
         }
         stat.update(report_data)
         self.lck.acquire()

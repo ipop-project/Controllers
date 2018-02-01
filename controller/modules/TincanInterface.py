@@ -252,7 +252,7 @@ class TincanInterface(ControllerModule):
                 "LinkId": cbt.request.params["LinkId"],
                 "Data": cbt.request.params["Data"]
             }
-            self.register_cbt("InterControllerCommunicator", "ICC_RECIEVE", msg)
+            self.register_cbt("Icc", "ICC_RECIEVE", msg)
         else:
             erlog = "Unsupported request received from Tincan"
             self.register_cbt("Logger", "LOG_WARNING", erlog)
@@ -270,7 +270,7 @@ class TincanInterface(ControllerModule):
                 self.ReqCreateOverlay(cbt)
 
             elif cbt.request.action == "TCI_ICC":
-                self.ReqICC(cbt)
+                self.ReqSendICC(cbt)
 
             elif cbt.request.action == "TCI_INJECT_FRAME":
                 self.ReqInjectFrame(cbt)
