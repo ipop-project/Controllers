@@ -35,7 +35,8 @@ class Topology(ControllerModule, CFX):
     def initialize(self):
         self._cfx_handle.start_subscription("Signal",
                                             "SIG_PEER_PRESENCE_NOTIFY")
-        for olid in self._cm_config["Overlays"]:
+        overlay_ids = self._cfx_handle.query_param("Overlays")
+        for olid in overlay_ids:
             self._overlays[olid] = (
                 dict(Descriptor=dict(IsReady=False, State="Bootstrapping"),
                      Peers=dict()))
@@ -80,7 +81,8 @@ class Topology(ControllerModule, CFX):
         # this is where we get the local fingerprint/mac and more which necessary
         # for creating the link
         if (self._overlays[overlay_id]["Descriptor"]["IsReady"]
-                and self._overlays[overlay_id]["Peers"].get(peer_id, "PeerStateUnknown") != "PeerStateConnected"):
+                and self._overlays[overlay_id]["Peers"]
+                .get(peer_id, "PeerStateUnknown") != "PeerStateConnected"):
             params = {
                 "OverlayId": overlay_id,
                 "PeerId": peer_id,
@@ -110,7 +112,7 @@ class Topology(ControllerModule, CFX):
             self._overlays[olid]["Descriptor"]["PrefixLen"] = cbt_data["IP4PrefixLen"]
             self._overlays[olid]["Descriptor"]["VIP4"] = cbt_data["VIP4"]
             self._overlays[olid]["Descriptor"]["TapName"] = cbt_data["TapName"]
-            self._overlays[olid]["Descriptor"]["Fingerprint"] = cbt_data["Fingerprint"]
+            self._overlays[olid]["Descriptor"]["FPR"] = cbt_data["FPR"]
         else:
             self.register_cbt("Logger", "LOG_WARNING",
                               "Query overlay info failed {0}".format(cbt.response.data))

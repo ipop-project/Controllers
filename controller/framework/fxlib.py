@@ -19,19 +19,19 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-ipopVerMjr = "18"
-ipopVerMnr = "01"
-ipopVerRev = "0"
-ipopVerRel = "{0}.{1}.{2}".format(ipopVerMjr, ipopVerMnr, ipopVerRev)
+ipop_ver_mjr = "18"
+ipop_ver_mnr = "02"
+ipop_ver_rev = "0"
+ipop_ver_rel = "{0}.{1}.{2}".format(ipop_ver_mjr, ipop_ver_mnr, ipop_ver_rev)
 
 # set default config values
 MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
-                "Signal", "LinkManager", "Topology", "Broadcast",
-                "IPMulticast", "ArpCache", "UsageReport"]
+                "Signal", "LinkManager", "Topology", "Icc", "Broadcaster",
+                "UsageReport"]
 CONFIG = {
     "CFx": {
-        "NodeId": "",  # Attribute to store node UID needed by Statreport and SVPN
-        "ipopVerRel": ipopVerRel,
+        "NodeId": "",  # Single unique node Id for all overlays
+        "IpopVersion": ipop_ver_rel,
     },
     "Logger": {
         "Enabled": True,
@@ -46,28 +46,30 @@ CONFIG = {
     },
     "OverlayVisualizer": {
         "Enabled": False,
-        "TimerInterval": 5,                # Timer thread interval
+        "TimerInterval": 30,                # Timer thread interval
         "WebServiceAddress": ":8080/IPOP",  # Visualizer webservice URL
-        "NodeName": "",                    # Node Name as seen from the UI
+        "NodeName": "",                     # Node Name as seen from the UI
         "Dependencies": ["Logger"]
     },
     "TincanInterface": {
         "Enabled": False,
-        "MaxReadSize": 65507,      # Max buffer size for Tincan Messages
-        "SocketReadWaitTime": 15,   # Socket read wait time for Tincan Messages
-        "CtrlRecvPort": 5801,     # Controller UDP Listening Port
-        "ServiceAddress": "127.0.0.1",
-        "CtrlSendPort": 5800,     # Tincan UDP Listening Port
-        "ServiceAddress6": "::1",
+        "MaxReadSize": 65507,               # Max buffer size for Tincan Messages
+        "SocketReadWaitTime": 15,           # Socket read wait time for Tincan Messages
+        "RcvServiceAddress": "127.0.0.1",   # Controller server address
+        "SndServiceAddress": "127.0.0.1",   # Tincan server address
+        "RcvServiceAddress6": "::1",
+        "SndServiceAddress6": "::1",
+        "CtrlRecvPort": 5801,               # Controller Listening Port
+        "CtrlSendPort": 5800,               # Tincan Listening Port
         "Dependencies": ["Logger"]
     },
     "Signal": {
         "Enabled": False,
-        "TimerInterval": 10,
+        "TimerInterval": 30,
         "MessagePerIntervalDelay": 10,      # No of XMPP messages after which the delay has to be increased
         "InitialAdvertismentDelay": 5,      # Initial delay for Peer XMPP messages
         "XmppAdvrtDelay": 5,                # Incremental delay for XMPP messages
-        "MaxAdvertismentDelay": 30,         # Max XMPP Message delay
+        "MaxAdvertismentDelay": 60,         # Max XMPP Message delay
         "Dependencies": ["Logger"]
     },
     "LinkManager": {
@@ -80,37 +82,25 @@ CONFIG = {
     },
     "Topology": {
         "Enabled": False,
-        "TimerInterval": 30,            # Timer thread interval in sec
+        "TimerInterval": 30,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
-    "Broadcast": {
+    "Icc": {
         "Enabled": False,
-        "TimerInterval": 10,                # Timer thread interval in sec
+        "TimerInterval": 30,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
-    "IPMulticast": {
+    "Broadcaster": {
         "Enabled": False,
-        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
-    },
-    "ArpCache": {
-        "Enabled": False,
-        "Dependencies": ["Broadcaster"]
+        "TimerInterval": 30,
+        "Dependencies": ["Logger", "Topology", "Icc"]
     },
     "UsageReport": {
         "Enabled": False,
         "TimerInterval": 200,
         "ServerAddress": "metrics.ipop-project.org",
         "ServerPort": 8080,
-        "Dependencies": ["Logger"]
-    },
-    "Broadcaster": {
-        "Enabled": False,
-        "Dependencies": ["Logger", "Topology", "Icc"]
-    },
-    "Icc": {
-        "Enabled": False,
-        "TimerInterval": 30,
-        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
+        "Dependencies": ["Logger", "Signal"]
     }
 }
 
