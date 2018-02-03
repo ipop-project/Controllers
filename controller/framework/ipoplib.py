@@ -43,12 +43,13 @@ CTL_CONFIGURE_LOGGING = {
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "ConfigureLogging",
-            "Level": "WARNING",
-            "Device": "File",
+            "Level": "DEBUG",
+            "Device": "All",
             "Directory": "./logs/",
             "Filename": "tincan_log",
             "MaxArchives": 10,
-            "MaxFileSize": 1048576
+            "MaxFileSize": 1048576,
+            "ConsoleLevel": "DEBUG"
         }
     }
 }
@@ -120,8 +121,8 @@ CTL_SEND_ICC = {
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "SendIcc",
-            "RecipientMac": "",
-            "TapName": "",
+            "LinkId": "",
+            "OverlayId": "",
             "Recipient": "peer_uid",
             "Data": "encoded string"
         }
@@ -148,7 +149,7 @@ INSERT_TAP_PACKET = {
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "InjectFrame",
-            "TapName": "",
+            "OverlayId": "",
             "Data": "encoded_string"
         }
     }
@@ -197,7 +198,7 @@ ADD_FORWARDING_RULE = {
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "UpdateMap",
-            "TapName": "",
+            "OverlayId": "",
             "Routes": []
         }
     }
@@ -210,7 +211,7 @@ DELETE_FORWARDING_RULE = {
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "RemoveRoutes",
-            "TapName": "",
+            "OverlayId": "",
             "Routes": []
         }
     }
@@ -223,8 +224,7 @@ CTL_QUERY_LINK_STATS = {
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "QueryLinkStats",
-            "TapName": "",
-            "MAC": ""
+            "OverlayIds" : []
         }
     }
 }
