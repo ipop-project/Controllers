@@ -152,7 +152,6 @@ class XmppTransport:
             # discard the message if it was initiated by this node
             if sender_jid == self.transport.boundjid.full:
                 return
-            self._log("Received XMPP Msg {0}".format(msg), "LOG_DEBUG")
             # extract header and content
             type = msg["ipop"]["type"]
             payload = msg["ipop"]["payload"]
@@ -164,16 +163,21 @@ class XmppTransport:
                 # send the remote actions that are waiting on JID refresh
                 while not cbtq.empty():
                     cbt_data = cbtq.get()
-                    self._log("CBT data {}".format(cbt_data),"LOG_DEBUG")
                     type = "invk"
                     payload = json.dumps(cbt_data)
                     self.send_msg(match_jid, type, payload)
+                    self._log("Sent remote act to peer ID: {0}\n "
+                        "Payload: {1}".format(matched_uid, payload),
+                        "LOG_DEBUG")
                 # put the learned JID in cache
                 self.jid_cache.add_entry(matched_uid, match_jid)
                 return
             elif type == "invk":
                 # invoke the rcvd remote action locally using a CBT
                 rem_act = json.loads(payload)
+                self._log("Rcvd remote act from peer ID: {0}\n "
+                    "Payload: {1}".format(rem_act["InitiatorId"], payload),
+                    "LOG_DEBUG")
                 n_cbt = self.cm_mod.create_cbt(self.cm_mod._module_name, rem_act["RecipientCM"],
                                  rem_act["Action"], rem_act["Params"])
                 # store the remote action for completion
@@ -201,7 +205,6 @@ class XmppTransport:
         msg["ipop"]["type"] = type
         msg["ipop"]["payload"] = payload
         msg.send()
-        self._log("XMPP send msg: {0}".format(str(msg)),"LOG_DEBUG")
 
     def connect_to_server(self,):
         try:
@@ -340,8 +343,8 @@ class Signal(ControllerModule):
             type = "invk"
             payload = json.dumps(rem_act)
             xmppobj.send_msg(str(peer_jid), type, payload)
-            self._log("CBT forwarded to Peer ID: {0}\n type: {1}\n"
-                "Payload: {2}".format(peer_id, type, payload),
+            self._log("Sent remote act to peer ID: {0}\n "
+                "Payload: {1}".format(peer_id, payload),
                 "LOG_DEBUG")
         else:
             #cache_lk.release()
@@ -380,7 +383,7 @@ class Signal(ControllerModule):
     def timer_method(self):
         # Clean up JID cache for all XMPP connections
         for overlay_id in self._circles.keys():
-            self._circles[overlay_id]["JidCache"].scavenge()
+            pass #self._circles[overlay_id]["JidCache"].scavenge()
 
     def terminate(self):
         for overlay_id in self._circles.keys():
