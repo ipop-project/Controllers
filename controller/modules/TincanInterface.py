@@ -62,6 +62,8 @@ class TincanInterface(ControllerModule):
         self.ConfigureTincanLogging(None, True)
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
         # self.register_cbt("Logger", "LOG_QUERY_CONFIG")
+        self._update_route_publisher = \
+            self._cfx_handle.publish_subscription("TCI_UPDATE_ROUTE")
 
     def __tincan_listener(self):
         try:
@@ -253,6 +255,38 @@ class TincanInterface(ControllerModule):
                 "Data": cbt.request.params["Data"]
             }
             self.register_cbt("Icc", "ICC_RECIEVE", msg)
+        elif cbt.request.params["Command"] == "UPDATE_ROUTE":
+            update_route_req = {
+                "Data": cbt.request.params["Data"],
+                "OverlayId": cbt.request.params["OverlayId"]
+            }
+            self.register_cbt("Topology", "TOP_LINK_INFO_FOR_FRAME",
+                              update_route_req)
+
+            """
+            # Check if EtherType is ARP
+            if eth_frame[41:45] == "0806":
+                # An ARP packet is 28 bytes (in our implementation, 56 chars)
+                # long
+                arp_packet = eth_frame[46:103]
+                op = arp_packet[6:8]
+
+                # ARP request
+                if op == "0001":
+                    bdc_arp_req = {
+                        "overlay_id": cbt.request.params["OverlayId"],
+                        "src_module": "TincanInterface",
+                        "tgt_modules": ["TincanInterface"],
+                        "payload": {
+                            "arp_packet": arp_packet,
+                            "action": "TCI_UPDATE_ROUTE"
+                        }
+                    }
+                    self._update_route_publisher.post_update(bdc_arp_req)
+                # ARP reply
+                elif op == "0002":
+                    pass
+            """
         else:
             erlog = "Unsupported request received from Tincan"
             self.register_cbt("Logger", "LOG_WARNING", erlog)
@@ -274,6 +308,7 @@ class TincanInterface(ControllerModule):
 
             elif cbt.request.action == "TCI_INJECT_FRAME":
                 self.ReqInjectFrame(cbt)
+                self.complete_cbt(cbt)
 
             elif cbt.request.action == "TCI_QUERY_CAS":
                 self.ReqQueryCandidateAddressSet(cbt)
@@ -304,6 +339,18 @@ class TincanInterface(ControllerModule):
                 self.ConfigureTincanLoggingResp(cbt)
 
             self.free_cbt(cbt)
+
+    def _get_arp_dict_from_packet(self, arp_packet):
+        arp_dict = dict()
+
+        # Procotol type
+        if arp_packet[4:8] == "0800":
+            arp_dict["PTYPE"] = "IPv4"
+
+        # Operation (1 = request, 2 = reply)
+        arp_dict["OPER"] = arp_packet[12:16]
+
+        return arp_dict
 
     def SendControl(self, msg):
         return self._sock.sendto(bytes(msg.encode("utf-8")), self._dest)

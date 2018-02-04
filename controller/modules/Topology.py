@@ -171,6 +171,22 @@ class Topology(ControllerModule, CFX):
             self.complete_cbt(cbt)
             self.register_cbt("Logger", "LOG_WARNING", "Topology data not available {0}".format(cbt.response.data))
 
+    def _get_link_info_for_frame(self, cbt):
+        eth_frame = cbt.request.params["Data"]
+        arp_packet = eth_frame[26*2:((26+27)*2)+1]
+
+        tgt_mac_id = arp_packet[18*2:23*2+1]
+        if tgt_mac_id == "FFFFFFFFFFFF":
+            arp_broadcast_req = {
+                "overlay_id": cbt.request.params["OverlayId"],
+                "action": "TCI_INJECT_FRAME",
+                "src_module": "TincanInterface",
+                "tgt_modules": ["TincanInterface"],
+                "payload": eth_frame
+            }
+            self.register_cbt("Broadcaster", "BDC_DO_BROADCAST",
+                              arp_broadcast_req)
+
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
             if cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
@@ -179,8 +195,10 @@ class Topology(ControllerModule, CFX):
                 self.complete_cbt(cbt)
             elif cbt.request.action == "VIS_DATA_REQ":
                 self.vis_data_response(cbt)
-            elif cbt.request == "TOP_QUERY_PEER_IDS":
+            elif cbt.request.action == "TOP_QUERY_PEER_IDS":
                 self.query_peer_ids(cbt)
+            elif cbt.request.action == "TOP_LINK_INFO_FOR_FRAME":
+                self._get_link_info_for_frame(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_CREATE_OVERLAY":
                 self.create_overlay_resp_handler(cbt)

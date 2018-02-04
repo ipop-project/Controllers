@@ -30,6 +30,7 @@ class Broadcaster(ControllerModule):
         self._node_id = str(self._cm_config["NodeId"])
 
     def initialize(self):
+        self._cfx_handle.start_subscription("TCI_UPDATE_ROUTE")
         self.register_cbt("Logger", "LOG_INFO", "{} module"
                 " loaded".format(self._module_name))
 
@@ -65,11 +66,12 @@ class Broadcaster(ControllerModule):
                                 self.bcast_data["src_module"],
                         "tgt_modules":
                                 self.bcast_data["tgt_modules"],
+                        "action": self.bcast_data["action"],
                         "payload":
                                 self.bcast_data["payload"]
                     }
                     self.register_cbt("Icc",
-                                      "ICC_BROADCAST_DATA", icc_req)
+                                      "ICC_REMOTE_ACTION", icc_req)
                     print "Sent broadcast req to icc"
                     self.free_cbt(cbt)
                 elif cbt.request.action == "BDC_BROADCAST_REQ":
