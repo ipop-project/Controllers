@@ -175,19 +175,23 @@ class Topology(ControllerModule, CFX):
             self.register_cbt("Logger", "LOG_WARNING", "Topology data not available {0}".format(cbt.response.data))
 
     def _broadcast_frame(self, cbt):
-        eth_frame = cbt.request.params["Data"]
-        arp_packet = eth_frame[26*2:((26+27)*2)+1]
+        if cbt.request.params["Command"] == "ReqRouteUpdate":
+            eth_frame = cbt.request.params["Data"]
+            arp_packet = eth_frame[26*2:((26+27)*2)+1]
 
-        tgt_mac_id = arp_packet[18*2:23*2+1]
-        if tgt_mac_id == "FFFFFFFFFFFF":
-            arp_broadcast_req = {
-                "overlay_id": cbt.request.params["OverlayId"],
-                "src_module": "TincanInterface",
-                "tgt_modules": ["TincanInterface"],
-                "payload": eth_frame
-            }
-            self.register_cbt("Broadcaster", "BDC_ARP_BROADCAST",
-                              arp_broadcast_req)
+            tgt_mac_id = arp_packet[18*2:23*2+1]
+            if tgt_mac_id == "FFFFFFFFFFFF":
+                arp_broadcast_req = {
+                    "overlay_id": cbt.request.params["OverlayId"],
+                    "src_module": "TincanInterface",
+                    "tgt_modules": ["TincanInterface"],
+                    "payload": eth_frame
+                }
+                self.register_cbt("Broadcaster", "BDC_ARP_BROADCAST",
+                                  arp_broadcast_req)
+        else:
+            cbt.set_response(data=None, status=False)
+            self.complete_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":

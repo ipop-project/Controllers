@@ -47,7 +47,10 @@ class Broadcaster(ControllerModule):
 
                 # Get all peers from Topology
                 print("Sent cbt to top for peer list")
-                self.register_cbt("Topology", "TOP_QUERY_PEER_IDS", None)
+                lcbt = self.create_linked_cbt(cbt)
+                lcbt.set_request(self._module_name, "Topology",
+                                 "TOP_QUERY_PEER_IDS", None)
+                self.submit_cbt(lcbt)
             else:
                 errlog = "Unsupported CBT action requested. CBT: "\
                     "{}".format(cbt)
@@ -59,6 +62,7 @@ class Broadcaster(ControllerModule):
                     "Logger", "LOG_WARNING",
                     "CBT failed {0}".format(cbt.response.data))
                 return
+
             if cbt.request.action == "TOP_QUERY_PEER_IDS":
                 self._handle_resp_top_query_peer_ids(cbt)
 
