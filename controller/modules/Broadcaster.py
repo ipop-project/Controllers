@@ -19,6 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+
 from controller.framework.ControllerModule import ControllerModule
 
 
@@ -30,56 +31,57 @@ class Broadcaster(ControllerModule):
         self._node_id = str(self._cm_config["NodeId"])
 
     def initialize(self):
-        self._cfx_handle.start_subscription("TCI_UPDATE_ROUTE")
         self.register_cbt("Logger", "LOG_INFO", "{} module"
                 " loaded".format(self._module_name))
 
     def process_cbt(self, cbt):
-        try:
-            if cbt.op_type == "Request":
-                if cbt.request.action == "BDC_BROADCAST_REQ":
-                    print "BDC rcvd req from ", cbt.request.initiator
-                    print "Data is:", cbt.request.params
-                    # We need to save the broadcast request data as the actual
-                    # broadcast request will be forwarded to ICC after receipt
-                    # of peer list from Topology
-                    self.bcast_data = cbt.request.params
+        if cbt.op_type == "Request":
+            if cbt.request.action == "BDC_ARP_BROADCAST":
+                print("BDC rcvd req from ", cbt.request.initiator)
+                print("Data is:", cbt.request.params)
+                # We need to save the broadcast request data as the actual
+                # broadcast request will be forwarded to ICC after receipt
+                # of peer list from Topology
+                self.bcast_data = cbt.request.params
+                self.bcast_data["action"] = "TCI_INJECT_FRAME"
 
-                    # Get all peers from Topology
-                    print "Sent cbt to top for peer list"
-                    self.register_cbt("Topology", "TOP_QUERY_PEER_IDS", None)
-                else:
-                    errlog = "Unsupported CBT action requested. CBT: "\
-                        "{}".format(cbt)
-                    self.register_cbt("Logger", "LOG_WARNING", errlog)
+                # Get all peers from Topology
+                print("Sent cbt to top for peer list")
+                self.register_cbt("Topology", "TOP_QUERY_PEER_IDS", None)
+            else:
+                errlog = "Unsupported CBT action requested. CBT: "\
+                    "{}".format(cbt)
+                self.register_cbt("Logger", "LOG_WARNING", errlog)
 
-            elif cbt.op_type == "Response":
-                if cbt.request.action == "TOP_QUERY_PEER_IDS":
-                    overlay_peers = cbt.response.data
+        elif cbt.op_type == "Response":
+            if not cbt.response.status:
+                self.register_cbt(
+                    "Logger", "LOG_WARNING",
+                    "CBT failed {0}".format(cbt.response.data))
+                return
+            if cbt.request.action == "TOP_QUERY_PEER_IDS":
+                self._handle_resp_top_query_peer_ids(cbt)
 
-                    icc_req = {
-                        "overlay_id": self.bcast_data["overlay_id"],
-                        "src_node_id": self._node_id,
-                        "peer_ids": overlay_peers[
-                            self.bcast_data["overlay_id"]],
-                        "src_module":
-                                self.bcast_data["src_module"],
-                        "tgt_modules":
-                                self.bcast_data["tgt_modules"],
-                        "action": self.bcast_data["action"],
-                        "payload":
-                                self.bcast_data["payload"]
-                    }
-                    self.register_cbt("Icc",
-                                      "ICC_REMOTE_ACTION", icc_req)
-                    print "Sent broadcast req to icc"
-                    self.free_cbt(cbt)
-                elif cbt.request.action == "BDC_BROADCAST_REQ":
-                    self.free_cbt(cbt)
+    def _handle_resp_top_query_peer_ids(self, cbt):
+        overlay_peers = cbt.response.data
 
-        except Exception as e:
-            errlog = "Exception encountered in process_cbt: {}".format(str(e))
-            self.register_cbt("Logger", "LOG_WARNING", errlog)
+        icc_req = {
+            "overlay_id": self.bcast_data["overlay_id"],
+            "src_node_id": self._node_id,
+            "peer_ids": overlay_peers[
+                self.bcast_data["overlay_id"]],
+            "src_module":
+                    self.bcast_data["src_module"],
+            "tgt_modules":
+                    self.bcast_data["tgt_modules"],
+            "action": self.bcast_data["action"],
+            "payload":
+                    self.bcast_data["payload"]
+        }
+        self.register_cbt("Icc",
+                          "ICC_REMOTE_ACTION", icc_req)
+        print("Sent broadcast req to icc")
+        self.free_cbt(cbt)
 
     def timer_method(self):
         pass
