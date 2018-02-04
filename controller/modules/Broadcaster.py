@@ -67,6 +67,10 @@ class Broadcaster(ControllerModule):
                 self._handle_resp_top_query_peer_ids(cbt)
 
     def _handle_resp_top_query_peer_ids(self, cbt):
+        if not cbt.response.status:
+            self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
+            return
+
         overlay_peers = cbt.response.data
 
         icc_req = {
@@ -85,6 +89,7 @@ class Broadcaster(ControllerModule):
         self.register_cbt("Icc",
                           "ICC_REMOTE_ACTION", icc_req)
         print("Sent broadcast req to icc")
+        self.complete_cbt(self.get_parent_cbt(cbt))
         self.free_cbt(cbt)
 
     def timer_method(self):
