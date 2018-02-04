@@ -35,7 +35,7 @@ class TincanInterface(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(TincanInterface, self).__init__(cfx_handle, module_config, module_name)
         self._tincan_listener_thread = None    # UDP listener thread object
-        # self.control_cbt = {}
+        self._tci_publisher = None
         # Preference for IPv6 control link
         if socket.has_ipv6:
             self._sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
@@ -61,6 +61,7 @@ class TincanInterface(ControllerModule):
         self.CreateControlLink()
         self.ConfigureTincanLogging(None, True)
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
+        self._tci_publisher = self._cfx_handle.publish_subscription("TCI_TINCAN_MSG_NOTIFY")
         # self.register_cbt("Logger", "LOG_QUERY_CONFIG")
         self._update_route_publisher = \
             self._cfx_handle.publish_subscription("TCI_UPDATE_ROUTE")
@@ -83,7 +84,8 @@ class TincanInterface(ControllerModule):
                             cbt.set_response(ctl["IPOP"]["Response"]["Message"], ctl["IPOP"]["Response"]["Success"])
                             self.complete_cbt(cbt)
                         else:
-                            self.register_cbt("TincanInterface", "TCI_TINCAN_REQ", ctl["IPOP"]["Request"])
+                            self._tci_publisher.post_update(ctl["IPOP"]["Request"])
+                            #self.register_cbt("TincanInterface", "TCI_TINCAN_REQ", ctl["IPOP"]["Request"])
         except:
             log_cbt = self.register_cbt(
                 recipient="Logger",
@@ -249,12 +251,15 @@ class TincanInterface(ControllerModule):
     # rework ICC messaging necessary
     def ProcessTincanRequest(self, cbt):
         if cbt.request.params["Command"] == "ICC":
+            pass
+            """
             msg = {
                 "OverlayId": cbt.request.params["OverlayId"],
                 "LinkId": cbt.request.params["LinkId"],
                 "Data": cbt.request.params["Data"]
             }
             self.register_cbt("Icc", "ICC_RECIEVE", msg)
+            """
         elif cbt.request.params["Command"] == "UPDATE_ROUTE":
             update_route_req = {
                 "Data": cbt.request.params["Data"],
@@ -325,12 +330,13 @@ class TincanInterface(ControllerModule):
             elif cbt.request.action == "TCI_SET_IGNORED_NET_INTERFACES":
                 self.ReqSetIgnoredNetInterfaces(cbt)
 
-            elif cbt.request.action == "TCI_TINCAN_REQ":
-                self.ProcessTincanRequest(cbt)
+            #elif cbt.request.action == "TCI_TINCAN_REQ":
+            #    self.ProcessTincanRequest(cbt)
 
         elif cbt.op_type == "Response":
             if cbt.request.action == "LOG_QUERY_CONFIG":
-                self.ConfigureTincanLogging(cbt.response.data, not cbt.response.status)
+                self.ConfigureTincanLogging(cbt.response.data, 
+                                            not cbt.response.status)
 
             elif cbt.request.action == "TCI_CREATE_CTRL_LINK":
                 self.CreateControlLinkResp(cbt)
