@@ -100,7 +100,7 @@ class UsageReport(ControllerModule):
         self.free_cbt(cbt)
 
     def submit_report(self, report_data):
-        data = json.dumps(report_data)
+        data = json.dumps(report_data).encode('utf8')
         self.register_cbt("Logger", "LOG_INFO", "data at submit report {0}".format(data))  # for debugging
         url = None
         try:
