@@ -63,8 +63,6 @@ class TincanInterface(ControllerModule):
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
         self._tci_publisher = self._cfx_handle.publish_subscription("TCI_TINCAN_MSG_NOTIFY")
         # self.register_cbt("Logger", "LOG_QUERY_CONFIG")
-        self._update_route_publisher = \
-            self._cfx_handle.publish_subscription("TCI_UPDATE_ROUTE")
 
     def __tincan_listener(self):
         try:
@@ -248,20 +246,18 @@ class TincanInterface(ControllerModule):
         # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
-    # rework ICC messaging necessary
-    def ProcessTincanRequest(self, cbt):
-        if cbt.request.params["Command"] == "UPDATE_ROUTE":
-            update_route_req = {
-                "Data": cbt.request.params["Data"],
-                "OverlayId": cbt.request.params["OverlayId"]
-            }
-            self.register_cbt("Topology", "TOP_LINK_INFO_FOR_FRAME",
-                              update_route_req)
-
-        else:
-            erlog = "Unsupported request received from Tincan"
-            self.register_cbt("Logger", "LOG_WARNING", erlog)
-        self.complete_cbt(cbt)
+    #def ProcessTincanRequest(self, cbt):
+    #    if cbt.request.params["Command"] == "ICC":
+    #        msg = {
+    #            "OverlayId": cbt.request.params["OverlayId"],
+    #            "LinkId": cbt.request.params["LinkId"],
+    #            "Data": cbt.request.params["Data"]
+    #        }
+    #        self.register_cbt("Icc", "ICC_RECIEVE", msg)
+    #    else:
+    #        erlog = "Unsupported request received from Tincan"
+    #        self.register_cbt("Logger", "LOG_WARNING", erlog)
+    #    self.complete_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -279,7 +275,6 @@ class TincanInterface(ControllerModule):
 
             elif cbt.request.action == "TCI_INJECT_FRAME":
                 self.ReqInjectFrame(cbt)
-                self.complete_cbt(cbt)
 
             elif cbt.request.action == "TCI_QUERY_CAS":
                 self.ReqQueryCandidateAddressSet(cbt)
