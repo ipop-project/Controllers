@@ -20,8 +20,11 @@
 # THE SOFTWARE.
 import datetime
 import hashlib
-import json
 import threading
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import urllib.request as urllib2
 from controller.framework.ControllerModule import ControllerModule
 
@@ -86,7 +89,7 @@ class UsageReport(ControllerModule):
             "NodeId": hashlib.sha1(nid.encode("utf-8")).hexdigest(),
             "Time": str(datetime.datetime.now()),
             "Model": self._cfx_handle.query_param("Model"),
-            "Version": self._cfx_handle.query_param("ipopVerRel")
+            "Version": self._cfx_handle.query_param("IpopVersion")
         }
         stat.update(report_data)
         self.lck.acquire()

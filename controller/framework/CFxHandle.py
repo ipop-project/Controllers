@@ -24,12 +24,7 @@ import logging
 import threading
 import traceback
 from controller.framework.CBT import CBT
-
-py_ver = sys.version_info[0]
-if py_ver == 3:
-    import queue as Queue
-else:
-    import Queue
+import queue as Queue
 
 
 class CFxHandle(object):
@@ -39,7 +34,7 @@ class CFxHandle(object):
         self._cm_thread = None  # CM worker thread
         self._cm_config = None
         self.__cfx_object = CFxObject  # CFx object reference
-        self._join_enabled = False
+        self._join_enabled = True
         self._timer_thread = None
         self._terminate_flag = False
         self.interval = 1
@@ -54,11 +49,10 @@ class CFxHandle(object):
         # submit CBT to the CFx
         self.__cfx_object.submit_cbt(cbt)
 
-    def create_cbt(self, initiator="", recipient="", action="", params=""):
+    def create_cbt(self, initiator=None, recipient=None, action=None, params=None):
         # create and return a CBT with optional parameters
         cbt = CBT(initiator, recipient, action, params)
         self._owned_cbts[cbt.tag] = cbt
-        print("create_cbt:{0}".format(cbt))
         return cbt
 
     def create_linked_cbt(self, parent):
@@ -140,20 +134,15 @@ class CFxHandle(object):
                 except SystemExit:
                     sys.exit()
                 except:
+                    # should free cbt, potential leak
                     log_cbt = self.create_cbt(
                         initiator=self._cm_instance.__class__.__name__,
                         recipient="Logger",
                         action="LOG_WARNING",
-                        params="CBT exception:\n"
-                             "    initiator {0}\n"
-                             "    recipient {1}:\n"
-                             "    action    {2}:\n"
-                             "    data      {3}:\n"
-                             "    traceback:\n{4}"
-                             .format(cbt.request.initiator, cbt.request.recipient, cbt.request.action,
-                                     cbt.request.params, traceback.format_exc())
-                    )
-
+                        params="Process CBT exception:\n"
+                             "  {0}\n"
+                             "  traceback:\n{1}"
+                             .format(cbt, traceback.format_exc()))
                     self.submit_cbt(log_cbt)
 
     def __timer_worker(self):
@@ -173,8 +162,10 @@ class CFxHandle(object):
                     initiator=self._cm_instance.__class__.__name__,
                     recipient="Logger",
                     action="LOG_WARNING",
-                    params="timer_method exception:\n{0}".format(traceback.format_exc())
-                )
+                    params="Timer Method exception:\n"
+                             "  {0}\n"
+                             "  traceback:\n{1}"
+                             .format(cbt, traceback.format_exc()))
                 self.submit_cbt(log_cbt)
 
     def query_param(self, param_name=""):

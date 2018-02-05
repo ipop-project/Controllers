@@ -30,7 +30,7 @@ class ControllerModule(object):
     __metaclass__ = ABCMeta
 
     def __init__(self, cfx_handle, module_config, module_name):
-        self._pending_cbt = {}
+        #self._pending_cbt = {}
         self._cfx_handle = cfx_handle
         self._cm_config = module_config
         self._module_name = module_name
@@ -75,7 +75,7 @@ class ControllerModule(object):
         self._cfx_handle.free_cbt(cbt)
 
     def get_parent_cbt(self, cbt):
-        self._cfx_handle.get_parent_cbt(cbt)
+        return self._cfx_handle.get_parent_cbt(cbt)
 
     def submit_cbt(self, cbt):
         self._cfx_handle.submit_cbt(cbt)

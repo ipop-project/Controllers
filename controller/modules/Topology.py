@@ -21,7 +21,10 @@
 
 from controller.framework.ControllerModule import ControllerModule
 from controller.framework.CFx import CFX
-import json
+try:
+    import simplejson as json
+except ImportError:
+    import json
 
 
 class Topology(ControllerModule, CFX):
@@ -32,7 +35,8 @@ class Topology(ControllerModule, CFX):
     def initialize(self):
         self._cfx_handle.start_subscription("Signal",
                                             "SIG_PEER_PRESENCE_NOTIFY")
-        for olid in self._cm_config["Overlays"]:
+        overlay_ids = self._cfx_handle.query_param("Overlays")
+        for olid in overlay_ids:
             self._overlays[olid] = (
                 dict(Descriptor=dict(IsReady=False, State="Bootstrapping"),
                      Peers=dict()))
@@ -77,13 +81,15 @@ class Topology(ControllerModule, CFX):
         # this is where we get the local fingerprint/mac and more which necessary
         # for creating the link
         if (self._overlays[overlay_id]["Descriptor"]["IsReady"]
-                and self._overlays[overlay_id]["Peers"].get(peer_id, "PeerStateUnknown") != "PeerStateConnected"):
+                and self._overlays[overlay_id]["Peers"]
+                .get(peer_id, "PeerStateUnknown") != "PeerStateConnected"):
             params = {
                 "OverlayId": overlay_id,
                 "PeerId": peer_id,
                 "EncryptionEnabled": self._cm_config["Overlays"][overlay_id].get("EncryptionEnabled", True),
                 "NodeData": self._overlays[overlay_id]["Descriptor"]
             }
+            params["NodeData"]["UID"] = self._cm_config["NodeId"]
             self.register_cbt("LinkManager", "LNK_CREATE_LINK", params)
 
     def create_link_handler(self, cbt):
@@ -106,7 +112,7 @@ class Topology(ControllerModule, CFX):
             self._overlays[olid]["Descriptor"]["PrefixLen"] = cbt_data["IP4PrefixLen"]
             self._overlays[olid]["Descriptor"]["VIP4"] = cbt_data["VIP4"]
             self._overlays[olid]["Descriptor"]["TapName"] = cbt_data["TapName"]
-            self._overlays[olid]["Descriptor"]["Fingerprint"] = cbt_data["Fingerprint"]
+            self._overlays[olid]["Descriptor"]["FPR"] = cbt_data["FPR"]
         else:
             self.register_cbt("Logger", "LOG_WARNING",
                               "Query overlay info failed {0}".format(cbt.response.data))
@@ -114,7 +120,7 @@ class Topology(ControllerModule, CFX):
             self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", cbt.request.params)
 
     def create_overlay_resp_handler(self, cbt):
-        if cbt.response.status == True:
+        if cbt.response.status:
             self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", {
                               "OverlayId": cbt.request.params["OverlayId"]})
         else:
@@ -142,7 +148,7 @@ class Topology(ControllerModule, CFX):
             self.complete_cbt(cbt)
             self.register_cbt("Logger", "LOG_WARNING", "Overlay Id is not valid {0}".format(cbt.response.data))
 
-    def vis_data_reponse(self, cbt):
+    def vis_data_response(self, cbt):
         topo_data = dict()
         try:
             for olid in self._cm_config["Overlays"]:

@@ -22,16 +22,20 @@
 from controller.framework.ControllerModule import ControllerModule
 import socket
 import select
-import json
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import controller.framework.ipoplib as ipoplib
 from threading import Thread
+import traceback
 
 
 class TincanInterface(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(TincanInterface, self).__init__(cfx_handle, module_config, module_name)
         self._tincan_listener_thread = None    # UDP listener thread object
-        self.control_cbt = {}
+        self._tci_publisher = None
         # Preference for IPv6 control link
         if socket.has_ipv6:
             self._sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
@@ -57,26 +61,37 @@ class TincanInterface(ControllerModule):
         self.CreateControlLink()
         self.ConfigureTincanLogging(None, True)
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
+        self._tci_publisher = self._cfx_handle.publish_subscription("TCI_TINCAN_MSG_NOTIFY")
         # self.register_cbt("Logger", "LOG_QUERY_CONFIG")
 
     def __tincan_listener(self):
-        while True:
-            socks, _, _ = select.select(self._sock_list, [], [],
-                                        self._cm_config["SocketReadWaitTime"])
-            # Iterate across all socket list to obtain Tincan messages
-            for sock in socks:
-                if sock == self._sock_svr:
-                    data, addr = sock.recvfrom(self._cm_config["MaxReadSize"])
-                    ctl = json.loads(data.decode("utf-8"))
-                    if ctl["IPOP"]["ProtocolVersion"] != 5:
-                        raise ValueError("Invalid control version detected")
-                    # Get the original CBT if this is the response
-                    if ctl["IPOP"]["ControlType"] == "TincanResponse":
-                        cbt = self.control_cbt[ctl["IPOP"]["TransactionId"]]
-                        cbt.set_response(ctl["IPOP"]["Response"]["Message"], ctl["IPOP"]["Response"]["Success"])
-                        self.complete_cbt(cbt)
-                    else:
-                        self.register_cbt("TincanInterface", "TCI_TINCAN_REQ", ctl["IPOP"]["Request"])
+        try:
+            while True:
+                socks, _, _ = select.select(self._sock_list, [], [],
+                                            self._cm_config["SocketReadWaitTime"])
+                # Iterate across all socket list to obtain Tincan messages
+                for sock in socks:
+                    if sock == self._sock_svr:
+                        data, addr = sock.recvfrom(self._cm_config["MaxReadSize"])
+                        ctl = json.loads(data.decode("utf-8"))
+                        if ctl["IPOP"]["ProtocolVersion"] != 5:
+                            raise ValueError("Invalid control version detected")
+                        # Get the original CBT if this is the response
+                        if ctl["IPOP"]["ControlType"] == "TincanResponse":
+                            cbt = self._cfx_handle._pending_cbts[ctl["IPOP"]["TransactionId"]]
+                            cbt.set_response(ctl["IPOP"]["Response"]["Message"], ctl["IPOP"]["Response"]["Success"])
+                            self.complete_cbt(cbt)
+                        else:
+                            self._tci_publisher.post_update(ctl["IPOP"]["Request"])
+                            #self.register_cbt("TincanInterface", "TCI_TINCAN_REQ", ctl["IPOP"]["Request"])
+        except:
+            log_cbt = self.register_cbt(
+                recipient="Logger",
+                action="LOG_WARNING",
+                params="Tincan Listener exception:\n"
+                        "  traceback:\n{1}"
+                        .format(traceback.format_exc()))
+            self.submit_cbt(log_cbt)
 
     def CreateControlLink(self,):
         self.register_cbt("Logger", "LOG_INFO", "Creating Tincan control link")
@@ -91,7 +106,7 @@ class TincanInterface(ControllerModule):
         else:
             ctl["IPOP"]["Request"]["AddressFamily"] = "af_inetv6"
             ctl["IPOP"]["Request"]["IP"] = self._cm_config["ServiceAddress6"]
-        self.control_cbt[cbt.tag] = cbt
+        self._cfx_handle._pending_cbts[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def CreateControlLinkResp(self, cbt):
@@ -111,7 +126,7 @@ class TincanInterface(ControllerModule):
             ctl["IPOP"]["Request"]["MaxArchives"] = log_cfg["MaxArchives"]
             ctl["IPOP"]["Request"]["MaxFileSize"] = log_cfg["MaxFileSize"]
             ctl["IPOP"]["Request"]["ConsoleLevel"] = log_cfg["ConsoleLevel"]
-        self.control_cbt[cbt.tag] = cbt
+        self._cfx_handle._pending_cbts[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ConfigureTincanLoggingResp(self, cbt):
@@ -126,13 +141,13 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
-        req["EncryptionEnabled"] = msg["EncryptionEnabled"]
-        req["PeerInfo"]["VIP4"] = msg["NodeData"]["IP4"]
-        req["PeerInfo"]["UID"] = msg["NodeData"]["UID"]
-        req["PeerInfo"]["MAC"] = msg["NodeData"]["MAC"]
-        req["PeerInfo"]["CAS"] = msg["NodeData"]["CAS"]
-        req["PeerInfo"]["FPR"] = msg["NodeData"]["FPR"]
-        self.control_cbt[cbt.tag] = cbt
+        req["EncryptionEnabled"] = msg.get("EncryptionEnabled")
+        req["PeerInfo"]["VIP4"] = msg["NodeData"].get("VIP4")
+        req["PeerInfo"]["UID"] = msg["NodeData"].get("UID")
+        req["PeerInfo"]["MAC"] = msg["NodeData"].get("MAC")
+        req["PeerInfo"]["CAS"] = msg["NodeData"].get("CAS")
+        req["PeerInfo"]["FPR"] = msg["NodeData"].get("FPR")
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqCreateOverlay(self, cbt):
@@ -151,7 +166,7 @@ class TincanInterface(ControllerModule):
         req["PrefixLen4"] = msg["PrefixLen4"]
         req["MTU4"] = msg["MTU4"]
         req["OverlayId"] = msg["OverlayId"]
-        self.control_cbt[cbt.tag] = cbt
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqInjectFrame(self, cbt):
@@ -161,7 +176,7 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["Data"] = msg["Data"]
-        self.control_cbt[cbt.tag] = cbt
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqQueryCandidateAddressSet(self, cbt):
@@ -171,7 +186,7 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
-        self.control_cbt[cbt.tag] = cbt
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqQueryLinkStats(self, cbt):
@@ -180,7 +195,7 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayIds"] = msg
-        self.control_cbt[cbt.tag] = cbt
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqQueryOverlayInfo(self, cbt):
@@ -189,7 +204,7 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
-        self.control_cbt[cbt.tag] = cbt
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqRemoveOverlay(self, cbt):
@@ -198,7 +213,7 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
-        self.control_cbt[cbt.tag] = cbt
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqRemoveLink(self, cbt):
@@ -207,7 +222,7 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["LinkId"] = msg["LinkId"]
-        self.control_cbt[cbt.tag] = cbt
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqSendICC(self, cbt):
@@ -218,7 +233,7 @@ class TincanInterface(ControllerModule):
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
         req["Data"] = msg["Data"]
-        self.control_cbt[cbt.tag] = cbt
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqSetIgnoredNetInterfaces(self, cbt):
@@ -228,22 +243,21 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["IgnoredNetInterfaces"] = msg["IgnoredNetInterfaces"]
-        self.control_cbt[cbt.tag] = cbt
+        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
-    # rework ICC messaging necessary
-    def ProcessTincanRequest(self, cbt):
-        if cbt.request.params["Command"] == "ICC":
-            msg = {
-                "OverlayId": cbt.request.params["OverlayId"],
-                "LinkId": cbt.request.params["LinkId"],
-                "Data": cbt.request.params["Data"]
-            }
-            self.register_cbt("InterControllerCommunicator", "ICC_RECIEVE", msg)
-        else:
-            erlog = "Unsupported request received from Tincan"
-            self.register_cbt("Logger", "LOG_WARNING", erlog)
-        self.complete_cbt(cbt)
+    #def ProcessTincanRequest(self, cbt):
+    #    if cbt.request.params["Command"] == "ICC":
+    #        msg = {
+    #            "OverlayId": cbt.request.params["OverlayId"],
+    #            "LinkId": cbt.request.params["LinkId"],
+    #            "Data": cbt.request.params["Data"]
+    #        }
+    #        self.register_cbt("Icc", "ICC_RECIEVE", msg)
+    #    else:
+    #        erlog = "Unsupported request received from Tincan"
+    #        self.register_cbt("Logger", "LOG_WARNING", erlog)
+    #    self.complete_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -257,7 +271,7 @@ class TincanInterface(ControllerModule):
                 self.ReqCreateOverlay(cbt)
 
             elif cbt.request.action == "TCI_ICC":
-                self.ReqICC(cbt)
+                self.ReqSendICC(cbt)
 
             elif cbt.request.action == "TCI_INJECT_FRAME":
                 self.ReqInjectFrame(cbt)
@@ -277,12 +291,13 @@ class TincanInterface(ControllerModule):
             elif cbt.request.action == "TCI_SET_IGNORED_NET_INTERFACES":
                 self.ReqSetIgnoredNetInterfaces(cbt)
 
-            elif cbt.request.action == "TCI_TINCAN_REQ":
-                self.ProcessTincanRequest(cbt)
+            #elif cbt.request.action == "TCI_TINCAN_REQ":
+            #    self.ProcessTincanRequest(cbt)
 
         elif cbt.op_type == "Response":
             if cbt.request.action == "LOG_QUERY_CONFIG":
-                self.ConfigureTincanLogging(cbt.response.data, not cbt.response.status)
+                self.ConfigureTincanLogging(cbt.response.data, 
+                                            not cbt.response.status)
 
             elif cbt.request.action == "TCI_CREATE_CTRL_LINK":
                 self.CreateControlLinkResp(cbt)
