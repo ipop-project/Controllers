@@ -35,6 +35,9 @@ class Topology(ControllerModule, CFX):
     def initialize(self):
         self._cfx_handle.start_subscription("Signal",
                                             "SIG_PEER_PRESENCE_NOTIFY")
+        self._cfx_handle.start_subscription("TincanInterface",
+                                            "TCI_TINCAN_MSG_NOTIFY")
+
         overlay_ids = self._cfx_handle.query_param("Overlays")
         for olid in overlay_ids:
             self._overlays[olid] = (
@@ -171,6 +174,25 @@ class Topology(ControllerModule, CFX):
             self.complete_cbt(cbt)
             self.register_cbt("Logger", "LOG_WARNING", "Topology data not available {0}".format(cbt.response.data))
 
+    def _broadcast_frame(self, cbt):
+        if cbt.request.params["Command"] == "ReqRouteUpdate":
+            eth_frame = cbt.request.params["Data"]
+            packet = eth_frame[26*2:((26+27)*2)+1]
+
+            tgt_mac_id = packet[18*2:23*2+1]
+            if tgt_mac_id == "FFFFFFFFFFFF":
+                arp_broadcast_req = {
+                    "overlay_id": cbt.request.params["OverlayId"],
+                    "tgt_module": "TincanInterface",
+                    "action": "TCI_INJECT_FRAME",
+                    "payload": eth_frame
+                }
+                self.register_cbt("Broadcaster", "BDC_BROADCAST",
+                                  arp_broadcast_req)
+        else:
+            cbt.set_response(data=None, status=False)
+            self.complete_cbt(cbt)
+
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
             if cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
@@ -179,15 +201,24 @@ class Topology(ControllerModule, CFX):
                 self.complete_cbt(cbt)
             elif cbt.request.action == "VIS_DATA_REQ":
                 self.vis_data_response(cbt)
-            elif cbt.request == "TOP_QUERY_PEER_IDS":
+            elif cbt.request.action == "TOP_QUERY_PEER_IDS":
                 self.query_peer_ids(cbt)
+            elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
+                self._broadcast_frame(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_CREATE_OVERLAY":
                 self.create_overlay_resp_handler(cbt)
-            if cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
+            elif cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
                 self.update_overlay_info(cbt)
-            if cbt.request.action == "LNK_CREATE_LINK":
+            elif cbt.request.action == "LNK_CREATE_LINK":
                 self.create_link_handler(cbt)
+            elif cbt.request.action == "BDC_BROADCAST":
+                if not cbt.response.status:
+                    self.register_cbt(
+                        "Logger", "LOG_WARNING",
+                        "Broadcast failed. Data: {0}".format(
+                            cbt.response.data))
+
             self.free_cbt(cbt)
 
         pass
