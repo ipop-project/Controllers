@@ -183,11 +183,11 @@ class Topology(ControllerModule, CFX):
             if tgt_mac_id == "FFFFFFFFFFFF":
                 arp_broadcast_req = {
                     "overlay_id": cbt.request.params["OverlayId"],
-                    "src_module": "TincanInterface",
-                    "tgt_modules": ["TincanInterface"],
+                    "tgt_module": "TincanInterface",
+                    "action": "TCI_INJECT_FRAME",
                     "payload": eth_frame
                 }
-                self.register_cbt("Broadcaster", "BDC_ARP_BROADCAST",
+                self.register_cbt("Broadcaster", "BDC_BROADCAST",
                                   arp_broadcast_req)
         else:
             cbt.set_response(data=None, status=False)
@@ -208,10 +208,17 @@ class Topology(ControllerModule, CFX):
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_CREATE_OVERLAY":
                 self.create_overlay_resp_handler(cbt)
-            if cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
+            elif cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
                 self.update_overlay_info(cbt)
-            if cbt.request.action == "LNK_CREATE_LINK":
+            elif cbt.request.action == "LNK_CREATE_LINK":
                 self.create_link_handler(cbt)
+            elif cbt.request.action == "BDC_BROADCAST":
+                if not cbt.response.status:
+                    self.register_cbt(
+                        "Logger", "LOG_WARNING",
+                        "Broadcast failed. Data: {0}".format(
+                            cbt.response.data))
+
             self.free_cbt(cbt)
 
         pass
