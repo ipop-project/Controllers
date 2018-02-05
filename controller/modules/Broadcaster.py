@@ -56,6 +56,8 @@ class Broadcaster(ControllerModule):
                     lcbt.set_request(self._module_name, "Topology",
                                      "TOP_QUERY_PEER_IDS", "BuildCache")
                     self.submit_cbt(lcbt)
+                else:
+                    self._handle_resp_top_query_peer_ids(cbt.request.params)
             else:
                 errlog = "Unsupported CBT action requested. CBT: "\
                     "{}".format(cbt)
