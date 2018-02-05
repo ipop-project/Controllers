@@ -171,7 +171,7 @@ class TincanInterface(ControllerModule):
 
     def ReqInjectFrame(self, cbt):
         msg = cbt.request.params
-        ctl = ipoplib.CTL_CREATE_OVERLAY
+        ctl = ipoplib.INSERT_TAP_PACKET
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
@@ -209,7 +209,7 @@ class TincanInterface(ControllerModule):
 
     def ReqRemoveOverlay(self, cbt):
         msg = cbt.request.params
-        ctl = ipoplib.CTL_CREATE_OVERLAY
+        ctl = ipoplib.CTL_REMOVE_OVERLAY
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
@@ -218,7 +218,7 @@ class TincanInterface(ControllerModule):
 
     def ReqRemoveLink(self, cbt):
         msg = cbt.request.params
-        ctl = ipoplib.CTL_CREATE_LINK
+        ctl = ipoplib.CTL_REMOVE_LINK
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["LinkId"] = msg["LinkId"]

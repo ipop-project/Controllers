@@ -81,7 +81,7 @@ class Broadcaster(ControllerModule):
                         self._overlay_peers = cbt.response.data
                     self.free_cbt(cbt)
                 elif cbt.request.params == "BuildCache":
-                    bcast_data = self.get_parent_cbt(cbt).response.data
+                    bcast_data = cbt.response.data
                     self._handle_resp_top_query_peer_ids(bcast_data)
                     parent_cbt = self.get_parent_cbt(cbt)
                     # free child first
