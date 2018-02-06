@@ -223,8 +223,8 @@ class Topology(ControllerModule, CFX):
 
     def timer_method(self):
         try:
-            # self.register_cbt("LinkManger","LNK_QUERY_LINKS")
-            # for overlay_id in self._overlays:
+            #self.register_cbt("LinkManger","LNK_QUERY_LINKS")
+            #for overlay_id in self._overlays:
             #    for peer_id in self._overlays[overlay_id]["Peers"]:
             #        self.connect_to_peer(overlay_id, peer_id)
             pass
