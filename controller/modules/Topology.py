@@ -25,7 +25,7 @@ try:
     import simplejson as json
 except ImportError:
     import json
-
+from collections import defaultdict
 
 class Topology(ControllerModule, CFX):
     def __init__(self, cfx_handle, module_config, module_name):
@@ -152,7 +152,7 @@ class Topology(ControllerModule, CFX):
             self.register_cbt("Logger", "LOG_WARNING", "Overlay Id is not valid {0}".format(cbt.response.data))
 
     def vis_data_response(self, cbt):
-        topo_data = dict()
+        topo_data = defaultdict(dict)
         try:
             for olid in self._cm_config["Overlays"]:
                 if self._overlays[olid]["Descriptor"]["IsReady"]:
@@ -167,7 +167,7 @@ class Topology(ControllerModule, CFX):
                 status = False
             else:
                 status = True
-            cbt.set_response(topo_data, status)
+            cbt.set_response({"Topology": topo_data}, status)
             self.complete_cbt(cbt)
         except KeyError:
             cbt.set_response(data=None, status=False)
