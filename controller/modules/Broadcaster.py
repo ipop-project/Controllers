@@ -101,7 +101,10 @@ class Broadcaster(ControllerModule):
                 "RecipientId": recipient_id,
                 "RecipientCM": bcast_data["tgt_module"],
                 "Action": bcast_data["action"],
-                "Params": bcast_data["payload"]
+                "Params": {
+                    "Data": bcast_data["payload"],
+                    "OverlayId": bcast_data["overlay_id"]
+                }
             }
             self.register_cbt("Icc",
                               "ICC_REMOTE_ACTION", icc_req)
