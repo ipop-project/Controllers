@@ -46,12 +46,8 @@ class Broadcaster(ControllerModule):
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
             if cbt.request.action == "BDC_BROADCAST":
-                print("BDC rcvd req from ", cbt.request.initiator)
-                print("Data is:", cbt.request.params)
-
                 if not self._overlay_peers:
                     # Get all peers from Topology
-                    print("Sent cbt to top for peer list")
                     lcbt = self.create_linked_cbt(cbt)
                     lcbt.set_request(self._module_name, "Topology",
                                      "TOP_QUERY_PEER_IDS", "BuildCache")
@@ -101,12 +97,13 @@ class Broadcaster(ControllerModule):
                 "RecipientId": recipient_id,
                 "RecipientCM": bcast_data["tgt_module"],
                 "Action": bcast_data["action"],
-                "Params": { "OverlayId": bcast_data["overlay_id"],
-                           "Data": bcast_data["payload"]}
+                "Params": {
+                    "OverlayId": bcast_data["overlay_id"],
+                    "Data": bcast_data["payload"]
+                }
             }
             self.register_cbt("Icc",
                               "ICC_REMOTE_ACTION", icc_req)
-            print("Sent broadcast req to icc")
 
     def timer_method(self):
         self.register_cbt("Topology", "TOP_QUERY_PEERS_IDS", "CacheRefresh")
