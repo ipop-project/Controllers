@@ -246,19 +246,6 @@ class TincanInterface(ControllerModule):
         # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
-    #def ProcessTincanRequest(self, cbt):
-    #    if cbt.request.params["Command"] == "ICC":
-    #        msg = {
-    #            "OverlayId": cbt.request.params["OverlayId"],
-    #            "LinkId": cbt.request.params["LinkId"],
-    #            "Data": cbt.request.params["Data"]
-    #        }
-    #        self.register_cbt("Icc", "ICC_RECIEVE", msg)
-    #    else:
-    #        erlog = "Unsupported request received from Tincan"
-    #        self.register_cbt("Logger", "LOG_WARNING", erlog)
-    #    self.complete_cbt(cbt)
-
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
             if cbt.request.action == "TCI_CREATE_LINK":
@@ -290,9 +277,6 @@ class TincanInterface(ControllerModule):
 
             elif cbt.request.action == "TCI_SET_IGNORED_NET_INTERFACES":
                 self.ReqSetIgnoredNetInterfaces(cbt)
-
-            #elif cbt.request.action == "TCI_TINCAN_REQ":
-            #    self.ProcessTincanRequest(cbt)
 
         elif cbt.op_type == "Response":
             if cbt.request.action == "LOG_QUERY_CONFIG":

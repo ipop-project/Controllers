@@ -262,8 +262,8 @@ class LinkManager(ControllerModule):
             "OverlayId": olid,
             "EncryptionEnabled": cbt.request.params["EncryptionEnabled"],
             "NodeData": {
-                "VIP4": "", "UID": "", "MAC": "", "CAS": local_cas, "FPR": ""}
-            }
+                "VIP4": "", "UID": self._cm_config["NodeId"], "MAC": "",
+                "CAS": local_cas, "FPR": ""}}
         remote_act = dict(OverlayId=olid, RecipientId=peerid,
                     RecipientCM="LinkManager", Action="LNK_ADD_PEER_CAS",
                     Params=json.dumps(params))
@@ -296,9 +296,22 @@ class LinkManager(ControllerModule):
         elif parent_cbt.request.action == "LNK_ADD_PEER_CAS":
             # Create Link: Phase 8 Node B
             self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 8 Node B")
+            rem_act = json.loads(parent_cbt.request.params)
+            peer_id = rem_act["NodeData"]["UID"]
+            olid = rem_act["OverlayId"]
+            lnkid = rem_act["LinkId"]
             parent_cbt.set_response(data="LNK_ADD_PEER_CAS successful", status=True)
             self.free_cbt(cbt)
             self.complete_cbt(parent_cbt)
+            # publish notification of link creation Node B
+            param = {
+                "UpdateType": "ADDED", "OverlayId": olid,
+                "PeerId": peer_id, "LinkId": lnkid
+                }
+            self.register_cbt("Logger", "LOG_DEBUG", "Link added notify: {0}"
+                              .format(param))
+            self._link_updates_publisher.post_update(param)
+
 
     def create_2nd_link_endpt(self, rem_act, parent_cbt):
         # Create Link: Phase 5 Node A
@@ -334,6 +347,8 @@ class LinkManager(ControllerModule):
             "UpdateType": "ADDED", "OverlayId": olid,
             "PeerId": peerid, "LinkId": lnkid
             }
+        self.register_cbt("Logger", "LOG_DEBUG", "Link added notify: {0}"
+                            .format(param))
         self._link_updates_publisher.post_update(param)
 
     def resp_handler_remote_action(self, cbt):
@@ -411,7 +426,7 @@ class LinkManager(ControllerModule):
 
 
     def timer_method(self):
-        pass #self.req_link_descriptors_update()
+        self.req_link_descriptors_update()
 
     def terminate(self):
         pass

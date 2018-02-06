@@ -19,6 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 from controller.framework.ControllerModule import ControllerModule
+import json
 
 class Icc(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
@@ -84,11 +85,11 @@ class Icc(ControllerModule):
             self.submit_cbt(lcbt)
         except:
             if overlayid not in self._links:
-                self.register_cbt("Logger", "LOG_WARN", 
+                self.register_cbt("Logger", "LOG_WARNING", 
                     "Non-existent OverlayId ({0})" \
                      "for receiving Data".format(overlayid))     
             else:
-                self.register_cbt("Logger", "LOG_WARN",
+                self.register_cbt("Logger", "LOG_WARNING",
                     "Non-existent PeerId ({0}) in Overlay ({0})" \
                      "for receiving Data ".format(peerid, overlayid))
 
@@ -98,22 +99,22 @@ class Icc(ControllerModule):
         for peerid in peer_list:
             param = {}
             param["OverlayId"] = olid
-            try:
-                param["LinkId"] = self._links[olid]["Peers"][peerid]
+ #           try:
+            param["LinkId"] = self._links[olid]["Peers"][peerid]
                 
-                lcbt = self.create_linked_cbt(cbt)
-                lcbt.set_request("TincanInterface", "TCI_ICC", param)
-                self.submit_cbt(lcbt)
-            except:
-                if overlayid not in self._links:
-                    self.register_cbt("Logger", "LOG_WARN", 
-                        "Non-existent OverlayId ({0})" \
-                         "for receiving Broadcast".format(overlayid))
-                    break    
-                else:
-                    self.register_cbt("Logger", "LOG_WARN",
-                        "Non-existent PeerId ({0}) in Overlay ({0}) \
-                         for receiving Broadcast".format(peerid, overlayid))
+            lcbt = self.create_linked_cbt(cbt)
+            lcbt.set_request("TincanInterface", "TCI_ICC", param)
+            self.submit_cbt(lcbt)
+            #except:
+            #    if overlayid not in self._links:
+            #        self.register_cbt("Logger", "LOG_WARNING", 
+            #            "Non-existent OverlayId ({0})" \
+            #             "for receiving Broadcast".format(overlayid))
+            #        break    
+            #    else:
+            #        self.register_cbt("Logger", "LOG_WARNING",
+            #            "Non-existent PeerId ({0}) in Overlay ({0}) \
+            #             for receiving Broadcast".format(peerid, overlayid))
 
     def send_icc_remote_action(self,cbt):
         """
@@ -133,27 +134,29 @@ class Icc(ControllerModule):
         rem_act = cbt.request.params
         peerid = rem_act["RecipientId"]
         overlayid = rem_act["OverlayId"]
-        try:
-            rem_act["LinkId"] = self._links[overlayid]["Peers"][peerid]
-            rem_act["InitiatorId"] = self._cm_config["NodeId"]
-            rem_act["InitiatorCM"] = cbt.request.initiator
-            rem_act["ActionTag"] = cbt.tag
-            icc_msg = {
-                "OverlayId": overlayid,
-                "LinkId": rem_act["LinkId"],
-                "Data": rem_act
-                }
-            self.register_cbt("TincanInterface", "TCI_ICC", json.dumps(icc_msg))
-        except:
-            if overlayid not in self._links:
-                self.register_cbt("Logger", "LOG_WARN", 
-                    "Non-existent OverlayId ({0})" \
-                    "for receiving Remote action requests".format(overlayid))     
-            else:
-                self.register_cbt("Logger", "LOG_WARN",
-                    "Non-existent PeerId ({0}) in Overlay ({0})" \
-                    "for receiving Remote action requests".format(peerid, 
-                                                            overlayid))     
+#        try:
+        link_id = self._links[overlayid]["Peers"][peerid]
+        rem_act["LinkId"] = link_id
+        rem_act["InitiatorId"] = self._cm_config["NodeId"]
+        rem_act["InitiatorCM"] = cbt.request.initiator
+        rem_act["ActionTag"] = cbt.tag
+        rem_act = json.dumps(rem_act)
+        icc_msg = {
+            "OverlayId": overlayid,
+            "LinkId": link_id,
+            "Data": rem_act
+            }
+        self.register_cbt("TincanInterface", "TCI_ICC", icc_msg)
+        #except:
+        #    if overlayid not in self._links:
+        #        self.register_cbt("Logger", "LOG_WARNING", 
+        #            "Non-existent OverlayId ({0})" \
+        #            "for receiving Remote action requests".format(overlayid))     
+        #    else:
+        #        self.register_cbt("Logger", "LOG_WARNING",
+        #            "Non-existent PeerId ({0}) in Overlay ({1})" \
+        #            "for receiving Remote action requests".format(peerid, 
+        #                                                    overlayid))     
 
     def recieve_icc(self,cbt):
         if (cbt.request.params["Command"] != "ICC"):
@@ -161,7 +164,7 @@ class Icc(ControllerModule):
             self.complete_cbt(cbt)
             return
 
-        rem_act = json.loads(cbt.request.params)["Data"]
+        rem_act = json.loads(cbt.request.params["Data"])
         # Handling incoming Data requests
         if "ActionTag" not in rem_act:
             pcbt = self.get_parent_cbt(cbt)
@@ -184,12 +187,15 @@ class Icc(ControllerModule):
         # Handling response to the remote action requests
         else:
             rcbt = self._cfx_handle._pending_cbts[rem_act["ActionTag"]]
-            resp_data = cbt.response.data
-            rcbt.set_response(data=resp_data, status=True)
+            rem_act = json.loads(cbt.request.params["Data"])
+            resp_data = rem_act["Data"]
+            status = rem_act["Status"]
+            rcbt.set_response(resp_data, status)
             self.complete_cbt(rcbt)
         #complete notification
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
+
     def complete_remote_action(self,cbt):
         if cbt.tag in self._remote_acts:
             rem_act = self._remote_acts[cbt.tag]
@@ -199,12 +205,13 @@ class Icc(ControllerModule):
                 lnkid = self._links[olid]["Peers"][peerid]
                 rem_act["Data"] = cbt.response.data
                 rem_act["Status"] = cbt.response.status
+                rem_act = json.dumps(rem_act)
                 icc_msg = {
                     "OverlayId": olid,
                     "LinkId": lnkid,
                     "Data": rem_act
                     }
-                self.register_cbt("TincanInterface", "TCI_ICC", json.dumps(icc_msg))
+                self.register_cbt("TincanInterface", "TCI_ICC", icc_msg)
         self.free_cbt(cbt)
 
     def resp_handler_tc_icc(self, cbt):

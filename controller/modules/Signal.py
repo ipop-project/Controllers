@@ -210,7 +210,7 @@ class XmppTransport:
         try:
             if self.transport.connect(address=(self.host, self.port)):
                 self.transport.process()
-                #thread.start_new_thread(self.transport.process, ())
+                #TODO: thread.start_new_thread(self.transport.process, ())
                 self._log("Starting connection to XMPP server {0}:{1}".format(self.host, self.port))
         except Exception as err:
             self._log("Unable to initialize XMPP transport instanace.\n" \
