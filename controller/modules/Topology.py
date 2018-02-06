@@ -177,9 +177,7 @@ class Topology(ControllerModule, CFX):
     def _broadcast_frame(self, cbt):
         if cbt.request.params["Command"] == "ReqRouteUpdate":
             eth_frame = cbt.request.params["Data"]
-            packet = eth_frame[26*2:((26+27)*2)+1]
-
-            tgt_mac_id = packet[18*2:23*2+1]
+            tgt_mac_id = eth_frame[:12]
             if tgt_mac_id == "FFFFFFFFFFFF":
                 arp_broadcast_req = {
                     "overlay_id": cbt.request.params["OverlayId"],

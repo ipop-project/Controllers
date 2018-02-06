@@ -13,12 +13,11 @@
 #
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-
 from controller.framework.ControllerModule import ControllerModule
 
 class Icc(ControllerModule):
@@ -31,11 +30,13 @@ class Icc(ControllerModule):
 
     def initialize(self):
         self.register_cbt("Logger", "LOG_INFO", 
-                            "{0} Loaded".format(self.module_name))
+                            "Module loaded")
         
         # Subscribe for link updates notifications from LinkManager
         self._cfx_handle.start_subscription("LinkManager",
                     "LNK_DATA_UPDATES")
+        self._cfx_handle.start_subscription("TincanInterface",
+                    "TCI_TINCAN_MSG_NOTIFY")
 
     def update_links(self,cbt):
         if cbt.request.params["UpdateType"] == "ADDED":
@@ -60,6 +61,8 @@ class Icc(ControllerModule):
                     if self._links[olid]["Peers"] == {}:
                         del self._links[olid]
                     break
+        cbt.set_response(None, True)
+        self.complete_cbt(cbt)
 
     def send_icc_data(self,cbt):
         """
@@ -134,7 +137,12 @@ class Icc(ControllerModule):
             rem_act["InitiatorId"] = self._cm_config["NodeId"]
             rem_act["InitiatorCM"] = cbt.request.initiator
             rem_act["ActionTag"] = cbt.tag
-            self.register_cbt("TincanInterface", "TCI_ICC", rem_act)
+            icc_msg = {
+                "OverlayId": overlayid,
+                "LinkId": rem_act["LinkId"],
+                "Data": rem_act
+                }
+            self.register_cbt("TincanInterface", "TCI_ICC", icc_msg)
         except:
             if overlayid not in self._links:
                 self.register_cbt("Logger", "LOG_WARN", 
@@ -148,44 +156,65 @@ class Icc(ControllerModule):
 
 
     def recieve_icc(self,cbt):
-        cbt_params = cbt.request.params
-        
+        if (cbt.request.params["Command"] != "ICC"):
+            cbt.set_response(None, False)
+            self.complete_cbt(cbt)
+            return
+
+        rem_act = cbt.request.params["Data"]
         # Handling incoming Data requests
-        if "ActionTag" not in cbt_params:
+        if "ActionTag" not in rem_act:
             pcbt = self.get_parent_cbt(cbt)
             target_module_name = pcbt.request.params["RecipientCM"]
             msg = pcbt.request.params["Params"]
             self.register_cbt(target_module_name, "ICC_DELIVER_DATA", msg)
 
-        # Handling incoming Remote action requests
-        elif cbt_params["ActionTag"] not in self._cfx_handle._pending_cbts:
-            target_module_name = cbt_params["RecipientCM"]
-            remote_action_code = cbt_params["Action"]
-            opaque_msg = cbt_params["Params"]
-            rcbt = self.create_cbt("Icc", 
+        # New incoming Remote action requests
+        elif rem_act["ActionTag"] not in self._cfx_handle._pending_cbts:
+            target_module_name = rem_act["RecipientCM"]
+            remote_action_code = rem_act["Action"]
+            opaque_msg = rem_act["Params"]
+            rcbt = self.create_cbt(self._module_name, 
                                     target_module_name, 
                                     remote_action_code, 
                                     opaque_msg)
-            self._remote_acts[rcbt.tag] = cbt_params
+            self._remote_acts[rcbt.tag] = rem_act
             self.submit_cbt(rcbt)
 
         # Handling response to the remote action requests
         else:
-            rcbt = self._cfx_handle._pending_cbts[cbt_params["ActionTag"]]
+            rcbt = self._cfx_handle._pending_cbts[rem_act["ActionTag"]]
             resp_data = cbt.response.data
             rcbt.set_response(data=resp_data, status=True)
             self.complete_cbt(rcbt)
+        #complete notification
+        cbt.set_response(None, True)
+        self.complete_cbt(cbt)
 
     def complete_remote_action(self,cbt):
         if cbt.tag in self._remote_acts:
             rem_act = self._remote_acts[cbt.tag]
             olid = rem_act["OverlayId"]
             peerid = rem_act["InitiatorId"]
-            lnkid = self._links[olid]["Peers"][peerid]
-            rem_act["Data"] = cbt.response.data
-            rem_act["Status"] = cbt.response.status
-            self.register_cbt("TincanInterface", "TCI_ICC", rem_act)
-            self.free_cbt(cbt)
+            if peerid in self._links[olid]["Peers"]:
+                lnkid = self._links[olid]["Peers"][peerid]
+                rem_act["Data"] = cbt.response.data
+                rem_act["Status"] = cbt.response.status
+                icc_msg = {
+                    "OverlayId": olid,
+                    "LinkId": lnkid,
+                    "Data": rem_act
+                    }
+                self.register_cbt("TincanInterface", "TCI_ICC", icc_msg)
+        self.free_cbt(cbt)
+
+    def resp_handler_tc_icc(self, cbt):
+        if not cbt.response.status:
+            tag = cbt.response.data["Data"]["ActionTag"]
+            pcbt = self._cfx_handle.pending_cbts[tag]
+            pcbt.set_response("Failed to send ICC", False)
+            self.complete_cbt(pcbt)
+        self.free_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -201,14 +230,14 @@ class Icc(ControllerModule):
             elif cbt.request.action == "ICC_REMOTE_ACTION":
                 self.send_icc_remote_action(cbt)
 
-            elif cbt.request.action == "ICC_RECIEVE":
+            elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
                 self.recieve_icc(cbt)
 
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_ICC":
-                self.free_cbt(cbt)
+                self.resp_handler_tc_icc(cbt)
             else:
-                self.complete_remote_action(cbt)          
+                self.complete_remote_action(cbt)
 
     def terminate(self):
         pass
