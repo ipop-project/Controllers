@@ -42,7 +42,7 @@ class Topology(ControllerModule, CFX):
         for olid in overlay_ids:
             self._overlays[olid] = (
                 dict(Descriptor=dict(IsReady=False, State="Bootstrapping"),
-                     Peers=dict()))
+                     Peers=dict(),Links=dict()))
             """
             Peers is set of dictionaries indexed by peer id and maps to state
             of peer, ex: Peers= {peer_id="peer_state"}
@@ -197,6 +197,20 @@ class Topology(ControllerModule, CFX):
         else:
             cbt.set_response(data=None, status=False)
             self.complete_cbt(cbt)
+    
+    def link_data_update_handler(self, cbt):
+        params = cbt.request.params
+        olid = params["OverlayId"]
+        linkid = params["LinkId"]
+        if params["UpdateType"] == "ADDED":
+            self._overlays[olid]["Links"].get(linkid,[]).append(params["PeerId"])
+        elif params["UpdateType"] == "REMOVED":
+            peers = self._overlays[olid]["Links"].pop(linkid, [])
+            for peer in peers:
+                self._overlays[olid]["Peers"].pop(peer)
+            self._overlays[olid]["Links"].pop(linkid)
+        cbt.set_response(None, True)
+        self.complete_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -210,6 +224,8 @@ class Topology(ControllerModule, CFX):
                 self.query_peer_ids(cbt)
             elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
                 self._broadcast_frame(cbt)
+            elif cbt.request.action == "LNK_DATA_UPDATES":
+                self.link_data_update_handler(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_CREATE_OVERLAY":
                 self.create_overlay_resp_handler(cbt)
