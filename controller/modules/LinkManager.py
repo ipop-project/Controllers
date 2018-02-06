@@ -181,7 +181,7 @@ class LinkManager(ControllerModule):
         lcbt.set_request(self._module_name, "Signal", "SIG_REMOTE_ACTION", remote_act)
         self.submit_cbt(lcbt)
         return  # not returning linkid here, seems not required.
-    
+
     def req_handler_add_peer_cas(self, cbt):
         # Create Link: Phase 7 Node B
         self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 7 Node B")
