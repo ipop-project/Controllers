@@ -52,11 +52,16 @@ class Topology(ControllerModule, CFX):
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
                                                 "VIS_DATA_REQ")
+            self._cfx_handle.start_subscription("LinkManager",
+                                                "LNK_DATA_UPDATES")
         except NameError as err:
             if "OverlayVisualizer" in str(err):
                 self.register_cbt("Logger", "LOG_WARNING",
                                   "OverlayVisualizer module not loaded."
                                   " Visualization data will not be sent.")
+            if "LinkManager" is str(err):
+                self.register_cbt("Logger","LOG_WARNING",
+                                  "Link Manager module not loaded.")
 
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
