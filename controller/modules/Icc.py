@@ -32,9 +32,10 @@ class Icc(ControllerModule):
         self.register_cbt("Logger", "LOG_INFO", 
                             "Module loaded")
         
-        # Subscribe for link updates notifications from LinkManager
+       # Subscribe for link updates notifications from LinkManager
         self._cfx_handle.start_subscription("LinkManager",
                     "LNK_DATA_UPDATES")
+
         self._cfx_handle.start_subscription("TincanInterface",
                     "TCI_TINCAN_MSG_NOTIFY")
 
@@ -84,12 +85,12 @@ class Icc(ControllerModule):
         except:
             if overlayid not in self._links:
                 self.register_cbt("Logger", "LOG_WARN", 
-                    "Non-existent OverlayId ({0}) \
-                     for receiving Data".format(overlayid))     
+                    "Non-existent OverlayId ({0})" \
+                     "for receiving Data".format(overlayid))     
             else:
                 self.register_cbt("Logger", "LOG_WARN",
-                    "Non-existent PeerId ({0}) in Overlay ({0}) \
-                     for receiving Data ".format(peerid, overlayid))
+                    "Non-existent PeerId ({0}) in Overlay ({0})" \
+                     "for receiving Data ".format(peerid, overlayid))
 
     def broadcast_icc_data(self,cbt):
         peer_list = cbt.request.params["RecipientId"]
@@ -106,8 +107,8 @@ class Icc(ControllerModule):
             except:
                 if overlayid not in self._links:
                     self.register_cbt("Logger", "LOG_WARN", 
-                        "Non-existent OverlayId ({0}) \
-                         for receiving Broadcast".format(overlayid))
+                        "Non-existent OverlayId ({0})" \
+                         "for receiving Broadcast".format(overlayid))
                     break    
                 else:
                     self.register_cbt("Logger", "LOG_WARN",
@@ -142,18 +143,17 @@ class Icc(ControllerModule):
                 "LinkId": rem_act["LinkId"],
                 "Data": rem_act
                 }
-            self.register_cbt("TincanInterface", "TCI_ICC", icc_msg)
+            self.register_cbt("TincanInterface", "TCI_ICC", json.dumps(icc_msg))
         except:
             if overlayid not in self._links:
                 self.register_cbt("Logger", "LOG_WARN", 
-                    "Non-existent OverlayId ({0}) \
-                    for receiving Remote action requests".format(overlayid))     
+                    "Non-existent OverlayId ({0})" \
+                    "for receiving Remote action requests".format(overlayid))     
             else:
                 self.register_cbt("Logger", "LOG_WARN",
-                    "Non-existent PeerId ({0}) in Overlay ({0}) \
-                    for receiving Remote action requests".format(peerid, 
+                    "Non-existent PeerId ({0}) in Overlay ({0})" \
+                    "for receiving Remote action requests".format(peerid, 
                                                             overlayid))     
-
 
     def recieve_icc(self,cbt):
         if (cbt.request.params["Command"] != "ICC"):
@@ -161,7 +161,7 @@ class Icc(ControllerModule):
             self.complete_cbt(cbt)
             return
 
-        rem_act = cbt.request.params["Data"]
+        rem_act = json.loads(cbt.request.params)["Data"]
         # Handling incoming Data requests
         if "ActionTag" not in rem_act:
             pcbt = self.get_parent_cbt(cbt)
@@ -190,7 +190,6 @@ class Icc(ControllerModule):
         #complete notification
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
-
     def complete_remote_action(self,cbt):
         if cbt.tag in self._remote_acts:
             rem_act = self._remote_acts[cbt.tag]
@@ -205,7 +204,7 @@ class Icc(ControllerModule):
                     "LinkId": lnkid,
                     "Data": rem_act
                     }
-                self.register_cbt("TincanInterface", "TCI_ICC", icc_msg)
+                self.register_cbt("TincanInterface", "TCI_ICC", json.dumps(icc_msg))
         self.free_cbt(cbt)
 
     def resp_handler_tc_icc(self, cbt):
@@ -243,4 +242,4 @@ class Icc(ControllerModule):
         pass
 
     def timer_method(self):
-        pass
+       pass
