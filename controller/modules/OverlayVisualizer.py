@@ -91,10 +91,10 @@ class OverlayVisualizer(ControllerModule):
         collector_msg = dict()
 
         # Filter out overlays for which we do not have Topology data
-        for overlay_id in vis_ds:
-            overlay_data = vis_ds[overlay_id]
+        for overlay_id in vis_ds["Data"]:
+            overlay_data = vis_ds["Data"][overlay_id]
             if "Topology" in overlay_data and overlay_data["Topology"]:
-                collector_msg[overlay_id] = vis_ds[overlay_id]
+                collector_msg[overlay_id] = overlay_data
 
         if collector_msg:
             print("Visualizer is going to send"
