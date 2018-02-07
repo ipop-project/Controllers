@@ -96,7 +96,7 @@ class OverlayVisualizer(ControllerModule):
             if "Topology" in overlay_data and overlay_data["Topology"]:
                 collector_msg["Data"][overlay_id] = overlay_data
 
-        if collector_msg:
+        if collector_msg["Data"]:
             print("Visualizer is going to send"
                   " {}".format(json.dumps(collector_msg)))
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
