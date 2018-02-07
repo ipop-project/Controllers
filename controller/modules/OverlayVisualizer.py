@@ -103,7 +103,10 @@ class OverlayVisualizer(ControllerModule):
 
             try:
                 resp = requests.put(req_url, data=json.dumps(collector_msg),
-                                    headers={"Content-Type": "application/json"})
+                                    headers={"Content-Type":
+                                             "application/json"},
+                                    timeout=3
+                                   )
                 resp.raise_for_status()
 
             except requests.exceptions.RequestException as err:
