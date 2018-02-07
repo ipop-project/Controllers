@@ -37,17 +37,21 @@ class Topology(ControllerModule, CFX):
                                             "SIG_PEER_PRESENCE_NOTIFY")
         self._cfx_handle.start_subscription("TincanInterface",
                                             "TCI_TINCAN_MSG_NOTIFY")
+        self._cfx_handle.start_subscription("LinkManager",
+                                                "LNK_DATA_UPDATES")
 
         overlay_ids = self._cfx_handle.query_param("Overlays")
+        self._links = dict()
         for olid in overlay_ids:
             self._overlays[olid] = (
                 dict(Descriptor=dict(IsReady=False, State="Bootstrapping"),
-                     Peers=dict()))
+                     Peers=dict(), Links=dict()))
             """
-            Peers is set of dictionaries indexed by peer id and maps to state
+            Peers is dictionary indexed by peer id and maps to state
             of peer, ex: Peers= {peer_id="peer_state"}
             """
-            self.create_overlay(self._cm_config["Overlays"][olid], olid)
+            if self._cm_config["Overlays"][olid]["Type"] == "VNET":
+                self.create_overlay(self._cm_config["Overlays"][olid], olid)
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
@@ -57,7 +61,6 @@ class Topology(ControllerModule, CFX):
                 self.register_cbt("Logger", "LOG_WARNING",
                                   "OverlayVisualizer module not loaded."
                                   " Visualization data will not be sent.")
-
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
     def terminate(self):
@@ -91,6 +94,16 @@ class Topology(ControllerModule, CFX):
                 "PeerId": peer_id,
                 "EncryptionEnabled": self._cm_config["Overlays"][overlay_id].get("EncryptionEnabled", True),
                 "NodeData": self._overlays[overlay_id]["Descriptor"]
+                "StunAddress": self._cm_config["Stun"][0],
+                "TurnAddress": self._cm_config["Turn"][0]["Address"],
+                "TurnPass": self._cm_config["Turn"][0]["Password"],
+                "TurnUser": self._cm_config["Turn"][0]["User"],
+                "Type": overlay_cfg["Type"],
+                "EnableIPMapping": overlay_cfg.get("EnableIPMapping", False),
+                "TapName": overlay_cfg["TapName"],
+                "IP4": overlay_cfg["IP4"],
+                "MTU4": overlay_cfg["MTU4"],
+                "PrefixLen4": overlay_cfg["IP4PrefixLen"],
             }
             params["NodeData"]["UID"] = self._cm_config["NodeId"]
             self.register_cbt("LinkManager", "LNK_CREATE_LINK", params)
@@ -111,7 +124,6 @@ class Topology(ControllerModule, CFX):
             self._overlays[olid]["Descriptor"]["IsReady"] = cbt.response.status
             cbt_data = json.loads(cbt.response.data)
             self._overlays[olid]["Descriptor"]["MAC"] = cbt_data["MAC"]
-
             self._overlays[olid]["Descriptor"]["PrefixLen"] = cbt_data["IP4PrefixLen"]
             self._overlays[olid]["Descriptor"]["VIP4"] = cbt_data["VIP4"]
             self._overlays[olid]["Descriptor"]["TapName"] = cbt_data["TapName"]
@@ -190,6 +202,18 @@ class Topology(ControllerModule, CFX):
         else:
             cbt.set_response(data=None, status=False)
             self.complete_cbt(cbt)
+    
+    def link_data_update_handler(self, cbt):
+        params = cbt.request.params
+        olid = params["OverlayId"]
+        linkid = params["LinkId"]
+        if params["UpdateType"] == "ADDED":
+            self._links[linkid] = params["PeerId"]
+        elif params["UpdateType"] == "REMOVED":
+            peer = self._links.pop(linkid,None)
+            self._overlays[olid]["Peers"].pop(peer)   
+        cbt.set_response(None, True)
+        self.complete_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -203,6 +227,8 @@ class Topology(ControllerModule, CFX):
                 self.query_peer_ids(cbt)
             elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
                 self._broadcast_frame(cbt)
+            elif cbt.request.action == "LNK_DATA_UPDATES":
+                self.link_data_update_handler(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_CREATE_OVERLAY":
                 self.create_overlay_resp_handler(cbt)
@@ -218,8 +244,6 @@ class Topology(ControllerModule, CFX):
                             cbt.response.data))
 
             self.free_cbt(cbt)
-
-        pass
 
     def timer_method(self):
         try:
