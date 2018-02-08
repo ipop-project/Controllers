@@ -72,12 +72,12 @@ class Topology(ControllerModule, CFX):
             "TurnAddress": self._cm_config["Turn"][0]["Address"],
             "TurnPass": self._cm_config["Turn"][0]["Password"],
             "TurnUser": self._cm_config["Turn"][0]["User"],
-            "Type": overlay_cfg["Type"],
-            "EnableIPMapping": overlay_cfg.get("EnableIPMapping", False),
-            "TapName": overlay_cfg["TapName"],
-            "IP4": overlay_cfg["IP4"],
-            "MTU4": overlay_cfg["MTU4"],
-            "PrefixLen4": overlay_cfg["IP4PrefixLen"],
+            "Type": self._cm_config["Overlays"][overlay_id]["Type"],
+            "EnableIPMapping": self._cm_config["Overlays"][overlay_id].get("EnableIPMapping", False),
+            "TapName": self._cm_config["Overlays"][overlay_id]["TapName"],
+            "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
+            "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
+            "PrefixLen4": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
             "OverlayId": overlay_id
         }
         self.register_cbt("TincanInterface", "TCI_CREATE_OVERLAY", param)
