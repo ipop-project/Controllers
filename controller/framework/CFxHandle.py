@@ -140,8 +140,8 @@ class CFxHandle(object):
                         recipient="Logger",
                         action="LOG_WARNING",
                         params="Process CBT exception:\n"
-                             "  {0}\n"
-                             "  traceback:\n{1}"
+                             "{0}\n"
+                             "{1}"
                              .format(cbt, traceback.format_exc()))
                     self.submit_cbt(log_cbt)
 
@@ -163,9 +163,8 @@ class CFxHandle(object):
                     recipient="Logger",
                     action="LOG_WARNING",
                     params="Timer Method exception:\n"
-                             "  {0}\n"
-                             "  traceback:\n{1}"
-                             .format(cbt, traceback.format_exc()))
+                             "{0}"
+                             .format(traceback.format_exc()))
                 self.submit_cbt(log_cbt)
 
     def query_param(self, param_name=""):
