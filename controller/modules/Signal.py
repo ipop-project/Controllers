@@ -355,17 +355,16 @@ class Signal(ControllerModule):
             xmppobj.send_presence(pstatus="uid?#" + peer_id)
 
     def complete_remote_action(self, cbt):
-        if cbt.tag in self._remote_acts:
-            rem_act = self._remote_acts[cbt.tag]
-            olid = rem_act["OverlayId"]
-            target_jid = self._circles[olid]["JidCache"].lookup(rem_act["InitiatorId"])
-            if (target_jid is None):
-                pass # TODO: refresh JID
-            rem_act["Data"] = cbt.response.data
-            rem_act["Status"] = cbt.response.status
-            xmppobj = self._circles[olid]["Transport"]
-            xmppobj.send_msg(str(target_jid), "cmpt", json.dumps(rem_act))
-            self.free_cbt(cbt)
+        rem_act = self._remote_acts[cbt.tag]
+        olid = rem_act["OverlayId"]
+        target_jid = self._circles[olid]["JidCache"].lookup(rem_act["InitiatorId"])
+        if (target_jid is None):
+            pass # TODO: refresh JID
+        rem_act["Data"] = cbt.response.data
+        rem_act["Status"] = cbt.response.status
+        xmppobj = self._circles[olid]["Transport"]
+        xmppobj.send_msg(str(target_jid), "cmpt", json.dumps(rem_act))
+        self.free_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -374,11 +373,16 @@ class Signal(ControllerModule):
             elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
                 self.query_reporting_data(cbt)
         elif cbt.op_type == "Response":
-            if (cbt.response.status == False):
-                self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
-                self.free_cbt(cbt)
-            else:
+            if cbt.tag in self._remote_acts:
                 self.complete_remote_action(cbt)
+            else:
+                parent_cbt = self.get_parent_cbt(cbt)
+                cbt_data = cbt.response.data
+                cbt_status = cbt.response.status
+                self.free_cbt(cbt)
+                if (parent_cbt is not None and parent_cbt.child_count == 1):
+                    parent_cbt.set_response(cbt_data, cbt_status)
+                    self.complete_cbt(parent_cbt)
 
     def timer_method(self):
         # Clean up JID cache for all XMPP connections
