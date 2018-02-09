@@ -88,15 +88,25 @@ class OverlayVisualizer(ControllerModule):
             self._vis_ds = dict(NodeId=self.node_id,
                                 Data=defaultdict(dict))
 
-        if "Topology" in vis_ds and "LinkManager" in vis_ds \
-                and vis_ds["Topology"] and vis_ds["LinkManager"]:
+        collector_msg = dict(Data=dict())
+
+        # Filter out overlays for which we do not have Topology data
+        for overlay_id in vis_ds["Data"]:
+            overlay_data = vis_ds["Data"][overlay_id]
+            if "Topology" in overlay_data and overlay_data["Topology"]:
+                collector_msg["Data"][overlay_id] = overlay_data
+
+        if collector_msg["Data"]:
             print("Visualizer is going to send"
-                  " {}".format(json.dumps(vis_ds)))
+                  " {}".format(json.dumps(collector_msg)))
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
 
             try:
-                resp = requests.put(req_url, data=json.dumps(vis_ds),
-                                    headers={"Content-Type": "application/json"})
+                resp = requests.put(req_url, data=json.dumps(collector_msg),
+                                    headers={"Content-Type":
+                                             "application/json"},
+                                    timeout=3
+                                   )
                 resp.raise_for_status()
 
             except requests.exceptions.RequestException as err:
@@ -107,7 +117,7 @@ class OverlayVisualizer(ControllerModule):
         else:
             warn_msg = "Don't have enough data to send. Not forwarding" \
                     " anything to the collector service. Data:" \
-                    " {}".format(vis_ds)
+                    " {}".format(collector_msg)
             self.register_cbt("Logger", "LOG_WARNING", warn_msg)
 
         # Now that all the accumulated data has been dealth with, we request

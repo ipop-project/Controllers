@@ -47,7 +47,7 @@ CONFIG = {
     "OverlayVisualizer": {
         "Enabled": False,
         "TimerInterval": 30,                # Timer thread interval
-        "WebServiceAddress": ":8080/IPOP",  # Visualizer webservice URL
+        "WebServiceAddress": ":5000",       # Visualizer webservice URL
         "NodeName": "",                     # Node Name as seen from the UI
         "Dependencies": ["Logger"]
     },
