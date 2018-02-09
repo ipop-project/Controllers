@@ -162,13 +162,17 @@ class XmppTransport:
                 cbtq = self.cbts[matched_uid]
                 # send the remote actions that are waiting on JID refresh
                 while not cbtq.empty():
-                    cbt_data = cbtq.get()
-                    type = "invk"
-                    payload = json.dumps(cbt_data)
-                    self.send_msg(match_jid, type, payload)
-                    self._log("Sent remote act to peer ID: {0}\n "
-                        "Payload: {1}".format(matched_uid, payload),
-                        "LOG_DEBUG")
+                    slotLoad = cbtq.get()
+                    msg_type,msg_data = slotLoad[0],slotLoad[1]
+                    if msg_type=="invk":
+                        type = "invk"
+                        payload = json.dumps(msg_data)
+                        self.send_msg(match_jid, type, payload)
+                        self._log("Sent remote act to peer ID: {0}\n "
+                            "Payload: {1}".format(matched_uid, payload),
+                            "LOG_DEBUG")
+                    elif msg_type=="cmpt":
+                        self.send_msg(match_jid, "cmpt", json.dumps(msg_data))
                 # put the learned JID in cache
                 self.jid_cache.add_entry(matched_uid, match_jid)
                 return
@@ -209,8 +213,7 @@ class XmppTransport:
     def connect_to_server(self,):
         try:
             if self.transport.connect(address=(self.host, self.port)):
-                self.transport.process()
-                #TODO: thread.start_new_thread(self.transport.process, ())
+                self.transport.process(block=False)
                 self._log("Starting connection to XMPP server {0}:{1}".format(self.host, self.port))
         except Exception as err:
             self._log("Unable to initialize XMPP transport instanace.\n" \
@@ -260,7 +263,7 @@ class XmppTransport:
         self.transport.add_event_handler("session_start", self.start_event_handler)
 
     def shutdown(self,):
-        #TODO: shut down xmpp thread
+        self.transport.disconnect()
         pass
 
 
@@ -293,8 +296,7 @@ class Signal(ControllerModule):
             overlay_descr = self._cm_config["Overlays"][overlay_id]
             self._circles[overlay_id] = {}
             self._circles[overlay_id]["JidCache"] = JidCache(self)
-            self._circles[overlay_id]["XmppUser"] = overlay_descr["Username"] #TODO: Is this needed?
-            self._circles[overlay_id]["IsEventHandlerInitialized"] = False #TODO: Is this needed?
+            self._circles[overlay_id]["IsEventHandlerInitialized"] = False #TODO: Is this needed?-Leave it for now.
             self._circles[overlay_id]["JidRefreshQ"] = {}
             self.create_transport_instance(overlay_id, overlay_descr,
                 self._circles[overlay_id]["JidCache"],
@@ -351,19 +353,25 @@ class Signal(ControllerModule):
             CBTQ = self._circles[overlay_id]["JidRefreshQ"]
             if peer_id not in CBTQ.keys():
                 CBTQ[peer_id] = Queue(maxsize=0)
-            CBTQ[peer_id].put(rem_act)
+            CBTQ[peer_id].put(("invk",rem_act))
             xmppobj.send_presence(pstatus="uid?#" + peer_id)
 
     def complete_remote_action(self, cbt):
         rem_act = self._remote_acts[cbt.tag]
         olid = rem_act["OverlayId"]
-        target_jid = self._circles[olid]["JidCache"].lookup(rem_act["InitiatorId"])
-        if (target_jid is None):
-            pass # TODO: refresh JID
+        peerID = rem_act["InitiatorId"]
         rem_act["Data"] = cbt.response.data
         rem_act["Status"] = cbt.response.status
+        target_jid = self._circles[olid]["JidCache"].lookup(peerID)
         xmppobj = self._circles[olid]["Transport"]
-        xmppobj.send_msg(str(target_jid), "cmpt", json.dumps(rem_act))
+        if (target_jid is None):
+            CBTQ = self._circles[olid]["JidRefreshQ"]
+            if peerID not in CBTQ.keys():
+                CBTQ[peerID] = Queue(maxsize=0)
+            CBTQ[peerID].put(("cmpt",rem_act))
+            xmppobj.send_presence(pstatus="uid?#" + peerID)
+        else:
+            xmppobj.send_msg(str(target_jid), "cmpt", json.dumps(rem_act))
         self.free_cbt(cbt)
 
     def process_cbt(self, cbt):
