@@ -23,7 +23,7 @@ import uuid
 
 
 class CBT(object):
-    tag_counter = int(uuid.uuid4().hex[:3], base=16)
+    tag_counter = int(uuid.uuid4().hex[:7], base=16)
 
     class Request(object):
         def __init__(self, initiator="", recipient="", action="", params=None):
@@ -58,6 +58,10 @@ class CBT(object):
         self.op_type = "Request"
         self.request = self.Request(initiator, recipient, action, params)
         self.response = None
+        self.time_create = None
+        self.time_submit = None
+        self.time_complete = None
+        self.time_free = None
 
     def __repr__(self):
         msg = ("{\n\ttag: %d,\n\tparent: %s,\n\tchild_count: %d, \

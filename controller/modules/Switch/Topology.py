@@ -37,7 +37,9 @@ class Topology(ControllerModule, CFX):
                                             "SIG_PEER_PRESENCE_NOTIFY")
         self._cfx_handle.start_subscription("TincanInterface",
                                             "TCI_TINCAN_MSG_NOTIFY")
-        self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
+        self._cfx_handle.start_subscription("LinkManager",
+                                                "LNK_DATA_UPDATES")
+
         overlay_ids = self._cfx_handle.query_param("Overlays")
         self._links = dict()
         for olid in overlay_ids:
@@ -48,6 +50,8 @@ class Topology(ControllerModule, CFX):
             Peers is dictionary indexed by peer id and maps to state
             of peer, ex: Peers= {peer_id="peer_state"}
             """
+            #if self._cm_config["Overlays"][olid]["Type"] == "VNET":
+            #    self.create_overlay(self._cm_config["Overlays"][olid], olid)
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
@@ -62,18 +66,51 @@ class Topology(ControllerModule, CFX):
     def terminate(self):
         pass
 
+    #def create_overlay(self, overlay_cfg, overlay_id):
+    #    param = {
+    #        "StunAddress": self._cm_config["Stun"][0],
+    #        "TurnAddress": self._cm_config["Turn"][0]["Address"],
+    #        "TurnPass": self._cm_config["Turn"][0]["Password"],
+    #        "TurnUser": self._cm_config["Turn"][0]["User"],
+    #        "Type": overlay_cfg["Type"],
+    #        "EnableIPMapping": overlay_cfg.get("EnableIPMapping", False),
+    #        "TapName": overlay_cfg["TapName"],
+    #        "IP4": overlay_cfg["IP4"],
+    #        "MTU4": overlay_cfg["MTU4"],
+    #        "PrefixLen4": overlay_cfg["IP4PrefixLen"],
+    #        "OverlayId": overlay_id
+    #    }
+    #    self.register_cbt("TincanInterface", "TCI_CREATE_OVERLAY", param)
+
     def connect_to_peer(self, overlay_id, peer_id):
-        """
-        Start the connection process to a peer if a direct edge is desirable
-        """
-        self.register_cbt("Logger", "LOG_DEBUG", "Connecting to peer {0}:{1}->{2}"
-            .format(overlay_id, self._cm_config["NodeId"][:7], peer_id[:7]))
-        # initiate a new connection if not already connected and the peer id
-        # is greater than our own
+        # only send the create link request is we have overlay info from tincan
+        # this is where we get the local fingerprint/mac and more which necessary
+        # for creating the link
+        self.register_cbt("Logger", "LOG_DEBUG", "Connecting to peer "
+            "{0}:{1}->{2}".format(overlay_id, self._cm_config["NodeId"], peer_id))
         if (self._overlays[overlay_id]["Peers"]
                 .get(peer_id, "PeerStateUnknown") != "PeerStateConnected"
                 and self._cm_config["NodeId"] < peer_id):
-            params = {"OverlayId": overlay_id, "PeerId": peer_id}
+            params = {
+                "OverlayId": overlay_id,
+                "PeerId": peer_id,
+                "EncryptionEnabled":
+                self._cm_config["Overlays"][overlay_id]["EncryptionEnabled"]}
+            #    ,
+            #    "EncryptionEnabled": self._cm_config["Overlays"][overlay_id].get("EncryptionEnabled", True),
+            #    "NodeData": self._overlays[overlay_id]["Descriptor"]
+            #    "StunAddress": self._cm_config["Stun"][0],
+            #    "TurnAddress": self._cm_config["Turn"][0]["Address"],
+            #    "TurnPass": self._cm_config["Turn"][0]["Password"],
+            #    "TurnUser": self._cm_config["Turn"][0]["User"],
+            #    "Type": overlay_cfg["Type"],
+            #    "EnableIPMapping": overlay_cfg.get("EnableIPMapping", False),
+            #    "TapName": overlay_cfg["TapName"],
+            #    "IP4": overlay_cfg["IP4"],
+            #    "MTU4": overlay_cfg["MTU4"],
+            #    "PrefixLen4": overlay_cfg["IP4PrefixLen"],
+            #}
+            #params["NodeData"]["UID"] = self._cm_config["NodeId"]
             self.register_cbt("LinkManager", "LNK_CREATE_LINK", params)
 
     def resp_handler_create_link(self, cbt):
@@ -97,10 +134,21 @@ class Topology(ControllerModule, CFX):
             self._overlays[olid]["Descriptor"]["TapName"] = cbt_data["TapName"]
             self._overlays[olid]["Descriptor"]["FPR"] = cbt_data["FPR"]
         else:
-            self.register_cbt("Logger", "LOG_INFO",
+            self.register_cbt("Logger", "LOG_WARNING",
                               "Query overlay info failed {0}".format(cbt.response.data))
             # retry the query
             self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", cbt.request.params)
+
+    #def resp_handler_create_overlay(self, cbt):
+    #    if cbt.response.status:
+    #        self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", {
+    #                          "OverlayId": cbt.request.params["OverlayId"]})
+    #    else:
+    #        self.register_cbt("Logger", "LOG_WARNING", cbt.response.data)
+    #        # retry creating the overlay once
+    #        if self._overlays[cbt.request.params["OverlayId"]].get("RetryCount", 0) < 1:
+    #            self._overlays[cbt.request.params["OverlayId"]]["RetryCount"] = 1
+    #            self.register_cbt("TincanInterface", "TCI_CREATE_OVERLAY", cbt.request.params)
 
     def req_handler_peer_presence(self, cbt):
         peer = cbt.request.params

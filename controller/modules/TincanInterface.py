@@ -83,14 +83,10 @@ class TincanInterface(ControllerModule):
                             self.complete_cbt(cbt)
                         else:
                             self._tci_publisher.post_update(ctl["IPOP"]["Request"])
-                            #self.register_cbt("TincanInterface", "TCI_TINCAN_REQ", ctl["IPOP"]["Request"])
         except:
             log_cbt = self.register_cbt(
-                recipient="Logger",
-                action="LOG_WARNING",
-                params="Tincan Listener exception:\n"
-                        "  traceback:\n{1}"
-                        .format(traceback.format_exc()))
+                "Logger", "LOG_WARNING", "Tincan Listener exception:\n"
+                        "{0}".format(traceback.format_exc()))
             self.submit_cbt(log_cbt)
 
     def CreateControlLink(self,):
@@ -147,7 +143,17 @@ class TincanInterface(ControllerModule):
         req["PeerInfo"]["MAC"] = msg["NodeData"].get("MAC")
         req["PeerInfo"]["CAS"] = msg["NodeData"].get("CAS")
         req["PeerInfo"]["FPR"] = msg["NodeData"].get("FPR")
-        # self.control_cbt[cbt.tag] = cbt
+        # Optional overlay data to create overlay on demand
+        req["StunAddress"] = msg.get("StunAddress")
+        req["TurnAddress"] = msg.get("TurnAddress")
+        req["TurnPass"] = msg.get("TurnPass")
+        req["TurnUser"] = msg.get("TurnUser")
+        req["EnableIPMapping"] = msg.get("EnableIPMapping")
+        req["Type"] = msg.get("Type")
+        req["TapName"] = msg.get("TapName")
+        req["IP4"] = msg.get("IP4")
+        req["PrefixLen4"] = msg.get("PrefixLen4")
+        req["MTU4"] = msg.get("MTU4")
         self.SendControl(json.dumps(ctl))
 
     def ReqCreateOverlay(self, cbt):
@@ -166,7 +172,6 @@ class TincanInterface(ControllerModule):
         req["PrefixLen4"] = msg["PrefixLen4"]
         req["MTU4"] = msg["MTU4"]
         req["OverlayId"] = msg["OverlayId"]
-        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqInjectFrame(self, cbt):
@@ -176,7 +181,6 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["Data"] = msg["Data"]
-        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqQueryCandidateAddressSet(self, cbt):
@@ -186,7 +190,6 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
-        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqQueryLinkStats(self, cbt):
@@ -195,7 +198,6 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayIds"] = msg
-        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqQueryOverlayInfo(self, cbt):
@@ -204,7 +206,6 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
-        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqRemoveOverlay(self, cbt):
@@ -213,7 +214,6 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
-        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqRemoveLink(self, cbt):
@@ -221,8 +221,8 @@ class TincanInterface(ControllerModule):
         ctl = ipoplib.CTL_REMOVE_LINK
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
+        req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
-        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqSendICC(self, cbt):
@@ -233,7 +233,6 @@ class TincanInterface(ControllerModule):
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
         req["Data"] = msg["Data"]
-        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def ReqSetIgnoredNetInterfaces(self, cbt):
@@ -243,7 +242,6 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["IgnoredNetInterfaces"] = msg["IgnoredNetInterfaces"]
-        # self.control_cbt[cbt.tag] = cbt
         self.SendControl(json.dumps(ctl))
 
     def process_cbt(self, cbt):
