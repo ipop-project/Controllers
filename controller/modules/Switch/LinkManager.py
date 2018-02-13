@@ -21,6 +21,7 @@
 
 import time
 import threading
+import traceback
 import uuid
 import copy
 try:
@@ -35,8 +36,7 @@ class LinkManager(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(LinkManager, self).__init__(cfx_handle, module_config, module_name)
         self.maxretries = self._cm_config["MaxConnRetry"]
-        self._peers = {}
-        self._overlays = {}  # indexed by overlay id
+        self._overlays = {}  # lists peers in each overlay
         self._links = {}     # indexed by link id
         self._lock = threading.Lock() # serializes access to _overlays, _links
 
@@ -58,28 +58,33 @@ class LinkManager(ControllerModule):
 
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
-    def query_local_node_data(self, cbt):
-        lcbt = self.create_linked_cbt(cbt)
-        cbt_params = json.loads(cbt.request.params)
-        params = {"OverlayId": cbt_params["OverlayId"]}
-        lcbt.set_request(self._module_name, "TincanInterface", "TCI_QUERY_OVERLAY_INFO", params)
-        self.submit_cbt(lcbt)
-
-    def create_local_endpt(self, parent_cbt):
-        lcbt = self.create_linked_cbt(parent_cbt)
-        params = json.loads(parent_cbt.request.params)
-        lcbt.set_request(self._module_name, "TincanInterface",
-                         "TCI_CREATE_LINK", params)
-        self.submit_cbt(lcbt)
-
     def req_handler_remove_link(self, cbt):
-        olid = cbt.request.params["OverlayId"]
-        lid = cbt.request.params["LinkId"]
-        self.create_linked_cbt(cbt)
-        rl_cbt = self.create_cbt(self._module_name, "TincanInterface",
-                        "TCI_REMOVE_LINK", {"OverlayId": olid, "LinkId": lid})
-        self.submit_cbt(rl_cbt)
         # TODO: send courtesy terminate link ICC, later.
+        olid = cbt.request.params.get("OverlayId", None)
+        lnkid = cbt.request.params.get("LinkId", None)
+        peer_id = cbt.request.params.get("PeerId", None)
+        try:
+            if olid is not None and peer_id is not None:
+                lnkid = self._overlays[olid]["Peers"][peer_id]
+                oid = olid
+                olid = lnkid
+            elif lnkid is not None:
+                oid = self._links[lnkid]["OverlayId"]
+                olid = lnkid
+            else:
+                self.complete_cbt("Insufficient parameters", False)
+                return
+        except:
+            self.complete_cbt("Invalid parameters for request: {0}"
+                              .format(traceback.format_exc()), False)
+            return
+
+        self.create_linked_cbt(cbt)
+        params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
+        rl_cbt = self.create_cbt(self._module_name, "TincanInterface",
+                        "TCI_REMOVE_LINK", params)
+        self.submit_cbt(rl_cbt)
+
 # TODO Check locks on self._overlays
     def update_overlay_descriptor(self, olay_desc, olid):
         if not olid in self._overlays:
@@ -91,12 +96,11 @@ class LinkManager(ControllerModule):
         self._overlays[olid]["Descriptor"]["TapName"] = olay_desc["TapName"]
         self._overlays[olid]["Descriptor"]["FPR"] = olay_desc["FPR"]
 
-    def req_link_descriptors_update(self):
+    def query_link_stats(self):
         params = []
         self._lock.acquire()
         for olid in self._overlays:
             if self._cm_config["Overlays"][olid]["Type"] == "VNET":
-                #
                 params.append(olid)
             elif self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
                 for peer_id in self._overlays[olid]["Peers"]:
@@ -105,6 +109,18 @@ class LinkManager(ControllerModule):
         self._lock.release()
         if len(params) > 0:
             self.register_cbt("TincanInterface", "TCI_QUERY_LINK_STATS", params)
+
+    def resp_handler_query_link_stats(self, cbt):
+        if (not cbt.response.status):
+            self.register_cbt("Logger", "LOG_WARNING", "Link stats update error: {0}".format(cbt.response.data))
+        else:
+            data = cbt.response.data
+            self._lock.acquire()
+            for olid in cbt.request.params:
+                for lnkid in data[olid]:
+                    self._links[lnkid] = dict(Stats=data[olid][lnkid])
+            self._lock.release()
+        self.free_cbt(cbt)
 
     def req_handler_query_visualizer_data(self, cbt):
         vis_data = dict(LinkManager=dict())
@@ -118,41 +134,32 @@ class LinkManager(ControllerModule):
         cbt.set_response(data=vis_data, status=True)
         self.complete_cbt(cbt)
 
-    def resp_handler_query_link_stats(self, cbt):
-        if (not cbt.response.status):
-            self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
-        else:
-            data = cbt.response.data
-            self._lock.acquire()
-            for olid in cbt.request.params:
-                for lnkid in data[olid]:
-                    self._links[lnkid] = dict(Stats=data[olid][lnkid])
-            self._lock.release()
-        self.free_cbt(cbt)
-
     def resp_handler_remove_link(self, cbt):
-        if (not cbt.response.status):
-            self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
-        else:
-            parent_cbt = self.get_parent_cbt(cbt)
-            olid = cbt.request.params["OverlayId"]
-            lnkid = cbt.request.params["LinkId"]
-            self.free_cbt(cbt)
+        parent_cbt = self.get_parent_cbt(cbt)
+        olid = cbt.request.params["OID"]
+        lnkid = cbt.request.params["LinkId"]
+        data = cbt.response.data
+        status = cbt.response.status
+        if satus:
             self._lock.acquire()
-            # TODO - Remove entry from _overlays
-            del(self._links[lnkid])
+            item = self._links.pop(lnkid, None)
+            del(item)
+            item = self._overlays[olid]["Peers"].pop(peer_id, None)
+            del(item)
             self._lock.release()
-            parent_cbt.set_response(data="successful", status=True)
-            self.complete_cbt(parent_cbt)
-
-            # TODO: Need to remove link from self._links
+            # Notify subs of link removal
             param = {
                 "UpdateType": "REMOVED", "OverlayId": olid,
                 "LinkId": lnkid
                 }
             self._link_updates_publisher.post_update(param)
+        self.free_cbt(cbt)
+        if parent_cbt is not None:
+            parent_cbt.set_response(data, status)
+            self.complete_cbt(parent_cbt)
 
-    def req_handler_query_links(self, cbt):
+
+    def req_handler_query_link_info(self, cbt):
         olid = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["LinkId"]
         self._lock.acquire()
@@ -164,16 +171,13 @@ class LinkManager(ControllerModule):
     def req_handler_create_link(self, cbt):
         """
         Handle the request for capability LNK_CREATE_LINK.
-        The caller provides the overlay id which contains the link and the peer
-        id which the link connects. To create both overlay and associated link
-        in a single invocation the caller should additionlly provide the
-        overlay data; this is expected for TUNNEL type overlays.
-        The link id is generated here but it is returned to the caller after
-        the local endpoint creation is completed asynchronously. The link is
-        not necessarily ready for read/write at this time. The link status can
-        be queried to determine when it is writeable.
-        We request creatation of the remote endpoint first to avoid cleaning up a
-        local endpoint if the peer denies our request. The link id is communicated
+        The caller provides the overlay id and the peer id which the link
+        connects. The link id is generated here but it is returned to the
+        caller after the local endpoint creation is completed asynchronously.
+        The link is not necessarily ready for read/write at this time. The link
+        status can be queried to determine when it is writeable. We request
+        creatation of the remote endpoint first to avoid cleaning up a local
+        endpoint if the peer denies our request. The link id is communicated
         in the request and will be the same at both nodes.
         """
          # Create Link: Phase 1 Node A
@@ -193,7 +197,7 @@ class LinkManager(ControllerModule):
         lnkid = uuid.uuid4().hex
         # index for quick peer->link lookup
         self._overlays[overlay_id]["Peers"][peerid] = lnkid
-        self._links[lnkid] = dict(Stats=dict())
+        self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id)
         self._lock.release()
 
         type = self._cm_config["Overlays"][overlay_id]["Type"]
@@ -237,7 +241,6 @@ class LinkManager(ControllerModule):
             self.register_cbt("Logger", "LOG_DEBUG", "Create overlay failed:{}"
                               .format(parent_cbt.response.data))
             return
-
         # store the overlay data
         overlay_id = cbt.request.params["OLID"] # config overlay id
         self.update_overlay_descriptor(resp_data, overlay_id)
@@ -258,8 +261,6 @@ class LinkManager(ControllerModule):
                           RecipientCM="LinkManager",
                           Action="LNK_REQ_LINK_ENDPT",
                           Params=param)
-                          #Params=json.dumps(msg))
-
         lcbt = self.create_linked_cbt(parent_cbt)
         # Send the message via SIG server to peer node
         lcbt.set_request(self._module_name, "Signal", "SIG_REMOTE_ACTION",
@@ -275,9 +276,8 @@ class LinkManager(ControllerModule):
         first send a TCI_QUERY_OVERLAY_INFO to accomplish this.
         """
         # Create Link: Phase 3 Node B
-        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 3 Node B")
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 1 Node B")
         params = cbt.request.params
-        #params = json.loads(cbt.request.params)
         overlay_id = params["OverlayId"]
         if (overlay_id not in self._cm_config["Overlays"]):
             self.register_cbt("Logger", "LOG_WARNING",
@@ -295,13 +295,13 @@ class LinkManager(ControllerModule):
         A request to create a local link endpt can be received after we have
         sent out a similar request to a peer. To handle this race we choose to
         service the request only if we have not yet started to create an endpt
-        - self._overlays[overlay_id]["Peers"][peer_id] is None, or our link id
-        is greater than the requested one. This node assumes the other will
-        reciprocate the actions taken here.
+        - self._overlays[overlay_id]["Peers"][peer_id] is None, or our node id
+        is less than the peer. This node assumes the other will reciprocate the
+        actions taken here.
         """
         if(peer_id not in self._overlays[overlay_id]["Peers"]
             or (peer_id in self._overlays[overlay_id]["Peers"]
-                and self._overlays[overlay_id]["Peers"][peer_id] > lnkid)):
+                and peer_id < self._cm_config["Peer_id"])):
             # add/replace to index for quick peer->link lookup
             self._overlays[overlay_id]["Peers"][peer_id] = lnkid
             self._links[lnkid] = dict(Stats=dict())
@@ -330,54 +330,25 @@ class LinkManager(ControllerModule):
                 "PrefixLen4": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
                 # link params
                 "LinkId": lnkid,
-                #"EncryptionEnabled": params["EncryptionEnabled"],
                 "NodeData": {
                     "FPR": node_data["FPR"],
                     "MAC": node_data["MAC"],
                     "UID": node_data["UID"],
                     "VIP4": node_data["VIP4"]}}
-                    #"CAS": node_data["CAS"],
             lcbt = self.create_linked_cbt(cbt)
             lcbt.set_request(self._module_name, "TincanInterface",
                              "TCI_CREATE_LINK", create_link_params)
             self.submit_cbt(lcbt)
         else:
-            self.register_cbt("Logger", "LOG_DEBUG", "LNK_REQ_LINK_ENDPT ignored to drop dup link setup. clean required")
-            cbt.set_response("LNK_REQ_LINK_ENDPT ignored", False)
+            #handled in TOP, to handle here cleanup of overlay is required on other node
+            cbt.set_response("LNK_REQ_LINK_ENDPT denied", False)
             self.complete_cbt(cbt)
-
-
-    #def resp_handler_query_node_data(self, cbt):
-    #    """
-    #    Handle response for TCI_QUERY_OVERLAY_INFO
-    #    """
-    #    # Create Link: Phase 3 Node B
-    #    if (not cbt.response.status):
-    #        self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
-    #        # TODO: failure response
-    #    elif cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
-    #        """
-    #        We now have the node data, add it to parent cbt. The next step
-    #        to create the link endpt and retrieve its cas.
-    #        """
-    #        resp_data = json.loads(cbt.response.data)
-    #        node_data = {
-    #            "VIP4": resp_data["VIP4"],
-    #            "MAC": resp_data["MAC"],
-    #            "FPR": resp_data["FPR"],
-    #            "UID": self._cm_config["NodeId"]
-    #        }
-    #        parent_cbt = self.get_parent_cbt(cbt)
-    #        # store the partial data in the parent but do not send as yet
-    #        parent_cbt.set_response(node_data, False)
-    #        self.free_cbt(cbt)
-    #        self.create_local_endpt(parent_cbt)
 
     def complete_link_endpt_request(self, cbt):
         """
         """
         # Create Link: Phase 4 Node B
-        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 4 Node B")
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 2 Node B")
         parent_cbt = self.get_parent_cbt(cbt)
         resp_data = cbt.response.data
         if not cbt.response.status:
@@ -401,27 +372,20 @@ class LinkManager(ControllerModule):
         data = {
             "OverlayId": cbt.request.params["OLID"],
             "LinkId": cbt.request.params["LinkId"],
-            #"EncryptionEnabled": cbt.request.params["EncryptionEnabled"],
             "NodeData": node_data
         }
-        #parent_cbt.response.data = json.dumps(parent_cbt.response.data)
-        parent_cbt.set_response(data, True)
-        
         self.free_cbt(cbt)
-        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 4 Node B sending node data:{}".format(parent_cbt.response.data))
+        parent_cbt.set_response(data, True)
         self.complete_cbt(parent_cbt)
 
     def create_link_2nd_endpt(self, rem_act, parent_cbt):
         # Create Link: Phase 5 Node A
-        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 5 Node A. parent {}".format(parent_cbt))
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 5 Node A")
         params = rem_act["Params"]
-       # params = json.loads(rem_act["Params"])
-        #node_data = json.loads(rem_act["Data"])
         node_data = rem_act["Data"]["NodeData"]
         olid = rem_act["OverlayId"]
         cbt_params = {"OLID": olid, "OverlayId": params["LinkId"],
                 "LinkId": params["LinkId"],
-                #"EncryptionEnabled": params["EncryptionEnabled"],
                 "NodeData": {
                     "VIP4": node_data["VIP4"],
                     "UID": node_data["UID"],
@@ -434,7 +398,7 @@ class LinkManager(ControllerModule):
 
     def send_nodea_cas_to_peer(self, cbt):
         # Create Link: Phase 6 Node A
-        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 6 Node A")
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 4 Node A")
         local_cas = cbt.response.data["CAS"]
         parent_cbt = self.get_parent_cbt(cbt)
         olid =cbt.request.params["OLID"]
@@ -443,14 +407,12 @@ class LinkManager(ControllerModule):
             "OLID": olid,
             "LinkId": cbt.request.params["LinkId"],
             "OverlayId": cbt.request.params["LinkId"],
-            #"EncryptionEnabled": cbt.request.params["EncryptionEnabled"],
             "NodeData": {
                 "VIP4": "", "UID": self._cm_config["NodeId"], "MAC": "",
                 "CAS": local_cas, "FPR": ""}}
         remote_act = dict(OverlayId=olid, RecipientId=peerid,
                     RecipientCM="LinkManager", Action="LNK_ADD_PEER_CAS",
                     Params=params)
-                    #Params=json.dumps(params))
         lcbt = self.create_linked_cbt(parent_cbt)
         lcbt.set_request(self._module_name, "Signal", "SIG_REMOTE_ACTION", remote_act)
         self.submit_cbt(lcbt)
@@ -458,9 +420,8 @@ class LinkManager(ControllerModule):
 
     def req_handler_add_peer_cas(self, cbt):
         # Create Link: Phase 7 Node B
-        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 7 Node B")
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 3 Node B")
         params = cbt.request.params
-        #params = json.loads(cbt.request.params)
         lcbt = self.create_linked_cbt(cbt)
         lcbt.set_request(self._module_name, "TincanInterface", "TCI_CREATE_LINK", params)
         self.submit_cbt(lcbt)
@@ -488,9 +449,8 @@ class LinkManager(ControllerModule):
 
         elif parent_cbt.request.action == "LNK_ADD_PEER_CAS":
             # Create Link: Phase 8 Node B
-            self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 8 Node B")
+            self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 4 Node B")
             rem_act = parent_cbt.request.params
-            #rem_act = json.loads(parent_cbt.request.params)
             peer_id = rem_act["NodeData"]["UID"]
             olid = rem_act["OverlayId"]
             lnkid = rem_act["LinkId"]
@@ -502,13 +462,14 @@ class LinkManager(ControllerModule):
                 "UpdateType": "ADDED", "OverlayId": olid,
                 "PeerId": peer_id, "LinkId": lnkid
                 }
-            self.register_cbt("Logger", "LOG_DEBUG", "Link added notify: {0}"
-                              .format(param))
             self._link_updates_publisher.post_update(param)
+            self.register_cbt("Logger", "LOG_DEBUG", "Link created: {0}:{1}->{2}"
+                .format(olid, self._cm_config["NodeId"][:7], peer_id[:7]))
 
     def complete_create_link_request(self, parent_cbt):
+        # TODO handle failure
         # Create Link: Phase 9 Node A
-        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 9 Node A")
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 5 Node A")
         # Complete the cbt that started this all
         olid = parent_cbt.request.params["OverlayId"]
         peerid = parent_cbt.request.params["PeerId"]
@@ -517,19 +478,20 @@ class LinkManager(ControllerModule):
         self._lock.release()
         parent_cbt.set_response(data={"LinkId": lnkid}, status=True)
         self.complete_cbt(parent_cbt)
-        # publish notification of link creation
+        # publish notification of link creation Node A
         param = {
             "UpdateType": "ADDED", "OverlayId": olid,
             "PeerId": peerid, "LinkId": lnkid
             }
-        self.register_cbt("Logger", "LOG_DEBUG", "Link added notify: {0}"
-                            .format(param))
         self._link_updates_publisher.post_update(param)
+        self.register_cbt("Logger", "LOG_DEBUG", "Link created: {0}:{1}->{2}"
+            .format(olid, self._cm_config["NodeId"][:7], peerid[:7]))
 
     def resp_handler_remote_action(self, cbt):
         if (not cbt.response.status):
             self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
             self.free_cbt(cbt)
+            # what about parent cbt?
         else:
             parent_cbt = self.get_parent_cbt(cbt)
             rem_act = cbt.response.data
@@ -540,8 +502,6 @@ class LinkManager(ControllerModule):
                 self.complete_create_link_request(parent_cbt)
 
     def process_cbt(self, cbt):
-        #if cbt.request.recipient != "Logger":
-        #    self.register_cbt("Logger", "LOG_DEBUG", "Process CBT:\n{0}".format(cbt))
         if cbt.op_type == "Request":
             if cbt.request.action == "LNK_CREATE_LINK":
                 # Create Link: Phase 1 Node A
@@ -561,8 +521,8 @@ class LinkManager(ControllerModule):
             elif cbt.request.action == "LNK_REMOVE_LINK":
                 self.req_handler_remove_link(cbt)
 
-            elif cbt.request.action == "LNK_QUERY_LINKS":
-                self.req_handler_query_links(cbt)
+            elif cbt.request.action == "LNK_QUERY_LINK_INFO":
+                self.req_handler_query_link_info(cbt)
 
             elif cbt.request.action == "VIS_DATA_REQ":
                 self.req_handler_query_visualizer_data(cbt)
@@ -606,7 +566,7 @@ class LinkManager(ControllerModule):
                     self.complete_cbt(parent_cbt)
 
     def timer_method(self):
-        self.req_link_descriptors_update()
+        self.query_link_stats()
 
     def terminate(self):
         pass
