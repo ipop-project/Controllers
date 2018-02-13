@@ -69,7 +69,7 @@ class JidCache:
         keys_to_be_deleted = [key for key, value in self.cache.items() if curr_time - value[1] >= 120]
         for key in keys_to_be_deleted:
             del self.cache[key]
-            self._log("Deleted entry from JID cache {0}".format(key), severity="debug")
+            self._log("Deleted entry from JID cache {0}".format(key), severity="LOG_DEBUG")
         self.lck.release()
 
 
@@ -107,31 +107,40 @@ class XmppTransport:
             # server messages
             if self.IsEventHandlerInitialized is False:
                 self.IsEventHandlerInitialized = True
-                self.transport.get_roster()  # Obtains the friends list for the user
-                self.transport.send_presence(pstatus="ident#" + self.node_id)  # Sends signon presence
+                # Get the friends list for the user
+                self.transport.get_roster()
+                # Send sign-on presence
+                self.transport.send_presence(pstatus="ident#" + self.node_id)  
                 # Notification of peer signon
-                self.transport.add_event_handler("presence_available", self.presence_event_handler)
+                self.transport.add_event_handler("presence_available",
+                                                 self.presence_event_handler)
                 # Register IPOP message with the server
                 register_stanza_plugin(Message, IpopSignal)
-                self.transport.registerHandler(Callback("ipop", StanzaPath("message/ipop"), self.message_listener))
+                self.transport.registerHandler(Callback("ipop",
+                            StanzaPath("message/ipop"), self.message_listener))
             else:
                 raise RuntimeError("Multiple invocations of start event handler")
         except Exception as err:
-            self._log("XmppTransport:Exception:{0} Event:{1}".format(err, event), severity="LOG_ERROR")
+            self._log("XmppTransport:Exception:{0} Event:{1}"
+                      .format(err, event), severity="LOG_ERROR")
 
     # Callback Function to keep track of Online XMPP Peers
     def presence_event_handler(self, presence):
         try:
             presence_sender = presence["from"]
             presence_receiver_jid = JID(presence["to"])
-            presence_receiver = str(presence_receiver_jid.user) + "@" + str(presence_receiver_jid.domain)
+            presence_receiver = str(presence_receiver_jid.user) + "@" \
+                                        + str(presence_receiver_jid.domain)
             status = presence["status"]
-            if presence_receiver == self.overlay_descr["Username"] and presence_sender != self.transport.boundjid.full:
+            if(presence_receiver == self.overlay_descr["Username"]
+                and presence_sender != self.transport.boundjid.full):
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
                     if (pstatus == "ident"):
-                        self.presence_publisher.post_update(dict(PeerId = peer_id, OverlayId = self.overlay_id))
-                        self._log("Resolved Peer@Overlay {0}@{1} - {2}".format(peer_id[:7], self.overlay_id, presence_sender))
+                        self.presence_publisher.post_update(
+                            dict(PeerId = peer_id, OverlayId = self.overlay_id))
+                        self._log("Resolved Peer@Overlay {0}@{1} - {2}"
+                        .format(peer_id[:7], self.overlay_id, presence_sender))
                         self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                     elif (pstatus == "uid?"):
                         if (self.node_id == peer_id):
@@ -142,9 +151,11 @@ class XmppTransport:
         except Exception as err:
             self._log("XmppTransport:Exception:{0} presence:{1}".format(err, presence), severity="LOG_ERROR")
 
-    # This handler listens for matched messages on the xmpp stream,
-    # extracts the header and payload, and takes suitable action.
     def message_listener(self, msg):
+        """
+        Listen for matched messages on the xmpp stream, extract the header
+        and payload, and takes suitable action.
+        """
         try:
             receiver_jid = JID(msg["to"])
             sender_jid = msg["from"]
@@ -163,27 +174,20 @@ class XmppTransport:
                 # send the remote actions that are waiting on JID refresh
                 while not cbtq.empty():
                     slotLoad = cbtq.get()
-                    msg_type,msg_data = slotLoad[0],slotLoad[1]
-                    if msg_type=="invk":
-                        type = "invk"
-                        payload = json.dumps(msg_data)
-                        self.send_msg(match_jid, type, payload)
-                        self._log("Sent remote act to peer ID: {0}\n "
-                            "Payload: {1}".format(matched_uid, payload),
-                            "LOG_DEBUG")
-                    elif msg_type=="cmpt":
-                        self.send_msg(match_jid, "cmpt", json.dumps(msg_data))
+                    msg_type, msg_data = slotLoad[0],slotLoad[1]
+                    self.send_msg(match_jid, msg_type, json.dumps(msg_data))
+                    self._log("Sent remote act to peer ID: {0}\n Payload: {1}"
+                              .format(matched_uid, payload), "LOG_DEBUG")
                 # put the learned JID in cache
                 self.jid_cache.add_entry(matched_uid, match_jid)
                 return
             elif type == "invk":
                 # invoke the rcvd remote action locally using a CBT
                 rem_act = json.loads(payload)
-                self._log("Rcvd remote act from peer ID: {0}\n "
-                    "Payload: {1}".format(rem_act["InitiatorId"], payload),
-                    "LOG_DEBUG")
-                n_cbt = self.cm_mod.create_cbt(self.cm_mod._module_name, rem_act["RecipientCM"],
-                                 rem_act["Action"], rem_act["Params"])
+                self._log("Rcvd remote act from peer ID: {0}\n Payload: {1}"
+                        .format(rem_act["InitiatorId"], payload), "LOG_DEBUG")
+                n_cbt = self.cm_mod.create_cbt(self.cm_mod._module_name,
+                    rem_act["RecipientCM"], rem_act["Action"], rem_act["Params"])
                 # store the remote action for completion
                 self.cm_mod._remote_acts[n_cbt.tag] = rem_act
                 self.cm_mod.submit_cbt(n_cbt)
@@ -196,9 +200,11 @@ class XmppTransport:
                 pending_cbt.set_response(data=rem_act, status=cbt_status)
                 self.cm_mod.complete_cbt(pending_cbt)
             else:
-                self._log("Invalid message type received {0}".format(str(msg)), "LOG_WARNING")
+                self._log("Invalid message type received {0}".format(str(msg)),
+                         "LOG_WARNING")
         except Exception as err:
-            self._log("XmppTransport:Exception:{0} msg:{1}".format(err, msg), severity="LOG_ERROR")
+            self._log("XmppTransport:Exception:{0} msg:{1}".format(err, msg),
+                     severity="LOG_ERROR")
 
     # Send message to Peer JID via XMPP server
     def send_msg(self, peer_jid, type, payload):
@@ -345,9 +351,8 @@ class Signal(ControllerModule):
             type = "invk"
             payload = json.dumps(rem_act)
             xmppobj.send_msg(str(peer_jid), type, payload)
-            self._log("Sent remote act to peer ID: {0}\n "
-                "Payload: {1}".format(peer_id, payload),
-                "LOG_DEBUG")
+            self._log("Sent remote act to peer ID: {0}\n Payload: {1}"
+                      .format(peer_id, payload), "LOG_DEBUG")
         else:
             #cache_lk.release()
             CBTQ = self._circles[overlay_id]["JidRefreshQ"]
@@ -393,9 +398,9 @@ class Signal(ControllerModule):
                     self.complete_cbt(parent_cbt)
 
     def timer_method(self):
-        # Clean up JID cache for all XMPP connections
+        # Clean up JID cache for stale XMPP entries
         for overlay_id in self._circles.keys():
-            pass #self._circles[overlay_id]["JidCache"].scavenge()
+            self._circles[overlay_id]["JidCache"].scavenge()
 
     def terminate(self):
         for overlay_id in self._circles.keys():
