@@ -25,7 +25,7 @@ import threading
 import traceback
 from controller.framework.CBT import CBT
 import queue as Queue
-
+import time
 
 class CFxHandle(object):
     def __init__(self, CFxObject):
@@ -48,23 +48,27 @@ class CFxHandle(object):
     def submit_cbt(self, cbt):
         # submit CBT to the CFx
         self.__cfx_object.submit_cbt(cbt)
+        cbt.time_submit = time.perf_counter()
 
     def create_cbt(self, initiator=None, recipient=None, action=None, params=None):
         # create and return a CBT with optional parameters
         cbt = CBT(initiator, recipient, action, params)
         self._owned_cbts[cbt.tag] = cbt
+        cbt.time_create = time.perf_counter()
         return cbt
 
     def create_linked_cbt(self, parent):
         cbt = self.create_cbt()
         cbt.parent = parent
         parent.child_count = parent.child_count + 1
+        cbt.time_create = time.perf_counter()
         return cbt
 
     def get_parent_cbt(self, cbt):
         return cbt.parent
 
     def free_cbt(self, cbt):
+        cbt.time_free = time.perf_counter()
         if not cbt.child_count == 0:
             raise RuntimeError("Invalid attempt to free a linked CBT")
         if not cbt.parent is None:
@@ -75,6 +79,7 @@ class CFxHandle(object):
         del cbt
 
     def complete_cbt(self, cbt):
+        cbt.time_complete = time.perf_counter()
         cbt.completed = True
         self._pending_cbts.pop(cbt.tag, None)
         if not cbt.child_count == 0:
