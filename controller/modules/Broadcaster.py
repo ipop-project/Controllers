@@ -106,7 +106,7 @@ class Broadcaster(ControllerModule):
                               "ICC_REMOTE_ACTION", icc_req)
 
     def timer_method(self):
-        self.register_cbt("Topology", "TOP_QUERY_PEERS_IDS", "CacheRefresh")
+        self.register_cbt("Topology", "TOP_QUERY_PEERS_IDS", "RefreshCache")
 
     def terminate(self):
         pass
