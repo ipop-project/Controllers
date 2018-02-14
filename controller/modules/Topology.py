@@ -60,7 +60,13 @@ class Topology(ControllerModule, CFX):
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
     def terminate(self):
-        pass
+        for k in self._cfx_handle._owned_cbts.keys():
+            self.free_cbt(self._cfx_handle._owned_cbts[k]) 
+        for k in self._cfx_handle._pending_cbts.keys():
+            cbt = self._pending_cbts._owned_cbts[k]
+            cbt.set_response("Module terminating", False)
+            self.complete_cbt(cbt)
+
 
     def connect_to_peer(self, overlay_id, peer_id):
         """
@@ -204,12 +210,8 @@ class Topology(ControllerModule, CFX):
 
             self.free_cbt(cbt)
 
+    def manage_topology(self):
+        pass
+
     def timer_method(self):
-        try:
-            #self.register_cbt("LinkManger","LNK_QUERY_LINKS")
-            #for overlay_id in self._overlays:
-            #    for peer_id in self._overlays[overlay_id]["Peers"]:
-            #        self.connect_to_peer(overlay_id, peer_id)
-            pass
-        except Exception as err:
-            self.register_cbt("Logger", "LOG_ERROR", "Exception in BTM timer:" + str(err))
+        self.manage_topology()

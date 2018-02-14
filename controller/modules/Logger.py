@@ -92,7 +92,6 @@ class Logger(ControllerModule):
                 self.logger.warning("{0}: {1}".format(self._module_name, log))
             self._cfx_handle.complete_cbt(cbt)
         elif cbt.op_type == "Response":
-            print(cbt)  # TODO remove before release
             self.free_cbt(cbt)
 
     def timer_method(self):
@@ -111,4 +110,4 @@ class Logger(ControllerModule):
             logging.log(5, message, *args, **argv)
 
     def terminate(self):
-        pass
+        logging.shutdown()
