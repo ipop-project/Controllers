@@ -34,16 +34,10 @@ class CFxHandle(object):
         self._cm_thread = None  # CM worker thread
         self._cm_config = None
         self.__cfx_object = CFxObject  # CFx object reference
-        self._join_enabled = True
         self._timer_thread = None
-        self._terminate_flag = False
         self.interval = 1
         self._pending_cbts = {}
         self._owned_cbts = {}
-
-    def __get_cbt(self):
-        cbt = self._cm_queue.get()  # blocking call
-        return cbt
 
     def submit_cbt(self, cbt):
         # submit CBT to the CFx
@@ -91,29 +85,25 @@ class CFxHandle(object):
         self._cm_instance.initialize()
 
         # create the worker thread, which is started by CFx
-        self._cm_thread = threading.Thread(target=self.__worker)
-        self._cm_thread.setDaemon(True)
-
-        # check whether CM requires join() or not
-        self._join_enabled = True
+        thread_name = self._cm_instance.__class__.__name__ + "::__cbt"
+        self._cm_thread = threading.Thread(target=self.__worker, name=thread_name,
+                                           daemon=False)
 
         # check if the _cm_config has timer_interval specified
         timer_enabled = False
-
         try:
-            self.interval = int(self._cm_config["TimerInterval"])
-            timer_enabled = True
-        except ValueError:
-            logging.warning("Invalid timer configuration for {0}"
-                            ". Timer has been disabled for this module".format("CFXHandle"))
-        except KeyError:
-            pass
+            self.interval = int(self._cm_config.get("TimerInterval", 0))
+            if self.interval > 0: 
+                timer_enabled = True
+        except Exception:
+            logging.warning("Invalid TimerInterval for {0}. Timer method has " \
+                "been disabled for this module".format(self._cm_instance.__class__.__name__))
 
         if timer_enabled:
             # create the timer worker thread, which is started by CFx
+            thread_name = self._cm_instance.__class__.__name__ + "::__timer"
             self._timer_thread = threading.Thread(target=self.__timer_worker,
-                                                 args=())
-            self._timer_thread.setDaemon(False)
+                                                 name=thread_name, daemon=False)
 
     def update_timer_interval(self, interval):
         self.interval = interval
@@ -122,13 +112,10 @@ class CFxHandle(object):
         # get CBT from the local queue and call process_cbt() of the
         # CBT recipient and passing the CBT as an argument
         while True:
-            cbt = self.__get_cbt()
+            cbt = self._cm_queue.get()
 
             # break on special termination CBT
-            if cbt.request.action == "CFX_TERMINATE":
-                self._terminate_flag = True
-                module_name = self._cm_instance.__class__.__name__
-                logging.info("{0} exiting".format(module_name))
+            if cbt is None:
                 self._cm_instance.terminate()
                 break
             else:
@@ -136,9 +123,8 @@ class CFxHandle(object):
                     if not cbt.completed:
                         self._pending_cbts[cbt.tag] = cbt
                     self._cm_instance.process_cbt(cbt)
-                except SystemExit:
-                    sys.exit()
-                except:
+                    self._cm_queue.task_done()
+                except Exception:
                     # should free cbt, potential leak
                     log_cbt = self.create_cbt(
                         initiator=self._cm_instance.__class__.__name__,
@@ -152,24 +138,18 @@ class CFxHandle(object):
 
     def __timer_worker(self):
         # call the timer_method of each CM every timer_interval seconds
-        event = threading.Event()
-        while True:
-            if self._terminate_flag:
-                break
-            event.wait(self.interval)
-
+        self._exit_event = threading.Event()
+        while not self._exit_event.wait(self.interval):
             try:
                 self._cm_instance.timer_method()
-            except SystemExit:
-                sys.exit()
-            except:
+            except Exception:
                 log_cbt = self.create_cbt(
                     initiator=self._cm_instance.__class__.__name__,
                     recipient="Logger",
                     action="LOG_WARNING",
                     params="Timer Method exception:\n"
-                             "{0}"
-                             .format(traceback.format_exc()))
+                                "{0}"
+                                .format(traceback.format_exc()))
                 self.submit_cbt(log_cbt)
 
     def query_param(self, param_name=""):
