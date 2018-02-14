@@ -149,7 +149,7 @@ class TincanInterface(ControllerModule):
         req["TurnPass"] = msg.get("TurnPass")
         req["TurnUser"] = msg.get("TurnUser")
         req["EnableIPMapping"] = msg.get("EnableIPMapping")
-        req["Type"] = msg.get("Type")
+        req["Type"] = msg["Type"]
         req["TapName"] = msg.get("TapName")
         req["IP4"] = msg.get("IP4")
         req["PrefixLen4"] = msg.get("PrefixLen4")
