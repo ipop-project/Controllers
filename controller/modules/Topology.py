@@ -131,20 +131,12 @@ class Topology(ControllerModule, CFX):
     def vis_data_response(self, cbt):
         topo_data = defaultdict(dict)
         try:
-            for olid in self._cm_config["Overlays"]:
-                #if self._overlays[olid]["Descriptor"]["IsReady"]:
-                    topo_data[olid]["TapName"] = self._overlays[olid]["Descriptor"]["TapName"]
-                    # self._overlays[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
-                    topo_data[olid]["GeoIP"] = "128.277.9.98"
-                    topo_data[olid]["VIP4"] = self._overlays[olid]["Descriptor"]["VIP4"]
-                    topo_data[olid]["PrefixLen"] = self._overlays[olid]["Descriptor"]["PrefixLen"]
-                    topo_data[olid]["MAC"] = self._overlays[olid]["Descriptor"]["MAC"]
-            if len(topo_data) == 0:
-                topo_data = None
-                status = False
-            else:
-                status = True
-            cbt.set_response({"Topology": topo_data}, status)
+            for olid in self._overlays:
+                ks = set(self._overlays[olid]["Peers"].keys())
+                if len(ks) > 0:
+                    topo_data[olid] = set(self._overlays[olid]["Peers"].keys())
+
+            cbt.set_response({"Topology": topo_data}, len(topo_data) == 0)
             self.complete_cbt(cbt)
         except KeyError:
             cbt.set_response(data=None, status=False)

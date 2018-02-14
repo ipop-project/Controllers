@@ -126,14 +126,20 @@ class LinkManager(ControllerModule):
 
     def req_handler_query_visualizer_data(self, cbt):
         vis_data = dict(LinkManager=dict())
-        self._lock.acquire()
-        for olid in self._overlays:
-            for peerid in self._overlays[olid]["Peers"]:
-                lnkid = self._overlays[olid]["Peers"][peerid]
-                stats = self._links[lnkid]["Stats"]
-                vis_data["LinkManager"][olid] = {lnkid: dict(LinkId=lnkid, PeerId=peerid, Stats=stats)}
-        self._lock.release()
-        cbt.set_response(data=vis_data, status=True)
+        with self._lock:
+            for olid in self._overlays:
+                if "Descriptor" in self._overlays[olid]:
+                    vis_data["LinkManager"][olid]["TapName"] = self._overlays[olid]["Descriptor"]["TapName"]
+                    vis_data["LinkManager"][olid]["VIP4"] = self._overlays[olid]["Descriptor"]["VIP4"]
+                    vis_data["LinkManager"][olid]["PrefixLen"] = self._overlays[olid]["Descriptor"]["PrefixLen"]
+                    vis_data["LinkManager"][olid]["MAC"] = self._overlays[olid]["Descriptor"]["MAC"]
+                    # self._overlays[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
+                    for peerid in self._overlays[olid]["Peers"]:
+                        lnkid = self._overlays[olid]["Peers"][peerid]
+                        stats = self._links[lnkid]["Stats"]
+                        vis_data["LinkManager"][olid] = {lnkid: dict(LinkId=lnkid, PeerId=peerid, Stats=stats)}
+
+        cbt.set_response(vis_data, len(vis_data["LinkManager"]) == 0)
         self.complete_cbt(cbt)
 
     def resp_handler_remove_link(self, cbt):
