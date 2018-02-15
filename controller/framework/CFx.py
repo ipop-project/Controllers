@@ -85,22 +85,19 @@ class CFX(object):
                 self._cfx_handle_dict[module_name]._timer_thread.start()
 
     def load_module(self, module_name):
-        # import the modules dynamically
-        try:
-            module = importlib.import_module("controller.modules.{0}"
-                                             .format(module_name))
-        except ImportError as error:
-            # NOTE: this bit is important as importing a module may fail
-            # because an import inside it failed. If we don't handle this
-            # corner case, we will get an import error with the
-            # (incorrect) message that module_name does not exist.
-            if module_name not in str(error):
-                failed_dep_name = str(error).split(" ")[-1]
-                raise ImportError("Failed to load module \"{}\" due to an"
-                                  " ImportError on dependency \"{}\""
-                                  .format(module_name, failed_dep_name))
-            module = importlib.import_module("controller.modules.{0}.{1}"
+        """
+        Dynamically load the modules specified in the config file. Allow model
+        specific module implementations to override the default by attempting
+        to load them first.
+        """
+        if len(self.model) > 0:
+            if os.path.isfile("controller/modules/{0}/{1}.py"
+                              .format(self.model, module_name)):
+                module = importlib.import_module("controller.modules.{0}.{1}"
                                              .format(self.model, module_name))
+            else:
+                module = importlib.import_module("controller.modules.{0}"
+                                    .format(module_name))
 
         # get the class with name key from module
         module_class = getattr(module, module_name)
@@ -229,22 +226,19 @@ class CFX(object):
             signal.pause()
 
     def terminate(self):
-        for key in self._cfx_handle_dict:
-            # create a special terminate CBT to terminate all the CMs
-            terminate_cbt = self._cfx_handle_dict[key].create_cbt("CFx", key, "CFX_TERMINATE", None)
-
-            # clear all the queues and put the terminate CBT in all the queues
-            self._cfx_handle_dict[key]._cm_queue.queue.clear()
-
-            self.submit_cbt(terminate_cbt)
+        for module_name in self._cfx_handle_dict:
+            if self._cfx_handle_dict[module_name]._timer_thread:
+                self._cfx_handle_dict[module_name]._exit_event.set()
+            self._cfx_handle_dict[module_name]._cm_queue.put(None)
 
         # wait for the threads to process their current CBTs and exit
-            print("waiting for timer threads to exit gracefully...")
-        for handle in self._cfx_handle_dict:
-            if self._cfx_handle_dict[handle]._join_enabled:
-                self._cfx_handle_dict[handle]._cm_thread.join()
-                if self._cfx_handle_dict[handle]._timer_thread:
-                    self._cfx_handle_dict[handle]._timer_thread.join()
+        print("waiting for threads to exit ...")
+        for module_name in self._cfx_handle_dict:
+            self._cfx_handle_dict[module_name]._cm_thread.join()
+            print("{0} exited".format(self._cfx_handle_dict[module_name]._cm_thread.name))
+            if self._cfx_handle_dict[module_name]._timer_thread:
+                self._cfx_handle_dict[module_name]._timer_thread.join()
+                print("{0} exited".format(self._cfx_handle_dict[module_name]._timer_thread.name))
         sys.exit(0)
 
     def query_param(self, param_name=""):

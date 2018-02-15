@@ -60,6 +60,12 @@ class Topology(ControllerModule, CFX):
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
     def terminate(self):
+        #for k in self._cfx_handle._owned_cbts.keys():
+        #    self.free_cbt(self._cfx_handle._owned_cbts[k]) 
+        #for k in self._cfx_handle._pending_cbts.keys():
+        #    cbt = self._pending_cbts._owned_cbts[k]
+        #    cbt.set_response("Module terminating", False)
+        #    self.complete_cbt(cbt)
         pass
 
     def connect_to_peer(self, overlay_id, peer_id):
@@ -125,20 +131,12 @@ class Topology(ControllerModule, CFX):
     def vis_data_response(self, cbt):
         topo_data = defaultdict(dict)
         try:
-            for olid in self._cm_config["Overlays"]:
-                #if self._overlays[olid]["Descriptor"]["IsReady"]:
-                    topo_data[olid]["TapName"] = self._overlays[olid]["Descriptor"]["TapName"]
-                    # self._overlays[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
-                    topo_data[olid]["GeoIP"] = "128.277.9.98"
-                    topo_data[olid]["VIP4"] = self._overlays[olid]["Descriptor"]["VIP4"]
-                    topo_data[olid]["PrefixLen"] = self._overlays[olid]["Descriptor"]["PrefixLen"]
-                    topo_data[olid]["MAC"] = self._overlays[olid]["Descriptor"]["MAC"]
-            if len(topo_data) == 0:
-                topo_data = None
-                status = False
-            else:
-                status = True
-            cbt.set_response({"Topology": topo_data}, status)
+            for olid in self._overlays:
+                ks = set(self._overlays[olid]["Peers"].keys())
+                if len(ks) > 0:
+                    topo_data[olid] = set(self._overlays[olid]["Peers"].keys())
+
+            cbt.set_response({"Topology": topo_data}, len(topo_data) == 0)
             self.complete_cbt(cbt)
         except KeyError:
             cbt.set_response(data=None, status=False)
@@ -204,12 +202,8 @@ class Topology(ControllerModule, CFX):
 
             self.free_cbt(cbt)
 
+    def manage_topology(self):
+        pass
+
     def timer_method(self):
-        try:
-            #self.register_cbt("LinkManger","LNK_QUERY_LINKS")
-            #for overlay_id in self._overlays:
-            #    for peer_id in self._overlays[overlay_id]["Peers"]:
-            #        self.connect_to_peer(overlay_id, peer_id)
-            pass
-        except Exception as err:
-            self.register_cbt("Logger", "LOG_ERROR", "Exception in BTM timer:" + str(err))
+        self.manage_topology()
