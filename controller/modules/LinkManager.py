@@ -151,7 +151,7 @@ class LinkManager(ControllerModule):
         lnkid = cbt.request.params["LinkId"]
         data = cbt.response.data
         status = cbt.response.status
-        if satus:
+        if status:
             self._lock.acquire()
             item = self._links.pop(lnkid, None)
             del(item)

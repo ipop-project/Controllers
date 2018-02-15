@@ -40,7 +40,7 @@ CONFIG = {
         "Device": "File",      # Send logging output to <File> or <Console>
         "Directory": "./logs/",
         "CtrlLogFileName": "ctrl.log",
-        "TincanLogFileName": "tincan.log",
+        "TincanLogFileName": "tincan_log",
         "MaxFileSize": 1000000,   # 1MB sized log files
         "MaxArchives": 5,   # Keep up to 5 files of history
         "ConsoleLevel": None
@@ -53,7 +53,7 @@ CONFIG = {
         "Dependencies": ["Logger"]
     },
     "TincanInterface": {
-        "Enabled": False,
+        "Enabled": True,
         "MaxReadSize": 65507,               # Max buffer size for Tincan Messages
         "SocketReadWaitTime": 15,           # Socket read wait time for Tincan Messages
         "RcvServiceAddress": "127.0.0.1",   # Controller server address
@@ -65,25 +65,23 @@ CONFIG = {
         "Dependencies": ["Logger"]
     },
     "Signal": {
-        "Enabled": False,
+        "Enabled": True,
         "TimerInterval": 30,
         "CacheExpiry": 120,         # Min duration an entry remains in the JID cache in seconds
         "Dependencies": ["Logger"]
     },
     "LinkManager": {
-        "Enabled": False,
+        "Enabled": True,
         "TimerInterval": 30,        # Timer thread interval in sec
-        "InitialLinkTTL": 120,      # Initial Time to Live for a p2p link in sec
         "Dependencies": ["Logger", "TincanInterface", "Signal"]
     },
     "Topology": {
-        "Enabled": False,
+        "Enabled": True,
         "TimerInterval": 30,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "Icc": {
         "Enabled": False,
-        "TimerInterval": 30,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "Broadcaster": {
