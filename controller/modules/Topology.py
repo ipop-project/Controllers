@@ -132,11 +132,12 @@ class Topology(ControllerModule, CFX):
         topo_data = defaultdict(dict)
         try:
             for olid in self._overlays:
-                ks = set(self._overlays[olid]["Peers"].keys())
-                if len(ks) > 0:
-                    topo_data[olid] = set(self._overlays[olid]["Peers"].keys())
+                ks = {peer_id for peer_id in self._overlays[olid]["Peers"]}
+                if ks:
+                    topo_data[olid] = ks
 
-            cbt.set_response({"Topology": topo_data}, len(topo_data) == 0)
+            cbt.set_response({"Topology": topo_data},
+                             True if topo_data else False)
             self.complete_cbt(cbt)
         except KeyError:
             cbt.set_response(data=None, status=False)
