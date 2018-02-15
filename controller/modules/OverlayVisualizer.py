@@ -87,10 +87,10 @@ class OverlayVisualizer(ControllerModule):
 
         collector_msg = dict(Data=dict())
 
-        # Filter out overlays for which we do not have Topology data
+        # Filter out overlays for which we do not have LinkManager data
         for overlay_id in vis_ds["Data"]:
             overlay_data = vis_ds["Data"][overlay_id]
-            if "Topology" in overlay_data and overlay_data["Topology"]:
+            if "LinkManager" in overlay_data and overlay_data["LinkManager"]:
                 collector_msg["Data"][overlay_id] = overlay_data
 
         if collector_msg["Data"]:
