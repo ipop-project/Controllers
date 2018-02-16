@@ -147,7 +147,7 @@ class LinkManager(ControllerModule):
                         stats = self._links[lnkid]["Stats"]
                         vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = {
                             "SrcNodeId": node_id,
-                            "TgtNodeId": peerid,
+                            "PeerId": peerid,
                             "Stats": stats
                         }
 
