@@ -79,8 +79,8 @@ class Icc(ControllerModule):
                              InitiatorCM="",
                              ActionTag="") 
         """
-        self.register_cbt("Logger", "LOG_DEBUG", "Received : Data Deliver" \
-                    " Request from {0}".format(cbt.request.initiator))        
+        self.register_cbt("Logger", "LOG_DEBUG", "Send data request {0} from {1}"
+                          .format(cbt.tag, cbt.request.initiator))
         rem_data = cbt.request.params
         peerid = rem_data["RecipientId"]
         overlayid = rem_data["OverlayId"]
@@ -125,8 +125,8 @@ class Icc(ControllerModule):
                           Data="",
                           Status="")
         """
-        self.register_cbt("Logger", "LOG_DEBUG", "Received : Remote" \
-                  " Action Request from {0}".format(cbt.request.initiator))
+        self.register_cbt("Logger", "LOG_DEBUG", "Send remote action {0} from {1}"
+                          .format(cbt.tag, cbt.request.initiator))
         rem_act = cbt.request.params
         peerid = rem_act["RecipientId"]
         overlayid = rem_act["OverlayId"]
@@ -154,20 +154,16 @@ class Icc(ControllerModule):
         # The field "Action" will not be present in rem_act
         # to differentiate Data Delivery & Remote action requests
         if "Action" not in rem_act:
-            self.register_cbt("Logger", "LOG_DEBUG", "Received : Data " \
-                                            "Delivery Requests via Tincan" \
-                                            .format(rem_act["RecipientCM"]))
+            self.register_cbt("Logger", "LOG_DEBUG", "Incoming remote data {0}"
+                                            .format(rem_act["ActionTag"]))
             target_module_name = rem_act["RecipientCM"]
             opaque_msg = rem_act["Params"]
-            self.register_cbt(target_module_name, 
-                                "ICC_DELIVER_DATA", 
-                                opaque_msg)
+            self.register_cbt(target_module_name, "ICC_DELIVER_DATA", opaque_msg)
 
         # New incoming Remote action requests received via Tincan
         elif rem_act["ActionTag"] not in self._cfx_handle._pending_cbts:
-            self.register_cbt("Logger", "LOG_DEBUG", "Received : Remote" \
-                                    " Action Requests to {0} via Tincan" \
-                                        .format(rem_act["RecipientCM"]))
+            self.register_cbt("Logger", "LOG_DEBUG", "Incoming remote action {0}"
+                                        .format(rem_act["ActionTag"]))
             target_module_name = rem_act["RecipientCM"]
             remote_action_code = rem_act["Action"]
             opaque_msg = rem_act["Params"]
@@ -180,9 +176,8 @@ class Icc(ControllerModule):
 
         # Handling responses to the remote action recevied via Tincan
         else:
-            self.register_cbt("Logger", "LOG_DEBUG", "Received : Response" \
-                                    " to {0} for Remote Action via Tincan" \
-                                        .format(rem_act["InitiatorCM"]))
+            self.register_cbt("Logger", "LOG_DEBUG", "Remote action response {0}"
+                                    .format(rem_act["ActionTag"]))
             rcbt = self._cfx_handle._pending_cbts[rem_act["ActionTag"]]
             rem_act = json.loads(cbt.request.params["Data"])
             resp_data = rem_act["Data"]
@@ -198,8 +193,8 @@ class Icc(ControllerModule):
     def complete_remote_action(self,cbt):
         if cbt.tag in self._remote_acts:
             rem_act = self._remote_acts[cbt.tag]
-            self.register_cbt("Logger", "LOG_DEBUG", "Received : Response" \
-                                " from {0}".format(rem_act["RecipientCM"]))
+            self.register_cbt("Logger", "LOG_DEBUG", "Remote action complete"
+                                " {0}".format(rem_act["ActionTag"]))
             overlayid = rem_act["OverlayId"]
             peerid = rem_act["InitiatorId"]
             if peerid in self._links[overlayid]["Peers"]:
