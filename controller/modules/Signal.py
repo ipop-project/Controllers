@@ -80,18 +80,77 @@ class JidCache:
         return jid
 
 
-class XmppTransport:
-    def __init__(self, overlay_id, overlay_descr, cm_mod, presence_publisher,
-                 jid_cache, cbts):
-        self.transport = None
-        self.overlay_id = overlay_id
-        self.overlay_descr = overlay_descr
-        self.cm_mod = cm_mod
-        self.node_id = cm_mod._cm_config["NodeId"]
-        self.presence_publisher = presence_publisher
-        self.jid_cache = jid_cache
-        self.cbts = cbts
+class XmppTransport(sleekxmpp.ClientXMPP):
+    def __init__(self, jid, password, sasl_mech):
+        sleekxmpp.ClientXMPP.__init__(self, jid, password, sasl_mech=sasl_mech)
+        self.overlay_id = None
+        self.overlay_descr = None
+        self.cm_mod = None
+        self.node_id = None
+        self.presence_publisher = None
+        self.jid_cache = None
+        self.cbts = None
         self._cbt_to_action_tag = {}  # maps remote action tags to cbt tags
+
+    @staticmethod
+    def factory(overlay_id, overlay_descr, cm_mod, presence_publisher, jid_cache, cbts):
+        try:
+            keyring_installed = False
+            import keyring
+            keyring_installed = True
+        except ImportError as err:
+            cm_mod._log("The key-ring module is not installed. {0}"
+                      .format(str(err)), "LOG_INFO")
+        host = overlay_descr["HostAddress"]
+        port = overlay_descr["Port"]
+        user = overlay_descr.get("Username", None)
+        pswd = overlay_descr.get("Password", None)
+        auth_method = overlay_descr.get("AuthenticationMethod", "Password")
+        if auth_method == "x509" and (user is not None or pswd is not None):
+            er_log = "x509 Authentication is enbabled but credentials " \
+                "exists in IPOP configuration file; x509 will be used."
+            cm_mod._log(er_log, "LOG_WARNING")
+        if auth_method == "x509":
+            transport = XmppTransport(None, None, sasl_mech="EXTERNAL")
+            transport.ssl_version = ssl.PROTOCOL_TLSv1
+            transport.ca_certs = overlay_descr["TrustStore"]
+            transport.certfile = overlay_descr["CertDirectory"] + overlay_descr["CertFile"]
+            transport.keyfile = overlay_descr["CertDirectory"] + overlay_descr["Keyfile"]
+            transport.use_tls = True
+        elif auth_method == "PASSWORD":
+            if user is None:
+                raise RuntimeError("No username is provided in IPOP configuration file.")
+            if pswd is None and keyring_installed is True:
+                pswd = keyring.get_password("ipop", overlay_descr["Username"])
+            if pswd is None:
+                print("{0} XMPP Password: ".format(user))
+                pswd = str(input())
+                if keyring_installed is True:
+                    try:
+                        keyring.set_password("ipop", user, pswd)
+                    except Exception as err:
+                        cm_mod._log("Failed to store password in keyring. {0}".format(str(err)), "LOG_ERROR")
+            transport = XmppTransport(user, pswd, sasl_mech="PLAIN")
+            del pswd
+        else:
+            raise RuntimeError("Invalid authentication method specified in configuration: {0}".format(auth_method))
+        transport.host = host
+        transport.port = port
+        transport.overlay_id = overlay_id
+        transport.cm_mod = cm_mod
+        transport.node_id = cm_mod._cm_config["NodeId"]
+        transport.presence_publisher = presence_publisher
+        transport.jid_cache = jid_cache
+        transport.cbts = cbts
+        # Server SSL Authenication required by default
+        if overlay_descr.get("AcceptUntrustedServer", False) is True:
+            transport.register_plugin("feature_mechanisms", pconfig={"unencrypted_plain": True})
+            transport.use_tls = False
+        else:
+            transport.ca_certs = overlay_descr["TrustStore"]
+        # event handler for session start and roster update
+        transport.add_event_handler("session_start", transport.start_event_handler)
+        return transport
 
     def _log(self, msg, severity="LOG_INFO"):
         self.cm_mod._log(msg, severity)
@@ -101,15 +160,15 @@ class XmppTransport:
         self._log("Start event overlay_id {0}".format(self.overlay_id))
         try:
             # Get the friends list for the user
-            self.transport.get_roster()
+            self.get_roster()
             # Send sign-on presence
-            self.transport.send_presence(pstatus="ident#" + self.node_id)
+            self.send_presence(pstatus="ident#" + self.node_id)
             # Notification of peer signon
-            self.transport.add_event_handler("presence_available",
+            self.add_event_handler("presence_available",
                                                 self.presence_event_handler)
             # Register IPOP message with the server
             register_stanza_plugin(Message, IpopSignal)
-            self.transport.registerHandler(
+            self.registerHandler(
                 Callback("ipop", StanzaPath("message/ipop"), self.message_listener))
         except Exception as err:
             self._log("XmppTransport:Exception:{0} Event:{1}"
@@ -123,8 +182,8 @@ class XmppTransport:
             presence_receiver = str(presence_receiver_jid.user) + "@" \
                 + str(presence_receiver_jid.domain)
             status = presence["status"]
-            if(presence_receiver == self.overlay_descr["Username"]
-                    and presence_sender != self.transport.boundjid.full):
+            if(presence_receiver == self.jid
+                    and presence_sender != self.boundjid.full):
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
                     if (pstatus == "ident"):
@@ -135,7 +194,7 @@ class XmppTransport:
                         self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                     elif (pstatus == "uid?"):
                         if (self.node_id == peer_id):
-                            payload = self.transport.boundjid.full + "#" + self.node_id
+                            payload = self.boundjid.full + "#" + self.node_id
                             self.send_msg(presence_sender, "uid!", payload)
                     else:
                         self._log("Unrecognized PSTATUS: {0}".format(pstatus))
@@ -150,7 +209,7 @@ class XmppTransport:
         try:
             sender_jid = msg["from"]
             # discard the message if it was initiated by this node
-            if sender_jid == self.transport.boundjid.full:
+            if sender_jid == self.boundjid.full:
                 return
             # extract header and content
             type = msg["ipop"]["type"]
@@ -195,9 +254,9 @@ class XmppTransport:
 
     # Send message to Peer JID via XMPP server
     def send_msg(self, peer_jid, type, payload):
-        msg = self.transport.Message()
+        msg = self.Message()
         msg["to"] = peer_jid
-        msg["from"] = self.transport.boundjid.full
+        msg["from"] = self.boundjid.full
         msg["type"] = "chat"
         msg["ipop"]["type"] = type
         msg["ipop"]["payload"] = payload
@@ -205,65 +264,15 @@ class XmppTransport:
 
     def connect_to_server(self,):
         try:
-            if self.transport.connect(address=(self.host, self.port)):
-                self.transport.process(block=False)
+            if self.connect(address=(self.host, self.port)):
+                self.process(block=False)
                 self._log("Starting connection to XMPP server {0}:{1}".format(self.host, self.port))
         except Exception as err:
             self._log("Unable to initialize XMPP transport instanace.\n"
                       + str(err), severity="LOG_ERROR")
 
-    def initialize(self,):
-        try:
-            import keyring
-            self._keyring_installed = True
-        except ImportError as err:
-            self._log("The key-ring module is not installed. {0}"
-                      .format(str(err)), "LOG_INFO")
-        self.host = self.overlay_descr["HostAddress"]
-        self.port = self.overlay_descr["Port"]
-        user = self.overlay_descr.get("Username", None)
-        pswd = self.overlay_descr.get("Password", None)
-        auth_method = self.overlay_descr.get("AuthenticationMethod", "Password")
-        if auth_method == "x509" and (user is not None or pswd is not None):
-            er_log = "x509 Authentication is enbabled but credentials " \
-                "exists in IPOP configuration file; x509 will be used."
-            self._log(er_log, "LOG_WARNING")
-        if auth_method == "x509":
-            self.transport = sleekxmpp.ClientXMPP(None, None, sasl_mech="EXTERNAL")
-            self.transport.ssl_version = ssl.PROTOCOL_TLSv1
-            self.transport.ca_certs = self.overlay_descr["TrustStore"]
-            self.transport.certfile = self.overlay_descr["CertDirectory"] + self.overlay_descr["CertFile"]
-            self.transport.keyfile = self.overlay_descr["CertDirectory"] + self.overlay_descr["Keyfile"]
-            self.transport.use_tls = True
-        elif auth_method == "PASSWORD":
-            if user is None:
-                raise RuntimeError("No username is provided in IPOP configuration file.")
-            if pswd is None and self._keyring_installed is True:
-                pswd = keyring.get_password("ipop", self.overlay_descr["Username"])
-            if pswd is None:
-                print("{0}@{1} Password: ".format(user, self.overlay_id))
-                pswd = str(input())
-                if self._keyring_installed is True:
-                    try:
-                        keyring.set_password("ipop", user, pswd)
-                    except Exception as err:
-                        self._log("Failed to store password in keyring. {0}".format(str(err)), "LOG_ERROR")
-        else:
-            raise RuntimeError("Invalid authentication method specified in configuration: {0}".format(auth_method))
-
-        self.transport = sleekxmpp.ClientXMPP(user, pswd, sasl_mech="PLAIN")
-        del pswd
-        # Server SSL Authenication required by default
-        if self.overlay_descr.get("AcceptUntrustedServer", False) is True:
-            self.transport.register_plugin("feature_mechanisms", pconfig={"unencrypted_plain": True})
-            self.transport.use_tls = False
-        else:
-            self.transport.ca_certs = self.overlay_descr["TrustStore"]
-        # event handler for session start and roster update
-        self.transport.add_event_handler("session_start", self.start_event_handler)
-
     def shutdown(self,):
-        self.transport.disconnect()
+        self.disconnect()
         pass
 
 
@@ -272,17 +281,16 @@ class Signal(ControllerModule):
         super(Signal, self).__init__(cfx_handle, module_config, module_name)
         self._presence_publisher = None
         self._circles = {}
-        self._keyring_installed = False
         self._remote_acts = {}
 
     def _log(self, msg, severity="LOG_INFO"):
         self.register_cbt("Logger", severity, msg)
 
     def create_transport_instance(self, overlay_id, overlay_descr, jid_cache, jid_refresh_q):
-        self._circles[overlay_id]["Transport"] = \
-            XmppTransport(overlay_id, overlay_descr, self, self._presence_publisher, jid_cache, jid_refresh_q)
-        self._circles[overlay_id]["Transport"].initialize()
-        self._circles[overlay_id]["Transport"].connect_to_server()
+        xport = XmppTransport.factory(overlay_id, overlay_descr, self,
+                                    self._presence_publisher, jid_cache, jid_refresh_q)
+        xport.connect_to_server()
+        return xport
 
     def initialize(self):
 
@@ -292,9 +300,10 @@ class Signal(ControllerModule):
             self._circles[overlay_id] = {}
             self._circles[overlay_id]["JidCache"] = JidCache(self, self._cm_config["CacheExpiry"])
             self._circles[overlay_id]["JidRefreshQ"] = {}
-            self.create_transport_instance(overlay_id, overlay_descr,
-                                           self._circles[overlay_id]["JidCache"],
-                                           self._circles[overlay_id]["JidRefreshQ"])
+            self._circles[overlay_id]["Transport"] = \
+                self.create_transport_instance(overlay_id, overlay_descr,
+                                      self._circles[overlay_id]["JidCache"],
+                                      self._circles[overlay_id]["JidRefreshQ"])
         self._log("Module loaded")
 
     def query_reporting_data(self, cbt):
