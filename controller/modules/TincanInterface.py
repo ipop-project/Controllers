@@ -41,16 +41,16 @@ class TincanInterface(ControllerModule):
             self._sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
             self._sock_svr = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
             # Controller UDP listening socket
-            self._sock_svr.bind((self._cm_config["ServiceAddress6"], self._cm_config["CtrlRecvPort"]))
+            self._sock_svr.bind((self._cm_config["RcvServiceAddress6"], self._cm_config["CtrlRecvPort"]))
             # Controller UDP sending socket
-            self._dest = (self._cm_config["ServiceAddress6"], self._cm_config["CtrlSendPort"])
+            self._dest = (self._cm_config["SndServiceAddress6"], self._cm_config["CtrlSendPort"])
         else:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._sock_svr = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # Controller UDP listening socket
-            self._sock_svr.bind((self._cm_config["ServiceAddress"], self._cm_config["CtrlRecvPort"]))
+            self._sock_svr.bind((self._cm_config["RcvServiceAddress"], self._cm_config["CtrlRecvPort"]))
             # Controller UDP sending socket
-            self._dest = (self._cm_config["ServiceAddress"], self._cm_config["CtrlSendPort"])
+            self._dest = (self._cm_config["SndServiceAddress"], self._cm_config["CtrlSendPort"])
         self._sock.bind(("", 0))
         self._sock_list = [self._sock_svr]
 
@@ -98,10 +98,10 @@ class TincanInterface(ControllerModule):
             ctl["IPOP"]["Request"]["Port"] = self._cm_config["CtrlRecvPort"]
         if socket.has_ipv6 is False:
             ctl["IPOP"]["Request"]["AddressFamily"] = "af_inet"
-            ctl["IPOP"]["Request"]["IP"] = self._cm_config["ServiceAddress"]
+            ctl["IPOP"]["Request"]["IP"] = self._cm_config["RcvServiceAddress"]
         else:
             ctl["IPOP"]["Request"]["AddressFamily"] = "af_inetv6"
-            ctl["IPOP"]["Request"]["IP"] = self._cm_config["ServiceAddress6"]
+            ctl["IPOP"]["Request"]["IP"] = self._cm_config["RcvServiceAddress6"]
         self._cfx_handle._pending_cbts[cbt.tag] = cbt
         self.send_control(json.dumps(ctl))
 

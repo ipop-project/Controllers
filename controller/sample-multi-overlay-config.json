@@ -15,7 +15,7 @@
   
   },
   "TincanInterface": {
-    "Enabled": true,
+    "Enabled": true
   },
   "Signal": {
     "Enabled": true,
@@ -85,7 +85,7 @@
     }
   }, 
   "Icc": {
-    "Enabled": true,
+    "Enabled": true
   },
   "Broadcaster": {
     "Enabled": true
