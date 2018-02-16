@@ -24,6 +24,7 @@ import threading
 import traceback
 import uuid
 import copy
+from collections import defaultdict
 try:
     import simplejson as json
 except ImportError:
@@ -125,28 +126,39 @@ class LinkManager(ControllerModule):
         self.free_cbt(cbt)
 
     def req_handler_query_visualizer_data(self, cbt):
-        vis_data = dict(LinkManager=dict())
+        vis_data = dict(LinkManager=defaultdict())
         with self._lock:
             for olid in self._overlays:
                 if "Descriptor" in self._overlays[olid]:
-                    vis_data["LinkManager"][olid]["TapName"] = self._overlays[olid]["Descriptor"]["TapName"]
-                    vis_data["LinkManager"][olid]["VIP4"] = self._overlays[olid]["Descriptor"]["VIP4"]
-                    vis_data["LinkManager"][olid]["PrefixLen"] = self._overlays[olid]["Descriptor"]["PrefixLen"]
-                    vis_data["LinkManager"][olid]["MAC"] = self._overlays[olid]["Descriptor"]["MAC"]
+                    descriptor = self._overlays[olid]["Descriptor"]
+                    node_data = {
+                        "TapName": descriptor["TapName"],
+                        "VIP4": descriptor["VIP4"],
+                        "PrefixLen": descriptor["PrefixLen"],
+                        "MAC": descriptor["MAC"]
+                    }
+                    node_id = str(self._cm_config["NodeId"])
+                    vis_data["LinkManager"][olid][node_id] = dict(NodeData=node_data,
+                                                   Links=dict())
                     # self._overlays[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
-                    for peerid in self._overlays[olid]["Peers"]:
-                        lnkid = self._overlays[olid]["Peers"][peerid]
+                    peers = self._overlays[olid]["Peers"]
+                    for peerid in peers:
+                        lnkid = peers[peerid]
                         stats = self._links[lnkid]["Stats"]
-                        vis_data["LinkManager"][olid] = {lnkid: dict(LinkId=lnkid, PeerId=peerid, Stats=stats)}
+                        vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = {
+                            "SrcNodeId": node_id,
+                            "TgtNodeId": peerid,
+                            "Stats": stats
+                        }
 
-        cbt.set_response(vis_data, len(vis_data["LinkManager"]) == 0)
+        cbt.set_response(vis_data, True if vis_data["LinkManager"] else False)
         self.complete_cbt(cbt)
 
     def resp_handler_remove_link(self, cbt):
         parent_cbt = self.get_parent_cbt(cbt)
         if self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
             olid = cbt.request.params["OID"]
-        else:		
+        else:
             olid = cbt.request.params["OverlayId"]
         lnkid = cbt.request.params["LinkId"]
         data = cbt.response.data
