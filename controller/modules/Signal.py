@@ -182,7 +182,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             presence_receiver = str(presence_receiver_jid.user) + "@" \
                 + str(presence_receiver_jid.domain)
             status = presence["status"]
-            if(presence_receiver == self.jid
+            if(presence_receiver == self.boundjid.bare
                     and presence_sender != self.boundjid.full):
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")

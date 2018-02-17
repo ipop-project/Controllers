@@ -188,8 +188,6 @@ class Topology(ControllerModule, CFX):
             elif cbt.request.action == "LNK_DATA_UPDATES":
                 self.link_data_update_handler(cbt)
         elif cbt.op_type == "Response":
-            #if cbt.request.action == "TCI_CREATE_OVERLAY":
-            #    self.resp_handler_create_overlay(cbt)
             if cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
                 self.resp_handler_query_overlay_info(cbt)
             elif cbt.request.action == "LNK_CREATE_LINK":
@@ -204,6 +202,8 @@ class Topology(ControllerModule, CFX):
             self.free_cbt(cbt)
 
     def manage_topology(self):
+        # TODO: periodically refresh the overlay, making sure desired links existing
+        # and exipred ones removed.
         pass
 
     def timer_method(self):

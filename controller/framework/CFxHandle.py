@@ -113,8 +113,7 @@ class CFxHandle(object):
         # CBT recipient and passing the CBT as an argument
         while True:
             cbt = self._cm_queue.get()
-
-            # break on special termination CBT
+            # Terminate when CBT is None
             if cbt is None:
                 self._cm_instance.terminate()
                 break
@@ -125,16 +124,16 @@ class CFxHandle(object):
                     self._cm_instance.process_cbt(cbt)
                     self._cm_queue.task_done()
                 except Exception:
-                    # should free cbt, potential leak
                     log_cbt = self.create_cbt(
                         initiator=self._cm_instance.__class__.__name__,
-                        recipient="Logger",
-                        action="LOG_WARNING",
-                        params="Process CBT exception:\n"
-                             "{0}\n"
-                             "{1}"
-                             .format(cbt, traceback.format_exc()))
+                        recipient="Logger", action="LOG_WARNING",
+                        params="Process CBT exception:\n{0}\n{1}"
+                        .format(cbt, traceback.format_exc()))
                     self.submit_cbt(log_cbt)
+                    if cbt.request.initiator == self._cm_instance.__class__.__name__:
+                        self.free_cbt(cbt)
+                    else:
+                        self.complete_cbt(cbt)
 
     def __timer_worker(self):
         # call the timer_method of each CM every timer_interval seconds
@@ -145,11 +144,9 @@ class CFxHandle(object):
             except Exception:
                 log_cbt = self.create_cbt(
                     initiator=self._cm_instance.__class__.__name__,
-                    recipient="Logger",
-                    action="LOG_WARNING",
-                    params="Timer Method exception:\n"
-                                "{0}"
-                                .format(traceback.format_exc()))
+                    recipient="Logger", action="LOG_WARNING",
+                    params="Timer Method exception:\n{0}"
+                    .format(traceback.format_exc()))
                 self.submit_cbt(log_cbt)
 
     def query_param(self, param_name=""):
