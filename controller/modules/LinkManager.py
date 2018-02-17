@@ -134,7 +134,7 @@ class LinkManager(ControllerModule):
                     node_data = {
                         "TapName": descriptor["TapName"],
                         "VIP4": descriptor["VIP4"],
-                        #"PrefixLen": descriptor["PrefixLen"],
+                        "IP4PrefixLen": descriptor["IP4PrefixLen"],
                         "MAC": descriptor["MAC"]
                     }
                     node_id = str(self._cm_config["NodeId"])
@@ -244,7 +244,7 @@ class LinkManager(ControllerModule):
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
             "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
-            "PrefixLen4": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
+            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
         }
         lcbt = self.create_linked_cbt(cbt)
         lcbt.set_request(self._module_name, "TincanInterface",
@@ -350,7 +350,7 @@ class LinkManager(ControllerModule):
                 "TapName": tap_name,
                 "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
                 "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
-                "PrefixLen4": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
+                "IP4PrefixLen": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
                 # link params
                 "LinkId": lnkid,
                 "NodeData": {
