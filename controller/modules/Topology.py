@@ -132,7 +132,7 @@ class Topology(ControllerModule, CFX):
         topo_data = defaultdict(dict)
         try:
             for olid in self._overlays:
-                ks = {peer_id for peer_id in self._overlays[olid]["Peers"]}
+                ks = [peer_id for peer_id in self._overlays[olid]["Peers"]]
                 if ks:
                     topo_data[olid] = ks
 
