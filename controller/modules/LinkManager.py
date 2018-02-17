@@ -187,7 +187,7 @@ class LinkManager(ControllerModule):
         peerid = cbt.request.params["LinkId"]
         self._lock.acquire()
         lnkid = self._overlays[olid]["Peers"][peerid]
-        cbt.set_response(self._overlays[lnkid]["Stats"], status=True)
+        cbt.set_response(self._links[lnkid]["Stats"], status=True)
         self._lock.release()
         self.complete_cbt(cbt)
 
