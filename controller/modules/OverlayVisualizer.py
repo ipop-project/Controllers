@@ -96,7 +96,7 @@ class OverlayVisualizer(ControllerModule):
 
         if collector_msg["Data"]:
             data_log = "Visualizer is going to send" \
-                  " {}".format(json.dumps(collector_msg))
+                  " {}".format(collector_msg)
             self.register_cbt("Logger", "LOG_DEBUG", data_log)
 
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
