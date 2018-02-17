@@ -34,18 +34,15 @@ class OverlayVisualizer(ControllerModule):
         super(OverlayVisualizer, self).__init__(cfx_handle, module_config, module_name)
         # Visualizer webservice URL
         self.vis_address = "http://" + self._cm_config["WebServiceAddress"]
-        # Datastructure to store Node network details
 
         self.node_id = str(self._cm_config["NodeId"])
+
         # The visualizer dataset which is forwarded to the collector service
         self._vis_ds = dict(NodeId=self.node_id, Data=defaultdict(dict))
         # Its lock
         self._vis_ds_lock = threading.Lock()
 
     def initialize(self):
-        # Get the list of overlays
-        self._overlays = self._cfx_handle.query_param("Overlays")
-
         # We're using the pub-sub model here to gather data for the visualizer
         # from other modules
         # Using this publisher, the OverlayVisualizer publishes events in the
@@ -90,15 +87,17 @@ class OverlayVisualizer(ControllerModule):
 
         collector_msg = dict(Data=dict())
 
-        # Filter out overlays for which we do not have Topology data
+        # Filter out overlays for which we do not have LinkManager data
         for overlay_id in vis_ds["Data"]:
             overlay_data = vis_ds["Data"][overlay_id]
-            if "Topology" in overlay_data and overlay_data["Topology"]:
+            if "LinkManager" in overlay_data and overlay_data["LinkManager"]:
                 collector_msg["Data"][overlay_id] = overlay_data
 
         if collector_msg["Data"]:
-            print("Visualizer is going to send"
-                  " {}".format(json.dumps(collector_msg)))
+            data_log = "Visualizer is going to send" \
+                  " {}".format(collector_msg)
+            self.register_cbt("Logger", "LOG_DEBUG", data_log)
+
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
 
             try:

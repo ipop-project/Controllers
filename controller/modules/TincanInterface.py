@@ -152,7 +152,7 @@ class TincanInterface(ControllerModule):
         req["Type"] = msg["Type"]
         req["TapName"] = msg.get("TapName")
         req["IP4"] = msg.get("IP4")
-        req["PrefixLen4"] = msg.get("PrefixLen4")
+        req["IP4PrefixLen"] = msg.get("IP4PrefixLen")
         req["MTU4"] = msg.get("MTU4")
         self.send_control(json.dumps(ctl))
 
@@ -169,7 +169,7 @@ class TincanInterface(ControllerModule):
         req["Type"] = msg["Type"]
         req["TapName"] = msg["TapName"]
         req["IP4"] = msg["IP4"]
-        req["PrefixLen4"] = msg["PrefixLen4"]
+        req["IP4PrefixLen"] = msg["IP4PrefixLen"]
         req["MTU4"] = msg["MTU4"]
         req["OverlayId"] = msg["OverlayId"]
         self.send_control(json.dumps(ctl))

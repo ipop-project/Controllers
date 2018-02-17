@@ -24,6 +24,7 @@ import threading
 import traceback
 import uuid
 import copy
+from collections import defaultdict
 try:
     import simplejson as json
 except ImportError:
@@ -97,6 +98,7 @@ class LinkManager(ControllerModule):
         self._overlays[olid]["Descriptor"]["VIP4"] = olay_desc["VIP4"]
         self._overlays[olid]["Descriptor"]["TapName"] = olay_desc["TapName"]
         self._overlays[olid]["Descriptor"]["FPR"] = olay_desc["FPR"]
+        self._overlays[olid]["Descriptor"]["IP4PrefixLen"] = olay_desc["IP4PrefixLen"]
 
     def query_link_stats(self):
         params = []
@@ -125,28 +127,39 @@ class LinkManager(ControllerModule):
         self.free_cbt(cbt)
 
     def req_handler_query_visualizer_data(self, cbt):
-        vis_data = dict(LinkManager=dict())
+        vis_data = dict(LinkManager=defaultdict(dict))
         with self._lock:
             for olid in self._overlays:
                 if "Descriptor" in self._overlays[olid]:
-                    vis_data["LinkManager"][olid]["TapName"] = self._overlays[olid]["Descriptor"]["TapName"]
-                    vis_data["LinkManager"][olid]["VIP4"] = self._overlays[olid]["Descriptor"]["VIP4"]
-                    vis_data["LinkManager"][olid]["PrefixLen"] = self._overlays[olid]["Descriptor"]["PrefixLen"]
-                    vis_data["LinkManager"][olid]["MAC"] = self._overlays[olid]["Descriptor"]["MAC"]
+                    descriptor = self._overlays[olid]["Descriptor"]
+                    node_data = {
+                        "TapName": descriptor["TapName"],
+                        "VIP4": descriptor["VIP4"],
+                        "IP4PrefixLen": descriptor["IP4PrefixLen"],
+                        "MAC": descriptor["MAC"]
+                    }
+                    node_id = str(self._cm_config["NodeId"])
+                    vis_data["LinkManager"][olid][node_id] = dict(NodeData=node_data,
+                                                                  Links=dict())
                     # self._overlays[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
-                    for peerid in self._overlays[olid]["Peers"]:
-                        lnkid = self._overlays[olid]["Peers"][peerid]
+                    peers = self._overlays[olid]["Peers"]
+                    for peerid in peers:
+                        lnkid = peers[peerid]
                         stats = self._links[lnkid]["Stats"]
-                        vis_data["LinkManager"][olid] = {lnkid: dict(LinkId=lnkid, PeerId=peerid, Stats=stats)}
+                        vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = {
+                            "SrcNodeId": node_id,
+                            "PeerId": peerid,
+                            "Stats": stats
+                        }
 
-        cbt.set_response(vis_data, len(vis_data["LinkManager"]) == 0)
+        cbt.set_response(vis_data, True if vis_data["LinkManager"] else False)
         self.complete_cbt(cbt)
 
     def resp_handler_remove_link(self, cbt):
         parent_cbt = self.get_parent_cbt(cbt)
         if self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
             olid = cbt.request.params["OID"]
-        else:		
+        else:
             olid = cbt.request.params["OverlayId"]
         lnkid = cbt.request.params["LinkId"]
         data = cbt.response.data
@@ -175,7 +188,7 @@ class LinkManager(ControllerModule):
         peerid = cbt.request.params["LinkId"]
         self._lock.acquire()
         lnkid = self._overlays[olid]["Peers"][peerid]
-        cbt.set_response(self._overlays[lnkid]["Stats"], status=True)
+        cbt.set_response(self._links[lnkid]["Stats"], status=True)
         self._lock.release()
         self.complete_cbt(cbt)
 
@@ -232,7 +245,7 @@ class LinkManager(ControllerModule):
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
             "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
-            "PrefixLen4": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
+            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
         }
         lcbt = self.create_linked_cbt(cbt)
         lcbt.set_request(self._module_name, "TincanInterface",
@@ -338,7 +351,7 @@ class LinkManager(ControllerModule):
                 "TapName": tap_name,
                 "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
                 "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
-                "PrefixLen4": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
+                "IP4PrefixLen": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
                 # link params
                 "LinkId": lnkid,
                 "NodeData": {
