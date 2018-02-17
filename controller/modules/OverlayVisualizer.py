@@ -60,6 +60,7 @@ class OverlayVisualizer(ControllerModule):
                 msg = cbt.response.data
 
                 if msg:
+                    print('OV got', msg)
                     # self._vis_ds belongs to the critical section as
                     # it may be updated in timer_method concurrently
                     self._vis_ds_lock.acquire()

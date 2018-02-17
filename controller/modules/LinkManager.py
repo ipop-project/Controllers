@@ -126,7 +126,7 @@ class LinkManager(ControllerModule):
         self.free_cbt(cbt)
 
     def req_handler_query_visualizer_data(self, cbt):
-        vis_data = dict(LinkManager=defaultdict())
+        vis_data = dict(LinkManager=defaultdict(dict))
         with self._lock:
             for olid in self._overlays:
                 if "Descriptor" in self._overlays[olid]:
@@ -134,12 +134,12 @@ class LinkManager(ControllerModule):
                     node_data = {
                         "TapName": descriptor["TapName"],
                         "VIP4": descriptor["VIP4"],
-                        "PrefixLen": descriptor["PrefixLen"],
+                        #"PrefixLen": descriptor["PrefixLen"],
                         "MAC": descriptor["MAC"]
                     }
                     node_id = str(self._cm_config["NodeId"])
                     vis_data["LinkManager"][olid][node_id] = dict(NodeData=node_data,
-                                                   Links=dict())
+                                                                  Links=dict())
                     # self._overlays[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
                     peers = self._overlays[olid]["Peers"]
                     for peerid in peers:
