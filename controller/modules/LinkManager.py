@@ -98,6 +98,7 @@ class LinkManager(ControllerModule):
         self._overlays[olid]["Descriptor"]["VIP4"] = olay_desc["VIP4"]
         self._overlays[olid]["Descriptor"]["TapName"] = olay_desc["TapName"]
         self._overlays[olid]["Descriptor"]["FPR"] = olay_desc["FPR"]
+        self._overlays[olid]["Descriptor"]["IP4PrefixLen"] = olay_desc["IP4PrefixLen"]
 
     def query_link_stats(self):
         params = []
