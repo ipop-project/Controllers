@@ -73,7 +73,7 @@ CTL_CREATE_OVERLAY = {
             "Command": "CreateOverlay",
             "TapName": "",
             "IP4": "",
-            "PrefixLen4": "",
+            "IP4PrefixLen": "",
             "MTU4": "",
             "StunAddress": "",
             "TurnAddress": "",

@@ -117,13 +117,24 @@ class LinkManager(ControllerModule):
     def resp_handler_query_link_stats(self, cbt):
         if (not cbt.response.status):
             self.register_cbt("Logger", "LOG_WARNING", "Link stats update error: {0}".format(cbt.response.data))
-        else:
-            data = cbt.response.data
-            self._lock.acquire()
+            return
+        data = cbt.response.data
+        with self._lock:
             for olid in cbt.request.params:
                 for lnkid in data[olid]:
-                    self._links[lnkid] = dict(Stats=data[olid][lnkid])
-            self._lock.release()
+                    oid = self._links[lnkid]["OverlayId"]
+                    olid = olid
+                    if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
+                        olid = lnkid
+                    if data[olid][lnkid]["Status"] == "online":
+                        self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
+                        self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
+                        self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
+                    elif data[olid][lnkid]["Status"] == "offline":
+                        params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
+                        self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
+                    else:
+                        self._link_removed_cleanup(lnkid)
         self.free_cbt(cbt)
 
     def req_handler_query_visualizer_data(self, cbt):
@@ -155,6 +166,21 @@ class LinkManager(ControllerModule):
         cbt.set_response(vis_data, True if vis_data["LinkManager"] else False)
         self.complete_cbt(cbt)
 
+    def _link_removed_cleanup(self, lnkid):
+        with self._lock:
+            lnk_entry = self._links.pop(lnkid, None)
+            if lnk_entry:
+                peerid = lnk_entry["PeerId"]
+                olid = lnk_entry["OverlayId"]
+                item = self._overlays[olid]["Peers"].pop(peerid, None)
+                # Notify subs of link removal
+                param = {
+                    "UpdateType": "REMOVED", "OverlayId": olid,
+                    "LinkId": lnkid, "PeerId": peerid}
+                self._link_updates_publisher.post_update(param)
+                del(lnk_entry)
+                del(item)
+
     def resp_handler_remove_link(self, cbt):
         parent_cbt = self.get_parent_cbt(cbt)
         if self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
@@ -165,18 +191,7 @@ class LinkManager(ControllerModule):
         data = cbt.response.data
         status = cbt.response.status
         if status:
-            self._lock.acquire()
-            item = self._links.pop(lnkid, None)
-            del(item)
-            item = self._overlays[olid]["Peers"].pop(peer_id, None)
-            del(item)
-            self._lock.release()
-            # Notify subs of link removal
-            param = {
-                "UpdateType": "REMOVED", "OverlayId": olid,
-                "LinkId": lnkid
-                }
-            self._link_updates_publisher.post_update(param)
+            _link_removed_cleanup(lnkid)
         self.free_cbt(cbt)
         if parent_cbt is not None:
             parent_cbt.set_response(data, status)
@@ -221,7 +236,7 @@ class LinkManager(ControllerModule):
         lnkid = uuid.uuid4().hex
         # index for quick peer->link lookup
         self._overlays[overlay_id]["Peers"][peerid] = lnkid
-        self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id)
+        self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peerid)
         self._lock.release()
 
         type = self._cm_config["Overlays"][overlay_id]["Type"]
@@ -328,7 +343,7 @@ class LinkManager(ControllerModule):
                 and peer_id < self._cm_config["Peer_id"])):
             # add/replace to index for quick peer->link lookup
             self._overlays[overlay_id]["Peers"][peer_id] = lnkid
-            self._links[lnkid] = dict(Stats=dict())
+            self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id)
             self._lock.release()
 
             type = self._cm_config["Overlays"][overlay_id]["Type"]
