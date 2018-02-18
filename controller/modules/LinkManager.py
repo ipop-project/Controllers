@@ -161,6 +161,8 @@ class LinkManager(ControllerModule):
                         vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = {
                             "SrcNodeId": node_id,
                             "PeerId": peerid,
+                            "IceRole": self._links[lnkid]["IceRole"],
+                            "Type": self._links[lnkid]["Type"],
                             "Stats": stats
                         }
 
