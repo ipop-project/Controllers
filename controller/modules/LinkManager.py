@@ -158,17 +158,20 @@ class LinkManager(ControllerModule):
                     for peerid in peers:
                         lnkid = peers[peerid]
                         stats = self._links[lnkid]["Stats"]
-                        vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = {
+
+                        link_data = {
                             "SrcNodeId": node_id,
                             "PeerId": peerid,
                             "Stats": stats
                         }
 
                         if "IceRole" in self._links[lnkid]:
-                            vis_data["IceRole"] = self._links[lnkid]["IceRole"]
+                            link_data["IceRole"] = self._links[lnkid]["IceRole"]
 
                         if "Type" in self._links[lnkid]:
-                            vis_data["Type"] = self._links[lnkid]["Type"]
+                            link_data["Type"] = self._links[lnkid]["Type"]
+
+                        vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = link_data
 
         cbt.set_response(vis_data, True if vis_data["LinkManager"] else False)
         self.complete_cbt(cbt)
