@@ -161,9 +161,9 @@ class LinkManager(ControllerModule):
                         vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = {
                             "SrcNodeId": node_id,
                             "PeerId": peerid,
-                            "Type": self._links[lnkid]["Type"],
                             "Stats": stats
                         }
+
                         if "IceRole" in self._links[lnkid]:
                             vis_data["IceRole"] = self._links[lnkid]["IceRole"]
 
