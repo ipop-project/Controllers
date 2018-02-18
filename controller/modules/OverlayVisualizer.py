@@ -94,6 +94,12 @@ class OverlayVisualizer(ControllerModule):
                 collector_msg["Data"][overlay_id] = overlay_data
 
         if collector_msg["Data"]:
+
+            # Read the optional human-readable node name specified in the
+            # configuration and pass it along to the collector
+            if "NodeName" in self._cm_config:
+                collector_msg["NodeName"] = self._cm_config["NodeName"]
+
             data_log = "Visualizer is going to send" \
                   " {}".format(collector_msg)
             self.register_cbt("Logger", "LOG_DEBUG", data_log)

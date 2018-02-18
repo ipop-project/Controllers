@@ -119,22 +119,23 @@ class LinkManager(ControllerModule):
             self.register_cbt("Logger", "LOG_WARNING", "Link stats update error: {0}".format(cbt.response.data))
             return
         data = cbt.response.data
-        with self._lock:
-            for olid in cbt.request.params:
-                for lnkid in data[olid]:
-                    oid = self._links[lnkid]["OverlayId"]
-                    olid = olid
-                    if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
-                        olid = lnkid
-                    if data[olid][lnkid]["Status"] == "online":
-                        self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
-                        self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
-                        self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
-                    elif data[olid][lnkid]["Status"] == "offline":
-                        params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
-                        self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
-                    else:
-                        self._link_removed_cleanup(lnkid)
+        if data:
+            with self._lock:
+                for olid in cbt.request.params:
+                    for lnkid in data[olid]:
+                        oid = self._links[lnkid]["OverlayId"]
+                        olid = olid
+                        if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
+                            olid = lnkid
+                        if data[olid][lnkid]["Status"] == "online":
+                            self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
+                            self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
+                            self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
+                        elif data[olid][lnkid]["Status"] == "offline":
+                            params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
+                            self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
+                        else:
+                            self._link_removed_cleanup(lnkid)
         self.free_cbt(cbt)
 
     def req_handler_query_visualizer_data(self, cbt):
@@ -157,11 +158,20 @@ class LinkManager(ControllerModule):
                     for peerid in peers:
                         lnkid = peers[peerid]
                         stats = self._links[lnkid]["Stats"]
-                        vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = {
+
+                        link_data = {
                             "SrcNodeId": node_id,
                             "PeerId": peerid,
                             "Stats": stats
                         }
+
+                        if "IceRole" in self._links[lnkid]:
+                            link_data["IceRole"] = self._links[lnkid]["IceRole"]
+
+                        if "Type" in self._links[lnkid]:
+                            link_data["Type"] = self._links[lnkid]["Type"]
+
+                        vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = link_data
 
         cbt.set_response(vis_data, True if vis_data["LinkManager"] else False)
         self.complete_cbt(cbt)
