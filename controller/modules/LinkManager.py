@@ -171,6 +171,9 @@ class LinkManager(ControllerModule):
                         if "Type" in self._links[lnkid]:
                             link_data["Type"] = self._links[lnkid]["Type"]
 
+                        if "Status" in self._links[lnkid]:
+                            link_data["Status"] = self._links[lnkid]["Status"]
+
                         vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = link_data
 
         cbt.set_response(vis_data, True if vis_data["LinkManager"] else False)
