@@ -161,10 +161,14 @@ class LinkManager(ControllerModule):
                         vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = {
                             "SrcNodeId": node_id,
                             "PeerId": peerid,
-                            "IceRole": self._links[lnkid]["IceRole"],
                             "Type": self._links[lnkid]["Type"],
                             "Stats": stats
                         }
+                        if "IceRole" in self._links[lnkid]:
+                            vis_data["IceRole"] = self._links[lnkid]["IceRole"]
+
+                        if "Type" in self._links[lnkid]:
+                            vis_data["Type"] = self._links[lnkid]["Type"]
 
         cbt.set_response(vis_data, True if vis_data["LinkManager"] else False)
         self.complete_cbt(cbt)
