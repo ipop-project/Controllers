@@ -119,23 +119,22 @@ class LinkManager(ControllerModule):
             self.register_cbt("Logger", "LOG_WARNING", "Link stats update error: {0}".format(cbt.response.data))
             return
         data = cbt.response.data
-        if data:
-            with self._lock:
-                for olid in cbt.request.params:
-                    for lnkid in data[olid]:
-                        oid = self._links[lnkid]["OverlayId"]
-                        olid = olid
-                        if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
-                            olid = lnkid
-                        if data[olid][lnkid]["Status"] == "online":
-                            self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
-                            self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
-                            self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
-                        elif data[olid][lnkid]["Status"] == "offline":
-                            params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
-                            self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
-                        else:
-                            self._link_removed_cleanup(lnkid)
+        with self._lock:
+            for olid in data:
+                for lnkid in data[olid]:
+                    oid = self._links[lnkid]["OverlayId"]
+                    olid = olid
+                    if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
+                        olid = lnkid
+                    #if data[olid][lnkid]["Status"] == "ONLINE":
+                    self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
+                    self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
+                    self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
+                    #elif data[olid][lnkid]["Status"] == "OFFLINE":
+                    #    params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
+                    #    self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
+                    if data[olid][lnkid]["Status"] == "UNKNOWN":
+                        self._link_removed_cleanup(lnkid)
         self.free_cbt(cbt)
 
     def req_handler_query_visualizer_data(self, cbt):
@@ -196,15 +195,14 @@ class LinkManager(ControllerModule):
 
     def resp_handler_remove_link(self, cbt):
         parent_cbt = self.get_parent_cbt(cbt)
-        if self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
-            olid = cbt.request.params["OID"]
-        else:
+        oid = cbt.request.params["OID"]
+        olid = oid
+        if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
             olid = cbt.request.params["OverlayId"]
         lnkid = cbt.request.params["LinkId"]
         data = cbt.response.data
         status = cbt.response.status
-        if status:
-            _link_removed_cleanup(lnkid)
+        self._link_removed_cleanup(lnkid)
         self.free_cbt(cbt)
         if parent_cbt is not None:
             parent_cbt.set_response(data, status)
@@ -301,8 +299,6 @@ class LinkManager(ControllerModule):
             "OverlayId": overlay_id,
             "LinkId": cbt.request.params["LinkId"],
             "Type": cbt.request.params["Type"],
-            #"EncryptionEnabled": cbt.request.params["EncryptionEnabled"],
-            #"TTL": time.time() + self._cm_config["InitialLinkTTL"]
             "NodeData": {
                     "FPR": resp_data["FPR"],
                     "MAC": resp_data["MAC"],
@@ -563,8 +559,6 @@ class LinkManager(ControllerModule):
 
 
     def process_cbt(self, cbt):
-        #if cbt.request.recipient != "Logger":
-        #    self.register_cbt("Logger", "LOG_DEBUG", "Process CBT:\n{0}".format(cbt))
         if cbt.op_type == "Request":
             if cbt.request.action == "LNK_CREATE_LINK":
                 # Create Link: Phase 1 Node A
