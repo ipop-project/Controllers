@@ -79,7 +79,6 @@ CTL_CREATE_OVERLAY = {
             "TurnAddress": "",
             "TurnUser": "",
             "TurnPass": "",
-            "EnableIPMapping": False,
         }
     }
 }
@@ -92,7 +91,6 @@ CTL_CREATE_LINK = {
             "Command": "CreateLink",
             "OverlayId": "",
             "LinkId": "",
-            "EncryptionEnabled": True,
             "PeerInfo": {
                 "VIP4": "",
                 "UID": "",
@@ -123,25 +121,10 @@ CTL_SEND_ICC = {
             "Command": "SendIcc",
             "LinkId": "",
             "OverlayId": "",
-            "Recipient": "peer_uid",
             "Data": "encoded string"
         }
     }
 }
-
-PACKET = {
-    "IPOP": {
-        "ProtocolVersion": 5,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-            "Command": "UpdateRoutes",
-            "TapName": "",
-            "Data": "encoded_string"
-        }
-    }
-}
-
 INSERT_TAP_PACKET = {
     "IPOP": {
         "ProtocolVersion": 5,
@@ -190,7 +173,6 @@ RESP = {
         }
     }
 }
-
 ADD_FORWARDING_RULE = {
     "IPOP": {
         "ProtocolVersion": 5,
@@ -203,7 +185,6 @@ ADD_FORWARDING_RULE = {
         }
     }
 }
-
 DELETE_FORWARDING_RULE = {
     "IPOP": {
         "ProtocolVersion": 5,
@@ -220,7 +201,6 @@ CTL_QUERY_LINK_STATS = {
     "IPOP": {
         "ProtocolVersion": 5,
         "TransactionId": 0,
-        "Owner": "ModuleName",
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "QueryLinkStats",
@@ -232,7 +212,6 @@ CTL_QUERY_CAS = {
     "IPOP": {
         "ProtocolVersion": 5,
         "TransactionId": 0,
-        "Owner": "",
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "QueryCandidateAddressSet",

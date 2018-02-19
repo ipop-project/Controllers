@@ -380,6 +380,8 @@ class Signal(ControllerModule):
                 self.initiate_remote_action(cbt)
             elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
                 self.query_reporting_data(cbt)
+            else:
+                self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
             if cbt.tag in self._remote_acts:
                 self.complete_remote_action(cbt)

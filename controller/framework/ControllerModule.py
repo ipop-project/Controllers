@@ -51,6 +51,12 @@ class ControllerModule(object):
     def terminate(self):
         pass
 
+    def req_handler_default(self, cbt):
+        log = "Unsupported CBT action {0}".format(cbt)
+        self.register_cbt("Logger", "LOG_WARNING", log)
+        cbt.set_response(log, False)
+        self.complete_cbt(cbt)
+
     # create and submit CBT mask method
     def register_cbt(self, _recipient, _action, _params=None):
         cbt = self._cfx_handle.create_cbt(

@@ -51,9 +51,7 @@ class UsageReport(ControllerModule):
             else:
                 self.free_cbt(cbt)
         else:
-            log = "No Request action is supported in usage report {0}".format(cbt)
-            self.register_cbt("Logger", "LOG_WARNING", log)
-            self.complete_cbt(cbt)
+                self.req_handler_default(cbt)
 
     def timer_method(self):
         cur_time = datetime.datetime.now()

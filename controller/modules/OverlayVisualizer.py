@@ -74,9 +74,7 @@ class OverlayVisualizer(ControllerModule):
                     self.register_cbt("Logger", "LOG_WARNING", warn_msg)
                 self.free_cbt(cbt)
         else:
-            self.register_cbt("Logger", "LOG_WARNING", "Overlay Visualizer does not accept CBT requests")
-            cbt.set_response("Overlay Visualizer does not accept CBT requests", False)
-            self.complete_cbt(cbt)
+                self.req_handler_default(cbt)
 
     def timer_method(self):
         with self._vis_ds_lock:

@@ -43,6 +43,8 @@ class LinkManager(ControllerModule):
     def initialize(self):
         self._link_updates_publisher = \
                 self._cfx_handle.publish_subscription("LNK_DATA_UPDATES")
+        self._cfx_handle.start_subscription("TincanInterface",
+                                            "TCI_TINCAN_MSG_NOTIFY")
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
@@ -59,14 +61,14 @@ class LinkManager(ControllerModule):
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
     def req_handler_remove_link(self, cbt):
-        # TODO: send courtesy terminate link ICC, later.
+        # TODO: send courtesy terminate link ICC.
         olid = cbt.request.params.get("OverlayId", None)
         lnkid = cbt.request.params.get("LinkId", None)
         peer_id = cbt.request.params.get("PeerId", None)
         try:
             if olid is not None and peer_id is not None:
                 lnkid = self._overlays[olid]["Peers"][peer_id]
-                oid = olid				
+                oid = olid
                 if self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
                     olid = lnkid
             elif lnkid is not None:
@@ -118,6 +120,8 @@ class LinkManager(ControllerModule):
         if (not cbt.response.status):
             self.register_cbt("Logger", "LOG_WARNING", "Link stats update error: {0}".format(cbt.response.data))
             return
+        if (not cbt.response.data):
+            return
         data = cbt.response.data
         with self._lock:
             for olid in data:
@@ -126,15 +130,16 @@ class LinkManager(ControllerModule):
                     olid = olid
                     if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
                         olid = lnkid
+                    if data[olid][lnkid]["Status"] == "UNKNOWN":
+                        self._link_removed_cleanup(lnkid)
+                    else:
                     #if data[olid][lnkid]["Status"] == "ONLINE":
-                    self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
-                    self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
-                    self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
+                        self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
+                        self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
+                        self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
                     #elif data[olid][lnkid]["Status"] == "OFFLINE":
                     #    params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
                     #    self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
-                    if data[olid][lnkid]["Status"] == "UNKNOWN":
-                        self._link_removed_cleanup(lnkid)
         self.free_cbt(cbt)
 
     def req_handler_query_visualizer_data(self, cbt):
@@ -254,7 +259,7 @@ class LinkManager(ControllerModule):
         tap_name = self._cm_config["Overlays"][overlay_id]["TapName"]
         olid = overlay_id
         if type == "TUNNEL":
-            tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
+            #tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
             olid = lnkid
 
         create_ovl_params = {
@@ -266,8 +271,6 @@ class LinkManager(ControllerModule):
             "TurnPass": self._cm_config["Turn"][0]["Password"],
             "TurnUser": self._cm_config["Turn"][0]["User"],
             "Type": type,
-            "EnableIPMapping": self._cm_config["Overlays"][overlay_id].get(
-                "EnableIPMapping", False),
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
             "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
@@ -359,7 +362,7 @@ class LinkManager(ControllerModule):
             tap_name = self._cm_config["Overlays"][overlay_id]["TapName"]
             olid = overlay_id
             if type == "TUNNEL":
-                tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
+                #tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
                 olid = lnkid
             create_link_params = {
                 "OLID": overlay_id,
@@ -370,8 +373,6 @@ class LinkManager(ControllerModule):
                 "TurnPass": self._cm_config["Turn"][0]["Password"],
                 "TurnUser": self._cm_config["Turn"][0]["User"],
                 "Type": type,
-                "EnableIPMapping": self._cm_config["Overlays"][overlay_id].get(
-                    "EnableIPMapping", False),
                 "TapName": tap_name,
                 "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
                 "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
@@ -557,6 +558,20 @@ class LinkManager(ControllerModule):
             elif rem_act["Action"] == "LNK_ADD_PEER_CAS":
                 self.complete_create_link_request(parent_cbt)
 
+    def req_handler_tincan_msg(self, cbt):
+        if cbt.request.params["Command"] == "LinkStateChange":
+            if cbt.request.params["Data"] == "LINK_STATE_DOWN":
+                lnkid = cbt.request.params["LinkId"]
+                oid = self._links[lnkid]["OverlayId"]
+                olid = oid
+                if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
+                    olid = lnkid
+                params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
+                self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
+            cbt.set_response(data=None, status=True)
+        else:
+            cbt.set_response(data=None, status=False)
+        self.complete_cbt(cbt)
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
@@ -583,10 +598,10 @@ class LinkManager(ControllerModule):
 
             elif cbt.request.action == "VIS_DATA_REQ":
                 self.req_handler_query_visualizer_data(cbt)
-
+            elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
+                self.req_handler_tincan_msg(cbt)
             else:
-                log = "Unsupported CBT action {0}".format(cbt)
-                self.register_cbt("Logger", "LOG_WARNING", log)
+                self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "SIG_REMOTE_ACTION":
                 # Create Link: Phase 5 Node A
