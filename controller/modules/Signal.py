@@ -240,6 +240,8 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                 return
             elif type == "cmpt":
                 rem_act = json.loads(payload)
+                self._log("Rcvd completed remote act from peer ID: {0}\n Payload: {1}"
+                          .format(rem_act["InitiatorId"], payload), "LOG_DEBUG")
                 tag = rem_act["ActionTag"]
                 cbt_status = rem_act["Status"]
                 pending_cbt = self.cm_mod._cfx_handle._pending_cbts[tag]
@@ -359,19 +361,23 @@ class Signal(ControllerModule):
     def complete_remote_action(self, cbt):
         rem_act = self._remote_acts[cbt.tag]
         olid = rem_act["OverlayId"]
-        peerID = rem_act["InitiatorId"]
+        peer_id = rem_act["InitiatorId"]
         rem_act["Data"] = cbt.response.data
         rem_act["Status"] = cbt.response.status
-        target_jid = self._circles[olid]["JidCache"].lookup(peerID)
+        target_jid = self._circles[olid]["JidCache"].lookup(peer_id)
         xmppobj = self._circles[olid]["Transport"]
         if (target_jid is None):
-            CBTQ = self._circles[olid]["JidRefreshQ"]
-            if peerID not in CBTQ.keys():
-                CBTQ[peerID] = Queue(maxsize=0)
-            CBTQ[peerID].put(("cmpt", rem_act))
-            xmppobj.send_presence(pstatus="uid?#" + peerID)
+            cbt_q = self._circles[olid]["JidRefreshQ"]
+            if peer_id not in cbt_q.keys():
+                cbt_q[peer_id] = Queue(maxsize=0)
+            cbt_q[peer_id].put(("cmpt", rem_act))
+            xmppobj.send_presence(pstatus="uid?#" + peer_id)
         else:
-            xmppobj.send_msg(str(target_jid), "cmpt", json.dumps(rem_act))
+            payload = json.dumps(rem_act)
+            xmppobj.send_msg(str(target_jid), "cmpt", payload)
+            self._log("Sent completed remote act to  peer ID: {0}\n Payload: {1}"
+                        .format(rem_act["InitiatorId"], payload), "LOG_DEBUG")
+
         self.free_cbt(cbt)
 
     def process_cbt(self, cbt):

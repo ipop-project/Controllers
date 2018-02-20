@@ -255,7 +255,7 @@ class LinkManager(ControllerModule):
             tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
             olid = lnkid
         create_ovl_params = {
-            "OLID": overlay_id,
+            "OID": overlay_id,
             "OverlayId": olid,
             "LinkId": lnkid,
             "StunAddress": self._cm_config["Stun"][0],
@@ -279,6 +279,7 @@ class LinkManager(ControllerModule):
     def _create_link_endpoint(self,):
         pass
     def _request_peer_endpoint(self, params, parent_cbt):
+        overlay_id = params["OID"]
         ovl_data = self._overlays[overlay_id]["Descriptor"]
         endp_param = {
             "NodeData": {
@@ -351,12 +352,12 @@ class LinkManager(ControllerModule):
                               .format(parent_cbt.response.data))
             return
         # store the overlay data
-        overlay_id = cbt.request.params["OLID"] # config overlay id
+        overlay_id = cbt.request.params["OID"] # config overlay id
         self._update_overlay_descriptor(resp_data, overlay_id)
         # create and send remote action to request endpoint from peer
         params = copy.deepcopy(cbt.request.params)
         params["OverlayId"] = overlay_id
-        self._request_peer_endpoint(overlay_id, params, cbt)
+        self._request_peer_endpoint(params, parent_cbt)
         self.free_cbt(cbt)
 
     def req_handler_req_link_endpt(self, cbt):
@@ -405,7 +406,7 @@ class LinkManager(ControllerModule):
                 tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
                 olid = lnkid
             create_link_params = {
-                "OLID": overlay_id,
+                "OID": overlay_id,
                 # overlay params
                 "OverlayId": olid,
                 "StunAddress": self._cm_config["Stun"][0],
@@ -449,7 +450,7 @@ class LinkManager(ControllerModule):
             "failed :{}".format(cbt.response.data))
             return
         # store the overlay data
-        self._update_overlay_descriptor(resp_data, cbt.request.params["OLID"])
+        self._update_overlay_descriptor(resp_data, cbt.request.params["OID"])
         # respond with this nodes connection parameters
         node_data = {
             "VIP4": resp_data["VIP4"],
@@ -459,7 +460,7 @@ class LinkManager(ControllerModule):
             "CAS": resp_data["CAS"]
         }
         data = {
-            "OverlayId": cbt.request.params["OLID"],
+            "OverlayId": cbt.request.params["OID"],
             "LinkId": cbt.request.params["LinkId"],
             "NodeData": node_data
         }
@@ -477,7 +478,7 @@ class LinkManager(ControllerModule):
         type = self._cm_config["Overlays"][oid]["Type"]
         if type == "TUNNEL":
             olid = params["LinkId"]
-        cbt_params = {"OLID": oid, "OverlayId": olid,
+        cbt_params = {"OID": oid, "OverlayId": olid,
                 "LinkId": params["LinkId"],
                 "Type": type,
                 "NodeData": {
@@ -495,7 +496,7 @@ class LinkManager(ControllerModule):
         self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 4/5 Node A")
         local_cas = cbt.response.data["CAS"]
         parent_cbt = self.get_parent_cbt(cbt)
-        oid = cbt.request.params["OLID"]
+        oid = cbt.request.params["OID"]
         olid = cbt.request.params["OverlayId"]
         peerid = parent_cbt.request.params["PeerId"]
         params = {
