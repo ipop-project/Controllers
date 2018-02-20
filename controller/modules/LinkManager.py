@@ -91,7 +91,7 @@ class LinkManager(ControllerModule):
         self.submit_cbt(rl_cbt)
 
 # TODO Check locks on self._overlays
-    def update_overlay_descriptor(self, olay_desc, olid):
+    def _update_overlay_descriptor(self, olay_desc, olid):
         if not olid in self._overlays:
             self._overlays[olid] = dict(Descriptor=dict())
         if not "Descriptor" in self._overlays[olid]:
@@ -102,7 +102,7 @@ class LinkManager(ControllerModule):
         self._overlays[olid]["Descriptor"]["FPR"] = olay_desc["FPR"]
         self._overlays[olid]["Descriptor"]["IP4PrefixLen"] = olay_desc["IP4PrefixLen"]
 
-    def query_link_stats(self):
+    def _query_link_stats(self):
         params = []
         self._lock.acquire()
         for olid in self._overlays:
@@ -133,13 +133,9 @@ class LinkManager(ControllerModule):
                     if data[olid][lnkid]["Status"] == "UNKNOWN":
                         self._link_removed_cleanup(lnkid)
                     else:
-                    #if data[olid][lnkid]["Status"] == "ONLINE":
                         self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
                         self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
                         self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
-                    #elif data[olid][lnkid]["Status"] == "OFFLINE":
-                    #    params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
-                    #    self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
         self.free_cbt(cbt)
 
     def req_handler_query_visualizer_data(self, cbt):
@@ -208,12 +204,38 @@ class LinkManager(ControllerModule):
         data = cbt.response.data
         status = cbt.response.status
         self._link_removed_cleanup(lnkid)
+        self.register_cbt("Logger", "LOG_DEBUG", "Link removed {}".format(lnkid))
         self.free_cbt(cbt)
+        if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
+            params = {"OID": oid, "OverlayId": olid}
+            if parent_cbt is not None:
+                rmv_ovl_cbt = self.create_linked_cbt(parent_cbt)
+                rmv_ovl_cbt.set_request(self._module_name, "TincanInterface",
+                                        "TCI_REMOVE_OVERLAY", params)
+            else:
+                rmv_ovl_cbt = self.create_cbt(self._module_name, "TincanInterface",
+                                            "TCI_REMOVE_OVERLAY", params)
+            self.submit_cbt(rmv_ovl_cbt)
+        else:
+            if parent_cbt is not None:
+                parent_cbt.set_response(data, status)
+                self.complete_cbt(parent_cbt)
+
+    def resp_handler_remove_overlay(self, rmv_ovl_cbt):
+        """
+        Remove the overlay meta data. Even of the CBT fails it is safe to discard
+        as this is because Tincan has to record of it.
+        """ 
+        parent_cbt = self.get_parent_cbt(rmv_ovl_cbt)
+        oid = rmv_ovl_cbt.request.params["OID"]
+        olid = rmv_ovl_cbt.request.params["OverlayId"]
+        ovl_dscr = self._overlays[oid].pop("Descriptor", None)
+        del(ovl_dscr)
         if parent_cbt is not None:
             parent_cbt.set_response(data, status)
             self.complete_cbt(parent_cbt)
-
-
+        self.register_cbt("Logger", "LOG_DEBUG", "Overlay removed {}".format(olid))
+        
     def req_handler_query_link_info(self, cbt):
         olid = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["LinkId"]
@@ -222,6 +244,63 @@ class LinkManager(ControllerModule):
         cbt.set_response(self._links[lnkid]["Stats"], status=True)
         self._lock.release()
         self.complete_cbt(cbt)
+
+    def _create_overlay(self, params, parent_cbt=None):
+        overlay_id = params["OverlayId"]
+        type = self._cm_config["Overlays"][overlay_id]["Type"]
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"]
+        lnkid = params["LinkId"]
+        olid = overlay_id
+        if type == "TUNNEL":
+            tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
+            olid = lnkid
+        create_ovl_params = {
+            "OLID": overlay_id,
+            "OverlayId": olid,
+            "LinkId": lnkid,
+            "StunAddress": self._cm_config["Stun"][0],
+            "TurnAddress": self._cm_config["Turn"][0]["Address"],
+            "TurnPass": self._cm_config["Turn"][0]["Password"],
+            "TurnUser": self._cm_config["Turn"][0]["User"],
+            "Type": type,
+            "TapName": tap_name,
+            "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
+            "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
+            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
+        }
+        if parent_cbt is not None:
+            ovl_cbt = self.create_linked_cbt(parent_cbt)
+            ovl_cbt.set_request(self._module_name, "TincanInterface",
+                             "TCI_CREATE_OVERLAY", create_ovl_params)
+        else:
+            ovl_cbt = self.create_cbt(self._module_name, "TincanInterface",
+                             "TCI_CREATE_OVERLAY", create_ovl_params)
+        self.submit_cbt(ovl_cbt)
+    def _create_link_endpoint(self,):
+        pass
+    def _request_peer_endpoint(self, params, parent_cbt):
+        ovl_data = self._overlays[overlay_id]["Descriptor"]
+        endp_param = {
+            "NodeData": {
+                    "FPR": ovl_data["FPR"],
+                    "MAC": ovl_data["MAC"],
+                    "UID": self._cm_config["NodeId"],
+                    "VIP4": ovl_data["VIP4"]}}
+        endp_param.update(params)
+        remote_act = dict(OverlayId=overlay_id,
+                          RecipientId=parent_cbt.request.params["PeerId"],
+                          RecipientCM="LinkManager",
+                          Action="LNK_REQ_LINK_ENDPT",
+                          Params=endp_param)
+        if parent_cbt is not None:
+            endp_cbt = self.create_linked_cbt(parent_cbt)
+            endp_cbt.set_request(self._module_name, "Signal",
+                                "SIG_REMOTE_ACTION", remote_act)
+        else:
+            endp_cbt = self.create_cbt(self._module_name, "Signal",
+                                      "SIG_REMOTE_ACTION",remote_act)
+        # Send the message via SIG server to peer
+        self.submit_cbt(endp_cbt)
 
     def req_handler_create_link(self, cbt):
         """
@@ -239,47 +318,24 @@ class LinkManager(ControllerModule):
         self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 1/5 Node A")
         overlay_id = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["PeerId"]
-        self._lock.acquire()
-        if peerid in self._overlays[overlay_id]["Peers"]:
-            # Link already exists, TM should clean up first
-            self._lock.release()
-            cbt.set_response("A link already exist or is being created for "
-                             "overlay id: {0} peer id: {1}"
-                             .format(overlay_id,peerid), False)
-            self.complete_cbt(cbt)
-            return
-
-        lnkid = uuid.uuid4().hex
-        # index for quick peer->link lookup
-        self._overlays[overlay_id]["Peers"][peerid] = lnkid
-        self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peerid)
-        self._lock.release()
-
-        type = self._cm_config["Overlays"][overlay_id]["Type"]
-        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"]
-        olid = overlay_id
-        if type == "TUNNEL":
-            #tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
-            olid = lnkid
-
-        create_ovl_params = {
-            "OLID": overlay_id,
-            "OverlayId": olid,
-            "LinkId": lnkid,
-            "StunAddress": self._cm_config["Stun"][0],
-            "TurnAddress": self._cm_config["Turn"][0]["Address"],
-            "TurnPass": self._cm_config["Turn"][0]["Password"],
-            "TurnUser": self._cm_config["Turn"][0]["User"],
-            "Type": type,
-            "TapName": tap_name,
-            "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
-            "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
-            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
-        }
-        lcbt = self.create_linked_cbt(cbt)
-        lcbt.set_request(self._module_name, "TincanInterface",
-                         "TCI_CREATE_OVERLAY", create_ovl_params)
-        self.submit_cbt(lcbt)
+        with self._lock:
+            if peerid in self._overlays[overlay_id]["Peers"]:
+                # Link already exists, TM should clean up first
+                cbt.set_response("A link already exist or is being created for "
+                                    "overlay id: {0} peer id: {1}"
+                                    .format(overlay_id,peerid), False)
+                self.complete_cbt(cbt)
+                return
+            lnkid = uuid.uuid4().hex
+            # index for quick peer->link lookup
+            self._overlays[overlay_id]["Peers"][peerid] = lnkid
+            self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peerid)
+        params = {"OverlayId": overlay_id, "LinkId": lnkid, 
+                  "Type": self._cm_config["Overlays"][overlay_id]["Type"]}
+        if "Discriptor" not in self._overlays[overlay_id]:
+            self._create_overlay(params, parent_cbt=cbt)
+        else:
+            self._request_peer_endpoint(params, parent_cbt=cbt)
 
     def resp_handler_create_overlay(self, cbt):
         # Create Link: Phase 2 Node A
@@ -296,27 +352,11 @@ class LinkManager(ControllerModule):
             return
         # store the overlay data
         overlay_id = cbt.request.params["OLID"] # config overlay id
-        self.update_overlay_descriptor(resp_data, overlay_id)
-        # create and send remote action to request endpoint from peer 
-        param = {
-            "OverlayId": overlay_id,
-            "LinkId": cbt.request.params["LinkId"],
-            "Type": cbt.request.params["Type"],
-            "NodeData": {
-                    "FPR": resp_data["FPR"],
-                    "MAC": resp_data["MAC"],
-                    "UID": self._cm_config["NodeId"],
-                    "VIP4": resp_data["VIP4"]}}
-        remote_act = dict(OverlayId=overlay_id,
-                          RecipientId=parent_cbt.request.params["PeerId"],
-                          RecipientCM="LinkManager",
-                          Action="LNK_REQ_LINK_ENDPT",
-                          Params=param)
-        lcbt = self.create_linked_cbt(parent_cbt)
-        # Send the message via SIG server to peer node
-        lcbt.set_request(self._module_name, "Signal", "SIG_REMOTE_ACTION",
-                         remote_act)
-        self.submit_cbt(lcbt)
+        self._update_overlay_descriptor(resp_data, overlay_id)
+        # create and send remote action to request endpoint from peer
+        params = copy.deepcopy(cbt.request.params)
+        params["OverlayId"] = overlay_id
+        self._request_peer_endpoint(overlay_id, params, cbt)
         self.free_cbt(cbt)
 
     def req_handler_req_link_endpt(self, cbt):
@@ -362,7 +402,7 @@ class LinkManager(ControllerModule):
             tap_name = self._cm_config["Overlays"][overlay_id]["TapName"]
             olid = overlay_id
             if type == "TUNNEL":
-                #tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
+                tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
                 olid = lnkid
             create_link_params = {
                 "OLID": overlay_id,
@@ -409,7 +449,7 @@ class LinkManager(ControllerModule):
             "failed :{}".format(cbt.response.data))
             return
         # store the overlay data
-        self.update_overlay_descriptor(resp_data, cbt.request.params["OLID"])
+        self._update_overlay_descriptor(resp_data, cbt.request.params["OLID"])
         # respond with this nodes connection parameters
         node_data = {
             "VIP4": resp_data["VIP4"],
@@ -598,6 +638,7 @@ class LinkManager(ControllerModule):
 
             elif cbt.request.action == "VIS_DATA_REQ":
                 self.req_handler_query_visualizer_data(cbt)
+
             elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
                 self.req_handler_tincan_msg(cbt)
             else:
@@ -623,11 +664,15 @@ class LinkManager(ControllerModule):
                 # Retrieved our node data for response
                 self.resp_handler_create_overlay(cbt)
 
+            elif cbt.request.action == "TCI_QUERY_LINK_STATS":
+                self.resp_handler_query_link_stats(cbt)
+
             elif cbt.request.action == "TCI_REMOVE_LINK":
                 self.resp_handler_remove_link(cbt)
 
-            elif cbt.request.action == "TCI_QUERY_LINK_STATS":
-                self.resp_handler_query_link_stats(cbt)
+            elif cbt.request.action == "TCI_REMOVE_OVERLAY":
+                self.resp_handler_remove_overlay(cbt)
+
             else:
                 parent_cbt = self.get_parent_cbt(cbt)
                 cbt_data = cbt.response.data
@@ -638,7 +683,7 @@ class LinkManager(ControllerModule):
                     self.complete_cbt(parent_cbt)
 
     def timer_method(self):
-        self.query_link_stats()
+        self._query_link_stats()
 
     def terminate(self):
         pass

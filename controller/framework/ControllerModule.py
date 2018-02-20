@@ -68,8 +68,8 @@ class ControllerModule(object):
         self._cfx_handle.submit_cbt(cbt)
         return cbt
 
-    def create_cbt(self, initiator, recipient, action, data=None):
-        return self._cfx_handle.create_cbt(initiator, recipient, action, data)
+    def create_cbt(self, initiator, recipient, action, params=None):
+        return self._cfx_handle.create_cbt(initiator, recipient, action, params)
 
     def create_linked_cbt(self, parent):
         return self._cfx_handle.create_linked_cbt(parent)
