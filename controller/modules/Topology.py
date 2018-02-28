@@ -26,11 +26,13 @@ try:
 except ImportError:
     import json
 from collections import defaultdict
+import threading
 
 class Topology(ControllerModule, CFX):
     def __init__(self, cfx_handle, module_config, module_name):
         super(Topology, self).__init__(cfx_handle, module_config, module_name)
         self._overlays = {}
+        self._lock = threading.Lock()
 
     def initialize(self):
         self._cfx_handle.start_subscription("Signal",
@@ -85,23 +87,25 @@ class Topology(ControllerModule, CFX):
     def resp_handler_create_link(self, cbt):
         olid = cbt.request.params["OverlayId"]
         peer_id = cbt.request.params["PeerId"]
-        if cbt.response.status:
-            self._overlays[olid]["Peers"][peer_id] = "PeerStateConnected"
-        else:
-            self._overlays[olid]["Peers"].pop(peer_id, None)
-            self.register_cbt("Logger", "LOG_WARNING",
-                              "Link Creation Failed {0}".format(cbt.response.data))
+        with self._lock:
+            if cbt.response.status:
+                self._overlays[olid]["Peers"][peer_id] = "PeerStateConnected"
+            else:
+                self._overlays[olid]["Peers"].pop(peer_id, None)
+                self.register_cbt("Logger", "LOG_WARNING",
+                                  "Link Creation Failed {0}".format(cbt.response.data))
 
     def resp_handler_query_overlay_info(self, cbt):
         if cbt.response.status:
-            olid = cbt.request.params["OverlayId"]
-            self._overlays[olid]["Descriptor"]["IsReady"] = cbt.response.status
-            cbt_data = json.loads(cbt.response.data)
-            self._overlays[olid]["Descriptor"]["MAC"] = cbt_data["MAC"]
-            self._overlays[olid]["Descriptor"]["IP4PrefixLen"] = cbt_data["IP4PrefixLen"]
-            self._overlays[olid]["Descriptor"]["VIP4"] = cbt_data["VIP4"]
-            self._overlays[olid]["Descriptor"]["TapName"] = cbt_data["TapName"]
-            self._overlays[olid]["Descriptor"]["FPR"] = cbt_data["FPR"]
+            with self._lock:
+                olid = cbt.request.params["OverlayId"]
+                self._overlays[olid]["Descriptor"]["IsReady"] = cbt.response.status
+                cbt_data = json.loads(cbt.response.data)
+                self._overlays[olid]["Descriptor"]["MAC"] = cbt_data["MAC"]
+                self._overlays[olid]["Descriptor"]["IP4PrefixLen"] = cbt_data["IP4PrefixLen"]
+                self._overlays[olid]["Descriptor"]["VIP4"] = cbt_data["VIP4"]
+                self._overlays[olid]["Descriptor"]["TapName"] = cbt_data["TapName"]
+                self._overlays[olid]["Descriptor"]["FPR"] = cbt_data["FPR"]
         else:
             self.register_cbt("Logger", "LOG_INFO",
                               "Query overlay info failed {0}".format(cbt.response.data))
@@ -109,42 +113,45 @@ class Topology(ControllerModule, CFX):
             self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", cbt.request.params)
 
     def req_handler_peer_presence(self, cbt):
-        peer = cbt.request.params
-        self._overlays[peer["OverlayId"]]["Peers"][peer["PeerId"]] = "PeerStateAvailable"
-        self._overlays[peer["OverlayId"]]["Descriptor"]["State"] = "Isolated"
-        self.connect_to_peer(peer["OverlayId"], peer["PeerId"])
-        cbt.set_response(None, True)
-        self.complete_cbt(cbt)
+        with self._lock:
+            peer = cbt.request.params
+            self._overlays[peer["OverlayId"]]["Peers"][peer["PeerId"]] = "PeerStateAvailable"
+            self._overlays[peer["OverlayId"]]["Descriptor"]["State"] = "Isolated"
+            self.connect_to_peer(peer["OverlayId"], peer["PeerId"])
+            cbt.set_response(None, True)
+            self.complete_cbt(cbt)
 
     def req_handler_query_peer_ids(self, cbt):
         peer_ids = {}
         try:
-            for olid in self._cm_config["Overlays"]:
-                peer_ids[olid] = set(self._overlays[olid]["Peers"].keys())
-            cbt.set_response(data=peer_ids, status=True)
-            self.complete_cbt(cbt)
+            with self._lock:
+                for olid in self._cm_config["Overlays"]:
+                    peer_ids[olid] = set(self._overlays[olid]["Peers"].keys())
+                cbt.set_response(data=peer_ids, status=True)
+                self.complete_cbt(cbt)
         except KeyError:
             cbt.set_response(data=None, status=False)
             self.complete_cbt(cbt)
             self.register_cbt("Logger", "LOG_WARNING", "Overlay Id is not valid {0}".format(cbt.response.data))
 
-    def vis_data_response(self, cbt):
+    def req_handler_vis_data(self, cbt):
         topo_data = defaultdict(dict)
         try:
-            for olid in self._overlays:
-                ks = [peer_id for peer_id in self._overlays[olid]["Peers"]]
-                if ks:
-                    topo_data[olid] = ks
+            with self._lock:
+                for olid in self._overlays:
+                    ks = [peer_id for peer_id in self._overlays[olid]["Peers"]]
+                    if ks:
+                        topo_data[olid] = ks
 
-            cbt.set_response({"Topology": topo_data},
-                             True if topo_data else False)
-            self.complete_cbt(cbt)
+                cbt.set_response({"Topology": topo_data},
+                                 True if topo_data else False)
+                self.complete_cbt(cbt)
         except KeyError:
             cbt.set_response(data=None, status=False)
             self.complete_cbt(cbt)
             self.register_cbt("Logger", "LOG_WARNING", "Topology data not available {0}".format(cbt.response.data))
 
-    def _broadcast_frame(self, cbt):
+    def req_handler_broadcast_frame(self, cbt):
         if cbt.request.params["Command"] == "ReqRouteUpdate":
             eth_frame = cbt.request.params["Data"]
             tgt_mac_id = eth_frame[:12]
@@ -163,15 +170,17 @@ class Topology(ControllerModule, CFX):
 
         self.complete_cbt(cbt)
     
-    def link_data_update_handler(self, cbt):
+    def req_handler_link_data_update(self, cbt):
         params = cbt.request.params
         olid = params["OverlayId"]
         linkid = params["LinkId"]
-        if params["UpdateType"] == "ADDED":
-            self._links[linkid] = params["PeerId"]
-        elif params["UpdateType"] == "REMOVED":
-            peer = self._links.pop(linkid, None)
-            self._overlays[olid]["Peers"].pop(peer)
+        with self._lock:
+            if params["UpdateType"] == "ADDED":
+                self._links[linkid] = params["PeerId"]
+            elif params["UpdateType"] == "REMOVED":
+                peerid = self._links.pop(linkid, None)
+                if peerid:
+                    self._overlays[olid]["Peers"].pop(peerid, None)
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
 
@@ -180,13 +189,15 @@ class Topology(ControllerModule, CFX):
             if cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
                 self.req_handler_peer_presence(cbt)
             elif cbt.request.action == "VIS_DATA_REQ":
-                self.vis_data_response(cbt)
+                self.req_handler_vis_data(cbt)
             elif cbt.request.action == "TOP_QUERY_PEER_IDS":
                 self.req_handler_query_peer_ids(cbt)
             elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
-                self._broadcast_frame(cbt)
+                self.req_handler_broadcast_frame(cbt)
             elif cbt.request.action == "LNK_DATA_UPDATES":
-                self.link_data_update_handler(cbt)
+                self.req_handler_link_data_update(cbt)
+            else:
+                self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
                 self.resp_handler_query_overlay_info(cbt)
@@ -195,7 +206,7 @@ class Topology(ControllerModule, CFX):
             elif cbt.request.action == "BDC_BROADCAST":
                 if not cbt.response.status:
                     self.register_cbt(
-                        "Logger", "LOG_WARNING",
+                        "Logger", "LOG_INFO",
                         "Broadcast failed. Data: {0}".format(
                             cbt.response.data))
 

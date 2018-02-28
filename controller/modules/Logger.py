@@ -88,9 +88,10 @@ class Logger(ControllerModule):
             elif cbt.request.action == "LOG_QUERY_CONFIG":
                 cbt.set_response(self._cm_config, True)
             else:
-                log = "Unsupported CBT action in request {0}".format(cbt)
+                log = "Unsupported CBT action {0}".format(cbt)
                 self.logger.warning("{0}: {1}".format(self._module_name, log))
-            self._cfx_handle.complete_cbt(cbt)
+                cbt.set_response(log, False)
+            self.complete_cbt(cbt)
         elif cbt.op_type == "Response":
             self.free_cbt(cbt)
 

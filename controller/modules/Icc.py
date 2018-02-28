@@ -59,9 +59,7 @@ class Icc(ControllerModule):
             for peerid in self._links[overlayid]["Peers"]:
                 if self._links[overlayid]["Peers"][peerid] == linkid:
                     del self._links[overlayid]["Peers"][peerid]
-                    if self._links[overlayid]["Peers"][peerid] == {}:
-                        del self._links[overlayid]["Peers"][peerid]
-                    if self._links[overlayid]["Peers"] == {}:
+                    if len(self._links[overlayid]["Peers"]) == 0:
                         del self._links[overlayid]
                     break
         self.register_cbt("Logger","LOG_INFO","Received Link Updates")
@@ -130,7 +128,14 @@ class Icc(ControllerModule):
         rem_act = cbt.request.params
         peerid = rem_act["RecipientId"]
         overlayid = rem_act["OverlayId"]
-
+        if self._links.get(overlayid, False):
+            cbt.set_response("Invalid overlay id for send remote action", False)
+            self.complete_cbt(cbt)
+            return
+        if self._links[overlayid]["Peers"].get(peerid, False):
+            cbt.set_response("Invalid peer id for send remote action", False)
+            self.complete_cbt(cbt)
+            return
         linkid = self._links[overlayid]["Peers"][peerid]
         rem_act["InitiatorId"] = self._cm_config["NodeId"]
         rem_act["InitiatorCM"] = cbt.request.initiator
@@ -216,7 +221,7 @@ class Icc(ControllerModule):
         # Failure responses from TincanInterface
         # Common for both Data delivery & Remote Action requests
         if not cbt.response.status:
-            pcbt = self._cfx_handle.pending_cbts[cbt_data["ActionTag"]]
+            pcbt = self._cfx_handle._pending_cbts[cbt_data["ActionTag"]]
             pcbt.set_response("Failed to send ICC", False)
             self.complete_cbt(pcbt)
         
@@ -245,7 +250,8 @@ class Icc(ControllerModule):
 
             elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
                 self.recieve_icc(cbt)
-
+            else:
+                self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "TCI_ICC":
                 self.resp_handler_tc_icc(cbt)

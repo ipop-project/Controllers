@@ -43,54 +43,7 @@ class Broadcaster(ControllerModule):
         self.register_cbt("Logger", "LOG_INFO", "{} module"
                 " loaded".format(self._module_name))
 
-    def process_cbt(self, cbt):
-        if cbt.op_type == "Request":
-            if cbt.request.action == "BDC_BROADCAST":
-                if not self._overlay_peers:
-                    # Get all peers from Topology
-                    lcbt = self.create_linked_cbt(cbt)
-                    lcbt.set_request(self._module_name, "Topology",
-                                     "TOP_QUERY_PEER_IDS", "BuildCache")
-                    self.submit_cbt(lcbt)
-                else:
-                    self._handle_resp_top_query_peer_ids(cbt.request.params)
-            else:
-                errlog = "Unsupported CBT action requested. CBT: "\
-                    "{}".format(cbt)
-                self.register_cbt("Logger", "LOG_WARNING", errlog)
-
-        elif cbt.op_type == "Response":
-            if not cbt.response.status:
-                self.register_cbt(
-                    "Logger", "LOG_WARNING",
-                    "CBT failed {0}".format(cbt.response.data))
-                parent_cbt = self.get_parent_cbt(cbt)
-                self.free_cbt(cbt)
-                if parent_cbt:
-                    self.complete_cbt(parent_cbt, status=False)
-
-                return
-
-            if cbt.request.action == "TOP_QUERY_PEER_IDS":
-                if cbt.request.params == "RefreshCache":
-                    with self._overlay_peers_lock:
-                        self._overlay_peers = cbt.response.data
-                    self.free_cbt(cbt)
-                elif cbt.request.params == "BuildCache":
-                    with self._overlay_peers_lock:
-                        self._overlay_peers = cbt.response.data
-
-                    bcast_data = self.get_parent_cbt(cbt).request.params
-                    self._handle_resp_top_query_peer_ids(bcast_data)
-                    parent_cbt = self.get_parent_cbt(cbt)
-                    # free child first
-                    self.free_cbt(cbt)
-                    # then complete parent
-                    self.complete_cbt(parent_cbt)
-            elif cbt.request.action == "ICC_REMOTE_ACTION":
-                self.free_cbt(cbt)
-
-    def _handle_resp_top_query_peer_ids(self, bcast_data):
+    def _bcast_on_icc(self, bcast_data):
         for recipient_id in self._overlay_peers[bcast_data["overlay_id"]]:
             icc_req = {
                 "OverlayId": bcast_data["overlay_id"],
@@ -105,8 +58,57 @@ class Broadcaster(ControllerModule):
             self.register_cbt("Icc",
                               "ICC_REMOTE_ACTION", icc_req)
 
+    def req_handler_broadcast(self, cbt):
+        if self._overlay_peers:
+            self._bcast_on_icc(cbt.request.params)
+        else:
+            # Get all peers from Topology
+            lcbt = self.create_linked_cbt(cbt)
+            lcbt.set_request(self._module_name, "Topology",
+                                "TOP_QUERY_PEER_IDS", "BuildCache")
+            self.submit_cbt(lcbt)
+
+    def resp_handler_remote_act(self, cbt):
+        if not cbt.response.status:
+            self._overlay_peers = None
+            self.register_cbt("Topology", "TOP_QUERY_PEER_IDS", "RefreshCache")
+        parent_cbt = self.get_parent_cbt(cbt)
+        self.free_cbt(cbt)
+        if parent_cbt:
+            parent_cbt.set_response(None, cbt.response.status)
+            self.complete_cbt(parent_cbt)
+
+    def resp_handler_query_peers(self, cbt):
+        if cbt.request.params == "RefreshCache":
+            with self._overlay_peers_lock:
+                self._overlay_peers = cbt.response.data
+            self.free_cbt(cbt)
+        elif cbt.request.params == "BuildCache":
+            with self._overlay_peers_lock:
+                self._overlay_peers = cbt.response.data
+
+            bcast_data = self.get_parent_cbt(cbt).request.params
+            self._bcast_on_icc(bcast_data)
+            parent_cbt = self.get_parent_cbt(cbt)
+            # free child first
+            self.free_cbt(cbt)
+            # then complete parent
+            self.complete_cbt(parent_cbt)
+
+    def process_cbt(self, cbt):
+        if cbt.op_type == "Request":
+            if cbt.request.action == "BDC_BROADCAST":
+                self.req_handler_broadcast(cbt)
+            else:
+                self.req_handler_default(cbt)
+        elif cbt.op_type == "Response":
+            if cbt.request.action == "TOP_QUERY_PEER_IDS":
+                self.resp_handler_query_peers(cbt)
+            elif cbt.request.action == "ICC_REMOTE_ACTION":
+                self.resp_handler_remote_act(cbt)
+
     def timer_method(self):
-        self.register_cbt("Topology", "TOP_QUERY_PEERS_IDS", "RefreshCache")
+        self.register_cbt("Topology", "TOP_QUERY_PEER_IDS", "RefreshCache")
 
     def terminate(self):
         pass

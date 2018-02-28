@@ -137,7 +137,6 @@ class TincanInterface(ControllerModule):
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         req["LinkId"] = msg["LinkId"]
-        req["EncryptionEnabled"] = msg.get("EncryptionEnabled")
         req["PeerInfo"]["VIP4"] = msg["NodeData"].get("VIP4")
         req["PeerInfo"]["UID"] = msg["NodeData"].get("UID")
         req["PeerInfo"]["MAC"] = msg["NodeData"].get("MAC")
@@ -148,7 +147,6 @@ class TincanInterface(ControllerModule):
         req["TurnAddress"] = msg.get("TurnAddress")
         req["TurnPass"] = msg.get("TurnPass")
         req["TurnUser"] = msg.get("TurnUser")
-        req["EnableIPMapping"] = msg.get("EnableIPMapping")
         req["Type"] = msg["Type"]
         req["TapName"] = msg.get("TapName")
         req["IP4"] = msg.get("IP4")
@@ -165,7 +163,6 @@ class TincanInterface(ControllerModule):
         req["TurnAddress"] = msg["TurnAddress"]
         req["TurnPass"] = msg["TurnPass"]
         req["TurnUser"] = msg["TurnUser"]
-        req["EnableIPMapping"] = msg["EnableIPMapping"]
         req["Type"] = msg["Type"]
         req["TapName"] = msg["TapName"]
         req["IP4"] = msg["IP4"]
@@ -276,6 +273,8 @@ class TincanInterface(ControllerModule):
             elif cbt.request.action == "TCI_SET_IGNORED_NET_INTERFACES":
                 self.req_handler_set_ignored_net_interfaces(cbt)
 
+            else:
+                self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "LOG_QUERY_CONFIG":
                 self.configure_tincan_logging(cbt.response.data, 
