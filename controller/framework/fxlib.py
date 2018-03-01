@@ -81,7 +81,7 @@ CONFIG = {
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "Icc": {
-        "Enabled": False,
+        "Enabled": True,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "Broadcaster": {
@@ -90,7 +90,7 @@ CONFIG = {
         "Dependencies": ["Logger", "Topology", "Icc"]
     },
     "UsageReport": {
-        "Enabled": False,
+        "Enabled": True,
         "TimerInterval": 200,
         "ServerAddress": "metrics.ipop-project.org",
         "ServerPort": 8081,
