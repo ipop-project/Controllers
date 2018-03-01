@@ -93,7 +93,7 @@ CONFIG = {
         "Enabled": False,
         "TimerInterval": 200,
         "ServerAddress": "metrics.ipop-project.org",
-        "ServerPort": 8080,
+        "ServerPort": 8081,
         "Dependencies": ["Logger", "Signal"]
     }
 }

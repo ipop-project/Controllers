@@ -253,7 +253,7 @@ class LinkManager(ControllerModule):
         lnkid = params["LinkId"]
         olid = overlay_id
         if type == "TUNNEL":
-            tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
+            tap_name = tap_name[:8] + str(lnkid[:7]) # to avoid name collision
             olid = lnkid
         create_ovl_params = {
             "OID": overlay_id,
@@ -421,7 +421,7 @@ class LinkManager(ControllerModule):
         tap_name = self._cm_config["Overlays"][overlay_id]["TapName"]
         olid = overlay_id
         if type == "TUNNEL":
-            tap_name = tap_name + str(lnkid[:7]) # to avoid name collision
+            tap_name = tap_name[:8] + str(lnkid[:7]) # to avoid name collision
             olid = lnkid
         create_link_params = {
             "OID": overlay_id,
