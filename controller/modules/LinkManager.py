@@ -393,7 +393,7 @@ class LinkManager(ControllerModule):
         """
         # Node A, fails the request. Things then proceed as normal
         if (peer_id in self._overlays[overlay_id]["Peers"]
-                and peer_id < self._cm_config["PeerId"]):
+                and peer_id < self._cm_config["NodeId"]):
             cbt.set_response("LNK_REQ_LINK_ENDPT denied", False)
             self.complete_cbt(cbt)
             self._lock.release()
