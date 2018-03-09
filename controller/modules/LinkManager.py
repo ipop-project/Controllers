@@ -333,7 +333,7 @@ class LinkManager(ControllerModule):
             self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peerid)
         params = {"OverlayId": overlay_id, "LinkId": lnkid, 
                   "Type": self._cm_config["Overlays"][overlay_id]["Type"]}
-        if "Discriptor" not in self._overlays[overlay_id]:
+        if "Descriptor" not in self._overlays[overlay_id]:
             self._create_overlay(params, parent_cbt=cbt)
         else:
             self._request_peer_endpoint(params, parent_cbt=cbt)
