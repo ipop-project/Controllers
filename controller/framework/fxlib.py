@@ -19,93 +19,85 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import hashlib
-import socket
-ipopVerMjr = "17"
-ipopVerMnr = "07"
-ipopVerRev = "0"
-ipopVerRel = "{0}.{1}.{2}".format(ipopVerMjr, ipopVerMnr, ipopVerRev)
+IPOP_VER_MJR = "18"
+IPOP_VER_MNR = "04"
+IPOP_VER_REV = "0"
+IPOP_VER_REL = "{0}.{1}.{2}".format(IPOP_VER_MJR, IPOP_VER_MNR, IPOP_VER_REV)
 
 # set default config values
+MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
+                "Signal", "LinkManager", "Topology", "Icc", "Broadcaster",
+                "UsageReport"]
 CONFIG = {
     "CFx": {
-        "local_uid": "",  # Attribute to store node UID needed by Statreport and SVPN
-        "uid_size": 40,   # No of bytes for node UID
-        "ipopVerRel": ipopVerRel,
+        "NodeId": "",  # Single unique node Id for all overlays
+        "IpopVersion": IPOP_VER_REL,
+        "Model": "Default"
     },
     "Logger": {
         "Enabled": True,
         "LogLevel": "ERROR",      # Types of messages to log, <ERROR>/<WARNING>/<INFO>/<DEBUG>
-        "LogOption": "File",      # Send logging output to <File> or <Console>
-        "LogFilePath": "./logs/",
+        "Device": "File",      # Send logging output to <File> or <Console>
+        "Directory": "./logs/",
         "CtrlLogFileName": "ctrl.log",
-        "TincanLogFileName": "tincan.log",
-        "LogFileSize": 1000000,   # 1MB sized log files
-        "BackupLogFileCount": 5,   # Keep up to 5 files of history
+        "TincanLogFileName": "tincan_log",
+        "MaxFileSize": 1000000,   # 1MB sized log files
+        "MaxArchives": 5,   # Keep up to 5 files of history
         "ConsoleLevel": None
     },
-    "TincanInterface": {
-        "buf_size": 65507,      # Max buffer size for Tincan Messages
-        "SocketReadWaitTime": 15,   # Socket read wait time for Tincan Messages
-        "ctrl_recv_port": 5801,     # Controller UDP Listening Port
-        "ip6_prefix": "fd50:0dbc:41f2:4a3c",
-        "localhost": "127.0.0.1",
-        "ctrl_send_port": 5800,     # Tincan UDP Listening Port
-        "localhost6": "::1",
-        "dependencies": ["Logger"]
-    },
-    "LinkManager": {
-        "Enabled": True,
-        "TimerInterval": 10,                # Timer thread interval in sec
-        "InitialLinkTTL": 120,              # Initial Time to Live for a p2p link in sec
-        "LinkPulse": 180,                   # Time to Live for an online p2p link in sec
-        "MaxConnRetry": 5,                  # Max Connection Retry attempts for each p2p link
-        "dependencies": ["Logger", "TincanInterface"]
-    },
-    "BroadcastForwarder": {
-        "Enabled": True,
-        "TimerInterval": 10,                # Timer thread interval in sec
-        "dependencies": ["Logger", "TincanInterface", "LinkManager"]
-    },
-    "ArpCache": {
-        "Enabled": True,
-        "dependencies": ["Logger", "TincanInterface", "LinkManager"]
-    },
-    "IPMulticast": {
+    "OverlayVisualizer": {
         "Enabled": False,
-        "dependencies": ["Logger", "TincanInterface", "LinkManager"]
+        "TimerInterval": 15,                # Timer thread interval
+        "WebServiceAddress": ":5000",       # Visualizer webservice URL
+        "NodeName": "",                     # Node Name as seen from the UI
+        "Dependencies": ["Logger"]
+    },
+    "TincanInterface": {
+        "Enabled": True,
+        "MaxReadSize": 65507,               # Max buffer size for Tincan Messages
+        "SocketReadWaitTime": 15,           # Socket read wait time for Tincan Messages
+        "RcvServiceAddress": "127.0.0.1",   # Controller server address
+        "SndServiceAddress": "127.0.0.1",   # Tincan server address
+        "RcvServiceAddress6": "::1",
+        "SndServiceAddress6": "::1",
+        "CtrlRecvPort": 5801,               # Controller Listening Port
+        "CtrlSendPort": 5800,               # Tincan Listening Port
+        "Dependencies": ["Logger"]
     },
     "Signal": {
         "Enabled": True,
-        "TimerInterval": 10,
-        "MessagePerIntervalDelay": 10,      # No of XMPP messages after which the delay has to be increased
-        "InitialAdvertismentDelay": 5,      # Initial delay for Peer XMPP messages
-        "XmppAdvrtDelay": 5,                # Incremental delay for XMPP messages
-        "MaxAdvertismentDelay": 30,         # Max XMPP Message delay
-        "dependencies": ["Logger", "TincanInterface", "LinkManager"]
+        "TimerInterval": 30,
+        "CacheExpiry": 120,         # Min duration an entry remains in the JID cache in seconds
+        "Dependencies": ["Logger"]
     },
-    "BaseTopologyManager": {
+    "LinkManager": {
         "Enabled": True,
-        "TimerInterval": 10,            # Timer thread interval in sec
-        "dependencies": ["Logger", "TincanInterface", "Signal"]
+        "TimerInterval": 30,        # Timer thread interval in sec
+        "Dependencies": ["Logger", "TincanInterface", "Signal"]
     },
-    "OverlayVisualizer": {
-        "Enabled": False,           # Set this field to True for sending data to the visualizer
-        "TimerInterval": 5,                         # Timer thread interval
-        "WebServiceAddress": ":8080/insertdata",    # Visualizer webservice URL
-        #"TopologyDataQueryInterval": 5,             # Interval to query TopologyManager to get network stats
-        #"WebServiceDataPostInterval": 5,            # Interval to send data to the visualizer
-        "NodeName": "",                             # Node Name as seen from the UI
-        "dependencies": ["Logger", "BaseTopologyManager"]
+    "Topology": {
+        "Enabled": True,
+        "TimerInterval": 30,
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
-    "StatReport": {
+    "Icc": {
+        "Enabled": True,
+        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
+    },
+    "Broadcaster": {
         "Enabled": False,
+        "TimerInterval": 30,
+        "Dependencies": ["Logger", "Topology", "Icc"]
+    },
+    "UsageReport": {
+        "Enabled": True,
         "TimerInterval": 200,
-        "StatServerAddress": "metrics.ipop-project.org",
-        "StatServerPort": 8080,
-        "dependencies": ["Logger"]
+        "ServerAddress": "metrics.ipop-project.org",
+        "ServerPort": 8081,
+        "Dependencies": ["Logger", "Signal"]
     }
 }
+
 
 def gen_ip6(uid, ip6=None):
     if ip6 is None:
@@ -113,17 +105,3 @@ def gen_ip6(uid, ip6=None):
     for i in range(0, 16, 4):
         ip6 += ":" + uid[i:i + 4]
     return ip6
-
-# Generates UID from IPv4
-def gen_uid(ip4):
-    return hashlib.sha1(ip4.encode('utf-8')).hexdigest()[:CONFIG["CFx"]["uid_size"]]
-
-# Function to send UDP message to Tincan
-def send_msg(sock, msg):
-    if socket.has_ipv6:
-        dest = (CONFIG["TincanInterface"]["localhost6"],
-                CONFIG["TincanInterface"]["ctrl_send_port"])
-    else:
-        dest = (CONFIG["TincanInterface"]["localhost"],
-                CONFIG["TincanInterface"]["ctrl_send_port"])
-    return sock.sendto(bytes(msg.encode('utf-8')), dest)

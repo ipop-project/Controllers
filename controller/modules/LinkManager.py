@@ -19,411 +19,693 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from controller.framework.ControllerModule import ControllerModule
-import time
-import json
 import threading
+import traceback
+import uuid
+import copy
+from collections import defaultdict
+try:
+    import simplejson as json
+except ImportError:
+    import json
+from controller.framework.ControllerModule import ControllerModule
+
 
 class LinkManager(ControllerModule):
 
-    def __init__(self, CFxHandle, paramDict, ModuleName):
-        super(LinkManager, self).__init__(CFxHandle, paramDict, ModuleName)
-        self.link_details = {}
-        self.peers_lck = threading.Lock()
-        # Member data to hold value for p2plink retries (value entered in config file)
-        self.maxretries = self.CMConfig["MaxConnRetry"]
+    def __init__(self, cfx_handle, module_config, module_name):
+        super(LinkManager, self).__init__(cfx_handle, module_config, module_name)
+        self._overlays = {}  # lists peers in each overlay
+        self._links = {}     # indexed by link id
+        self._lock = threading.Lock() # serializes access to _overlays, _links
 
     def initialize(self):
-        # Query UID and Tap Interface from TincanInterface
-        tincanparams = self.CFxHandle.queryParam("TincanInterface", "Vnets")
-        # Iterate across the virtual networks to get UID and TAPName
-        for k in range(len(tincanparams)):
-            interface_name = tincanparams[k]["TapName"]
-            self.link_details[interface_name] = {}
-            self.link_details[interface_name]["xmpp_client_code"] = tincanparams[k]["XMPPModuleName"]
-            self.link_details[interface_name]["uid"] = tincanparams[k]["uid"]
-            # Attribute to store Peer2Peer link details
-            self.link_details[interface_name]["peers"] = {}
-            self.link_details[interface_name]["ipop_state"] = {}
-            # Attribute to store p2p link with online as link status
-            self.link_details[interface_name]["online_peer_uid"] = []
-        # Iterate across Table to send Local Get State request to Tincan
-        for interface_name in self.link_details.keys():
-            msg = {"interface_name": interface_name, "MAC": ""}
-            self.registerCBT('TincanInterface', 'DO_GET_STATE', msg)
-        self.registerCBT('Logger', 'info', "{0} Loaded".format(self.ModuleName))
-
-    # Forward cbt over XMPP
-    def forward_cbt(self,interface_name,peer_uid,payload):
-        cbtdata = {"uid": peer_uid, "data": payload, "interface_name":interface_name}
-        self.registerCBT(self.link_details[interface_name]["xmpp_client_code"], "SIG_FORWARD_CBT",cbtdata)
-
-    # send message (through ICC)
-    #   - uid = UID of the destination peer (a tincan link must exist)
-    #   - msg = message
-    def send_msg_icc(self, uid, msg, interface_name):
-        # Check whether the UID exits in Peer Table
-        if uid in self.link_details[interface_name]["peers"].keys():
-            cbtdata = {
-                    "src_uid": self.link_details[interface_name]["ipop_state"]["_uid"],
-                    "dst_uid": uid,
-                    "dst_mac": self.link_details[interface_name]["peers"][uid]["mac"],
-                    "msg": msg,
-                    "interface_name": interface_name
-            }
-            self.registerCBT('TincanInterface', 'DO_SEND_ICC_MSG', cbtdata)
-
-############################################################################
-# p2plink functions #
-############################################################################
-
-    # Request CAS Details from Peer UID
-    def request_cas(self, uid, interface_name):
-        link_data = self.link_details[interface_name]
-        self.registerCBT('Logger', 'debug', "Peer Table::" + str(link_data["peers"]))
-        # Set the initial Time To Live for p2plink(time within which its status has to change Online)
-        ttl = time.time() + self.CMConfig["InitialLinkTTL"]
-        '''
-        if uid < self.link_details[interface_name]["ipop_state"]["_uid"]:
-            self.registerCBT('Logger', 'info', "Dropping connection to smaller UID node")
-            return
-        '''
-        # Check whether the request is for a new p2plink to the Peer
-        if uid not in link_data["peers"].keys():
-            # add peer to peers list
-            link_data["peers"][uid] = {
-                "uid": uid,
-                "ttl": ttl,
-                "status": "sent_link_req",
-                "mac": ""
-            }
-        # check whether the p2plink request is already in progress but not in
-        # connected state then allow p2plink creation to proceed
-        elif link_data["peers"][uid]["status"] not in ["online", "offline"]:
-            link_data["peers"][uid]["ttl"] = ttl
-        else:
-            return
-        # Connection Request Details for Peer
-        msg = {
-            "peer_uid": uid,
-            "interface_name": interface_name,
-            "ip4": link_data["ipop_state"]["ip4"],
-            "fpr": link_data["ipop_state"]["fpr"],
-            "mac": link_data["mac"],
-            "ttl": ttl
-        }
-
-
-        # Send the message via XMPP server to Peer node
-        payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"], dest_module="LinkManager",
-                       action='RETRIEVE_CAS_FROM_TINCAN',core_data=json.dumps(msg))
-
-        self.forward_cbt(interface_name, uid, payload)
-        self.registerCBT('Logger', 'info', "Requested CAS details for peer UID:{0}".format(uid))
-
-    # Remove p2plink specified by input UID
-    def remove_p2plink(self, uid, interface_name):
-        peer_details = self.link_details[interface_name]["peers"]
-        # Check whether the request for an existing p2plink for UID if NO drop the request
-        if uid in peer_details.keys():
-            # Check whether the p2plink state is either Online or Offline
-            if peer_details[uid]["status"] in ["online", "offline"]:
-                if "mac" in list(peer_details[uid].keys()):
-                    mac = peer_details[uid]["mac"]
-                    if mac is not None and mac != "":
-                        msg = {"interface_name": interface_name, "uid": uid, "MAC": mac}
-                        self.registerCBT('TincanInterface', 'DO_TRIM_LINK', msg)
-            del peer_details[uid]
-            self.registerCBT('Logger', 'info', "Removed Connection to Peer UID: {0}".format(uid))
-
-    #  remove peers with expired time-to-live attributes
-    def clean_p2plinks(self, interface_name):
-        # time-to-live attribute indicative of an offline link
-        links = self.link_details[interface_name]
-        # for uid in list(self.ipop_interface_details[interface_name]["peers"].keys()):
-        for uid in links["peers"].keys():
-            # check whether the time to link has expired
-            if time.time() > links["peers"][uid]["ttl"]:
-                log = "Time to Live expired going to remove peer: {0}".format(uid)
-                self.registerCBT('Logger', 'info', log)
-                self.remove_p2plink(uid, interface_name)
-
-    # Get CAS details from Tincan
-    def send_casdetails(self, uid, data, interface_name):
-            peer = self.link_details[interface_name]["peers"]
-            # Get CAS Response Message to Peer
-            response_msg = {
-                "uid": uid,
-                "interface_name": interface_name,
-                "fpr": self.link_details[interface_name]["ipop_state"]["fpr"],
-                "cas": data["cas"],
-                "ip4": self.link_details[interface_name]["ipop_state"]["ip4"],
-                "mac": self.link_details[interface_name]["mac"],
-                "peer_mac": data["peer_mac"]
-            }
-
-            # If CAS is requested for Peer which is already present in the Table
-            if uid in peer.keys():
-                log_msg = "Received CAS from Tincan for peer {0} in list.".format(uid)
-                self.registerCBT('Logger', 'info', log_msg)
-                # Setting Time To Live for the peer2peer link
-                ttl = time.time() + self.CMConfig["InitialLinkTTL"]
-                # if node has received CAS details, re-respond (in case it was lost)
-                if peer[uid]["status"] == "recv_cas_details":
-                    log_msg = "Resending CAS details to peer UID: {0}".format(uid)
-                    self.registerCBT('Logger', 'info', log_msg)
-                    response_msg["ttl"] = ttl
-                    payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
-                                   dest_module="LinkManager",
-                                   action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
-                    self.forward_cbt(interface_name, uid, payload)
-                # else if node has sent p2plinkrequest concurrently
-                elif peer[uid]["status"] == "sent_link_req":
-                    # peer with Bigger UID sends a response
-                    # if (self.link_details[interface_name]["ipop_state"]["_uid"] > uid):
-                    self.registerCBT('Logger', 'info', "Sending CAS details to peer UID:{0}".format(uid))
-                    peer[uid] = {
-                        "uid": uid,
-                        "ttl": ttl,
-                        "status": "sent_casdetails",
-                        "mac": data["peer_mac"]
-                    }
-                    response_msg["ttl"] = ttl
-                    payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
-                                   dest_module="LinkManager",
-                                   action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
-                    self.forward_cbt(interface_name, uid, payload)
-                elif peer[uid]["status"] == "offline":
-                    # If the CAS has been requested for a peer UID but it is inprogress
-                    if "linkretrycount" not in peer[uid].keys():
-                        peer[uid]["linkretrycount"] = 1
-                        response_msg["ttl"] = ttl
-                        payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
-                                       dest_module="LinkManager",
-                                       action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
-                        self.forward_cbt(interface_name, uid, payload)
-                    else:
-                        # Check whether the peer2peer link retry has exceeded the max count
-                        if peer[uid]["linkretrycount"] < self.maxretries:
-                            peer[uid]["linkretrycount"] += 1
-                            # Updating Connection Manager Table
-                            peer[uid] = {
-                                "uid": uid,
-                                "ttl": ttl,
-                                "status": "sent_response",
-                                "mac": data["peer_mac"]
-                            }
-                            self.registerCBT('Logger', 'info', "Sending CAS details to peer UID:{0}".format(uid))
-                            response_msg["ttl"] = ttl
-                            payload = dict(src_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
-                                           dest_module="LinkManager",
-                                           action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
-                            self.forward_cbt(interface_name, uid, payload)
-                        else:
-                            peer[uid]["linkretrycount"] = 0
-                            log_msg = "Giving up after max retries, removing peer {0}".format(uid)
-                            self.registerCBT('Logger', 'warning', log_msg)
-                            # Remove the link as retry has exceeded max value
-                            self.remove_p2plink(uid, interface_name)
-                            # Send CAS details for fresh p2plink
-                            # self.send_msg_srv("sent_peer_casdetails", uid, json.dumps(response_msg), interface_name)
-                    # if node was in any other state replied or ignored a concurrent
-                    # send request [conc_no_response, conc_sent_response]
-                    # or if status is online or offline, remove link and wait to try again
-                else:
-                    if peer[uid]["status"] in ["sent_casdetails", "no_response", "recv_cas_details"]:
-                        self.registerCBT('Logger', 'info', "Giving up, remove peer {0}".format(uid))
-                        self.remove_p2plink(uid, interface_name)
-            else:
-                # add peer to peers list and set status as having received and
-                # responded to p2plink request with CAS details
-                log_msg = "Received CAS from Tincan for peer {0} in list.".format(uid)
-                self.registerCBT('Logger', 'info', log_msg)
-                # if self.link_details[interface_name]["ipop_state"]["_uid"] > uid:
-                ttl = time.time() + self.CMConfig["InitialLinkTTL"]
-                peer[uid] = {
-                    "uid": uid,
-                    "ttl": ttl,
-                    "status": "recv_cas_details",
-                    "mac": data["peer_mac"]
-                }
-                response_msg["ttl"] = ttl
-                payload = dict(sender_uid=self.link_details[interface_name]["ipop_state"]["_uid"],
-                               dest_module="LinkManager",
-                               action='CREATE_P2PLINK', core_data=json.dumps(response_msg))
-                self.forward_cbt(interface_name, uid, payload)
-
-    # Create Peer2Peer Link via Tincan
-    def create_p2plink(self, uid, interface_name, msg):
-        peer_mac = msg["data"]["mac"]
-
-        # Create an entry in Conn Manager Table for Peer if does not exists
-        if uid not in self.link_details[interface_name]["peers"].keys():
-            self.link_details[interface_name]["peers"][uid] = {}
-        # Update Time To Live for the Link
-        self.link_details[interface_name]["peers"][uid]["ttl"] = time.time() + self.CMConfig[
-            "InitialLinkTTL"]
-        self.link_details[interface_name]["peers"][uid]["mac"] = peer_mac
-        self.registerCBT('Logger', 'info', "Received CAS from Peer ({0})".format(uid))
-        # Send the Create Connection request to Tincan Interface
-        self.registerCBT('TincanInterface', 'DO_CREATE_LINK', msg)
-
-    # Advertise all Online Peer to each node in the network
-    def advertise_p2plinks(self, interface_name):
-        # create list of linked peers
-        peer_list = self.link_details[interface_name]["online_peer_uid"]
-        new_msg = {
-            "msg_type": "advertise",
-            "src_uid": self.link_details[interface_name]["ipop_state"]["_uid"],
-            "peer_list": peer_list
-        }
-        # send peer list advertisement to all peers
-        for peer in peer_list:
-            self.send_msg_icc(peer, new_msg, interface_name)
-
-    def processCBT(self, cbt):
+        self._link_updates_publisher = \
+                self._cfx_handle.publish_subscription("LNK_DATA_UPDATES")
+        self._cfx_handle.start_subscription("TincanInterface",
+                                            "TCI_TINCAN_MSG_NOTIFY")
         try:
-            self.peers_lck.acquire()
-            if cbt.action == "REMOVE_LINK":
-                self.remove_p2plink(cbt.data.get("uid"), cbt.data.get("interface_name"))
-            elif cbt.action == "CREATE_LINK":
-                self.request_cas(cbt.data.get("uid"), cbt.data.get("interface_name"))
-            elif cbt.action == "RETRIEVE_CAS_FROM_TINCAN":
-                msg = cbt.data
-                uid = msg["uid"]
-                msg["data"] = json.loads(msg["data"])
-                self.registerCBT('Logger', 'debug', "Received peer {0} req to retrieve CAS details.".format(uid))
-                self.registerCBT('TincanInterface', 'DO_GET_CAS', msg)
-                # Request Peer CAS details for two way connection
-                if uid not in self.link_details[msg["interface_name"]]["peers"].keys():
-                    self.request_cas(uid, msg["interface_name"])
-            elif cbt.action == "CREATE_P2PLINK":
-                msg = cbt.data
-                msg["data"] = json.loads(msg["data"])
-                self.create_p2plink(msg["uid"], msg.get("interface_name"), msg)
-            elif cbt.action == "SEND_CAS_DETAILS_TO_PEER":
-                msg = cbt.data
-                interface_name = msg["interface_name"]
-                self.send_casdetails(msg["uid"], msg["data"], interface_name)
-            elif cbt.action == "SEND_ICC_MSG":
-                msg = cbt.data
-                self.send_msg_icc(msg.get("dst_uid"), msg.get("msg"), msg.get("interface_name"))
-            elif cbt.action == "GET_NODE_MAC_ADDRESS":
-                interface_name = cbt.data.get("interface_name")
-                if "mac" in self.link_details[interface_name].keys():
-                    self.registerCBT(cbt.initiator, "NODE_MAC_ADDRESS",
-                                     {"interface_name": interface_name, "localmac": self.link_details[interface_name]["mac"]})
-                else:
-                    self.registerCBT(cbt.initiator, "NODE_MAC_ADDRESS",
-                                     {"interface_name": interface_name, "localmac": ""})
-            elif cbt.action == "GET_LINK_DETAILS":
-                interface_name = cbt.data["interface_name"]
-                message = {}
-                # Send Link details like Time to Live, Status and Peer MAC to initiator
-                for peeruid, linkdetails in list(self.link_details[interface_name]["peers"].items()):
-                    message.update({peeruid: {
-                        "ttl": linkdetails["ttl"],
-                        "status": linkdetails["status"],
-                        "mac": linkdetails["mac"]
-                    }})
-                self.registerCBT(cbt.initiator, "RETRIEVE_LINK_DETAILS", {"interface_name": interface_name,
-                                                                              "data": message})
-            elif cbt.action == "TINCAN_RESPONSE":
-                msg = cbt.data
-                msg_type = msg.get("type", None)
-                interface_name = msg["interface_name"]
-                interface_details = self.link_details[interface_name]
-                # update local state
-                if msg_type == "local_state":
-                    interface_details["ipop_state"] = msg
-                    interface_details["mac"] = msg["mac"]
-                    self.registerCBT("Logger", "info","LM Local Node Info UID:{0} MAC:{1} IP4: {2}" \
-                      .format(msg["_uid"], msg["mac"], msg["ip4"]))
-                    # update peer list
-                elif msg_type == "peer_state":
-                    uid = msg["uid"]
-                    data = cbt.data
-                    # check whether UID exits in LinkManager Tables
-                    if uid in interface_details["peers"]:
-                        # check whether TTL exits if not initialize it to current timestamp
-                        if "ttl" not in interface_details["peers"][uid]:
-                            interface_details["peers"][uid]["ttl"] = time.time()
-                        # Variable to store TTL
-                        ttl = interface_details["peers"][uid]["ttl"]
+            # Subscribe for data request notifications from OverlayVisualizer
+            self._cfx_handle.start_subscription("OverlayVisualizer",
+                                                "VIS_DATA_REQ")
+        except NameError as e:
+            if "OverlayVisualizer" in str(e):
+                self.register_cbt("Logger", "LOG_WARNING",
+                                  "OverlayVisualizer module not loaded."
+                                  " Visualization data will not be sent.")
+        overlay_ids = self._cfx_handle.query_param("Overlays")
+        for olid in overlay_ids:
+            self._overlays[olid] = dict(Peers=dict())
 
-                        # Check whether the p2plink is online if yes extend its Time To Live
-                        if "online" == data["status"]:
-                            ttl = time.time() + self.CMConfig["LinkPulse"]
-                            # If the p2plink has just turned Online added into the Online Peer List
-                            if uid not in self.link_details[interface_name]["online_peer_uid"]:
-                                self.link_details[interface_name]["online_peer_uid"].append(uid)
-                        # Connection has been removed from Tincan clear Connection Manager Table
-                        elif "unknown" == data["status"]:
-                            del self.link_details[interface_name]["peers"][uid]
-                            if uid in self.link_details[interface_name]["online_peer_uid"]:
-                                self.link_details[interface_name]["online_peer_uid"].remove(uid)
-                            return
-                        else:
-                            if uid in self.link_details[interface_name]["online_peer_uid"]:
-                                self.link_details[interface_name]["online_peer_uid"].remove(uid)
-                        # update peer state within BTM Tables
-                        interface_details["peers"][uid].update(msg)
-                        interface_details["peers"][uid]["ttl"] = ttl
-                else:
-                    log = '{0}: unrecognized CBT message {1} received from {2}.Data:: {3}' \
-                        .format(cbt.recipient, cbt.action, cbt.initiator, cbt.data)
-                    self.registerCBT('Logger', 'warning', log)
-            elif cbt.action == "GET_ONLINE_PEERLIST":
-                interface_name = cbt.data["interface_name"]
-                if "_uid" in self.link_details[interface_name]["ipop_state"].keys():
-                    cbtdt = {'peerlist': self.link_details[interface_name]["online_peer_uid"],
-                             'uid': self.link_details[interface_name]["ipop_state"]["_uid"],
-                             'mac': self.link_details[interface_name]["mac"],
-                             'interface_name': interface_name
-                    }
-                    # Send the Online PeerList to the Initiator of CBT
-                    self.registerCBT(cbt.initiator, 'ONLINE_PEERLIST', cbtdt)
+        self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
+
+    def req_handler_remove_link(self, cbt):
+        olid = cbt.request.params.get("OverlayId", None)
+        lnkid = cbt.request.params.get("LinkId", None)
+        peer_id = cbt.request.params.get("PeerId", None)
+        try:
+            if olid is not None and peer_id is not None:
+                lnkid = self._overlays[olid]["Peers"][peer_id]
+                oid = olid
+                if self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
+                    olid = lnkid
+            elif lnkid is not None:
+                oid = self._links[lnkid]["OverlayId"]
+                olid = oid
+                if self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
+                    olid = lnkid
             else:
-                log = 'Unrecognized CBT message {0} received from {1}.Data: {3}' \
-                        .format(cbt.action, cbt.initiator, cbt.data)
-                self.registerCBT('Logger', 'warning', log)
-            self.peers_lck.release()
-        except Exception as err:
-            self.peers_lck.release()
-            raise
+                self.complete_cbt("Insufficient parameters", False)
+                return
+        except:
+            self.complete_cbt("Invalid parameters for request: {0}"
+                              .format(traceback.format_exc()), False)
+            return
+
+        self.create_linked_cbt(cbt)
+        params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
+        rl_cbt = self.create_cbt(self._module_name, "TincanInterface",
+                        "TCI_REMOVE_LINK", params)
+        self.submit_cbt(rl_cbt)
+
+# TODO Check locks on self._overlays
+    def _update_overlay_descriptor(self, olay_desc, olid):
+        if not olid in self._overlays:
+            self._overlays[olid] = dict(Descriptor=dict())
+        if not "Descriptor" in self._overlays[olid]:
+            self._overlays[olid]["Descriptor"] = dict()
+        self._overlays[olid]["Descriptor"]["MAC"] = olay_desc["MAC"]
+        self._overlays[olid]["Descriptor"]["VIP4"] = olay_desc.get("VIP4")
+        self._overlays[olid]["Descriptor"]["TapName"] = olay_desc["TapName"]
+        self._overlays[olid]["Descriptor"]["FPR"] = olay_desc["FPR"]
+        self._overlays[olid]["Descriptor"]["IP4PrefixLen"] = olay_desc["IP4PrefixLen"]
+
+    def _query_link_stats(self):
+        params = []
+        with self._lock:
+            for olid in self._overlays:
+                if self._cm_config["Overlays"][olid]["Type"] == "VNET":
+                    if "Descriptor" in self._overlays[olid]:
+                        params.append(olid)
+                elif self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
+                    for peer_id in self._overlays[olid]["Peers"]:
+                        link_id = self._overlays[olid]["Peers"][peer_id]
+                        params.append(link_id)
+        if len(params) > 0:
+            self.register_cbt("TincanInterface", "TCI_QUERY_LINK_STATS", params)
+
+    def resp_handler_query_link_stats(self, cbt):
+        if (not cbt.response.status):
+            self.register_cbt("Logger", "LOG_WARNING", "Link stats update error: {0}".format(cbt.response.data))
+            self.free_cbt(cbt)
+            return
+        if (not cbt.response.data):
+            self.free_cbt(cbt)
+            return
+        data = cbt.response.data
+        with self._lock:
+            for olid in data:
+                for lnkid in data[olid]:
+                    oid = self._links[lnkid]["OverlayId"]
+                    olid = olid
+                    if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
+                        olid = lnkid
+                    if data[olid][lnkid]["Status"] == "UNKNOWN":
+                        self._link_removed_cleanup(lnkid)
+                    else:
+                        self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
+                        self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
+                        self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
+        self.free_cbt(cbt)
+
+    def req_handler_query_visualizer_data(self, cbt):
+        vis_data = dict(LinkManager=defaultdict(dict))
+        with self._lock:
+            for olid in self._overlays:
+                if "Descriptor" in self._overlays[olid]:
+                    descriptor = self._overlays[olid]["Descriptor"]
+                    node_data = {
+                        "TapName": descriptor["TapName"],
+                        "VIP4": descriptor.get("VIP4"),
+                        "IP4PrefixLen": descriptor["IP4PrefixLen"],
+                        "MAC": descriptor["MAC"]
+                    }
+                    node_id = str(self._cm_config["NodeId"])
+                    vis_data["LinkManager"][olid][node_id] = dict(NodeData=node_data,
+                                                                  Links=dict())
+                    # self._overlays[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
+                    peers = self._overlays[olid]["Peers"]
+                    for peerid in peers:
+                        lnkid = peers[peerid]
+                        stats = self._links[lnkid]["Stats"]
+
+                        link_data = {
+                            "SrcNodeId": node_id,
+                            "PeerId": peerid,
+                            "Stats": stats
+                        }
+
+                        if "IceRole" in self._links[lnkid]:
+                            link_data["IceRole"] = self._links[lnkid]["IceRole"]
+
+                        if "Type" in self._links[lnkid]:
+                            link_data["Type"] = self._links[lnkid]["Type"]
+
+                        if "Status" in self._links[lnkid]:
+                            link_data["Status"] = self._links[lnkid]["Status"]
+
+                        vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = link_data
+
+        cbt.set_response(vis_data, True if vis_data["LinkManager"] else False)
+        self.complete_cbt(cbt)
+
+    def _link_removed_cleanup(self, lnkid):
+        lnk_entry = self._links.pop(lnkid, None)
+        if lnk_entry:
+            peerid = lnk_entry["PeerId"]
+            olid = lnk_entry["OverlayId"]
+            item = self._overlays[olid]["Peers"].pop(peerid, None)
+            # Notify subs of link removal
+            param = {
+                "UpdateType": "REMOVED", "OverlayId": olid,
+                "LinkId": lnkid, "PeerId": peerid}
+            self._link_updates_publisher.post_update(param)
+            del(lnk_entry)
+            del(item)
+
+    def resp_handler_remove_link(self, cbt):
+        parent_cbt = self.get_parent_cbt(cbt)
+        resp_data = cbt.response.data
+        oid = cbt.request.params["OID"]
+        olid = oid
+        if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
+            olid = cbt.request.params["OverlayId"]
+        lnkid = cbt.request.params["LinkId"]
+        status = cbt.response.status
+        with self._lock:
+            self._link_removed_cleanup(lnkid)
+        self.register_cbt("Logger", "LOG_DEBUG", "Link removed {}".format(lnkid))
+        self.free_cbt(cbt)
+        if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
+            params = {"OID": oid, "OverlayId": olid}
+            if parent_cbt is not None:
+                rmv_ovl_cbt = self.create_linked_cbt(parent_cbt)
+                rmv_ovl_cbt.set_request(self._module_name, "TincanInterface",
+                                        "TCI_REMOVE_OVERLAY", params)
+            else:
+                rmv_ovl_cbt = self.create_cbt(self._module_name, "TincanInterface",
+                                            "TCI_REMOVE_OVERLAY", params)
+            self.submit_cbt(rmv_ovl_cbt)
+        else:
+            if parent_cbt is not None:
+                parent_cbt.set_response(resp_data, status)
+                self.complete_cbt(parent_cbt)
+
+    def resp_handler_remove_overlay(self, rmv_ovl_cbt):
+        """
+        Remove the overlay meta data. Even of the CBT fails it is safe to discard
+        as this is because Tincan has to record of it.
+        """ 
+        parent_cbt = self.get_parent_cbt(rmv_ovl_cbt)
+        oid = rmv_ovl_cbt.request.params["OID"]
+        olid = rmv_ovl_cbt.request.params["OverlayId"]
+        ovl_dscr = self._overlays[oid].pop("Descriptor", None)
+        del(ovl_dscr)
+        if parent_cbt is not None:
+            parent_cbt.set_response(data, status)
+            self.complete_cbt(parent_cbt)
+        self.register_cbt("Logger", "LOG_DEBUG", "Overlay removed {}".format(olid))
+        
+    def req_handler_query_link_info(self, cbt):
+        olid = cbt.request.params["OverlayId"]
+        peerid = cbt.request.params["LinkId"]
+        self._lock.acquire()
+        lnkid = self._overlays[olid]["Peers"][peerid]
+        cbt.set_response(self._links[lnkid]["Stats"], status=True)
+        self._lock.release()
+        self.complete_cbt(cbt)
+
+    def _create_overlay(self, params, parent_cbt=None):
+        overlay_id = params["OverlayId"]
+        type = self._cm_config["Overlays"][overlay_id]["Type"]
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:15]
+        lnkid = params["LinkId"]
+        olid = overlay_id
+        if type == "TUNNEL":
+            tap_name = tap_name[:8] + str(lnkid[:7]) # to avoid name collision
+            olid = lnkid
+        create_ovl_params = {
+            "OID": overlay_id,
+            "OverlayId": olid,
+            "LinkId": lnkid,
+            "StunAddress": self._cm_config["Stun"][0],
+            "TurnAddress": self._cm_config["Turn"][0]["Address"],
+            "TurnPass": self._cm_config["Turn"][0]["Password"],
+            "TurnUser": self._cm_config["Turn"][0]["User"],
+            "Type": type,
+            "TapName": tap_name,
+            "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
+            "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
+            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id].get("IP4PrefixLen"),
+        }
+        if parent_cbt is not None:
+            ovl_cbt = self.create_linked_cbt(parent_cbt)
+            ovl_cbt.set_request(self._module_name, "TincanInterface",
+                             "TCI_CREATE_OVERLAY", create_ovl_params)
+        else:
+            ovl_cbt = self.create_cbt(self._module_name, "TincanInterface",
+                             "TCI_CREATE_OVERLAY", create_ovl_params)
+        self.submit_cbt(ovl_cbt)
+
+    def _request_peer_endpoint(self, params, parent_cbt):
+        overlay_id = params["OID"]
+        ovl_data = self._overlays[overlay_id]["Descriptor"]
+        endp_param = {
+            "NodeData": {
+                    "FPR": ovl_data["FPR"],
+                    "MAC": ovl_data["MAC"],
+                    "UID": self._cm_config["NodeId"],
+                    "VIP4": ovl_data.get("VIP4")}}
+        endp_param.update(params)
+        remote_act = dict(OverlayId=overlay_id,
+                          RecipientId=parent_cbt.request.params["PeerId"],
+                          RecipientCM="LinkManager",
+                          Action="LNK_REQ_LINK_ENDPT",
+                          Params=endp_param)
+        if parent_cbt is not None:
+            endp_cbt = self.create_linked_cbt(parent_cbt)
+            endp_cbt.set_request(self._module_name, "Signal",
+                                "SIG_REMOTE_ACTION", remote_act)
+        else:
+            endp_cbt = self.create_cbt(self._module_name, "Signal",
+                                      "SIG_REMOTE_ACTION",remote_act)
+        # Send the message via SIG server to peer
+        self.submit_cbt(endp_cbt)
+
+    def req_handler_create_link(self, cbt):
+        """
+        Handle the request for capability LNK_CREATE_LINK.
+        The caller provides the overlay id and the peer id which the link
+        connects. The link id is generated here but it is returned to the
+        caller after the local endpoint creation is completed asynchronously.
+        The link is not necessarily ready for read/write at this time. The link
+        status can be queried to determine when it is writeable. We request
+        creatation of the remote endpoint first to avoid cleaning up a local
+        endpoint if the peer denies our request. The link id is communicated
+        in the request and will be the same at both nodes.
+        """
+         # Create Link: Phase 1 Node A
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 1/5 Node A")
+        overlay_id = cbt.request.params["OverlayId"]
+        peerid = cbt.request.params["PeerId"]
+        with self._lock:
+            if peerid in self._overlays[overlay_id]["Peers"]:
+                # Link already exists, TM should clean up first
+                cbt.set_response("A link already exist or is being created for "
+                                    "overlay id: {0} peer id: {1}"
+                                    .format(overlay_id,peerid), False)
+                self.complete_cbt(cbt)
+                return
+            lnkid = uuid.uuid4().hex
+            # index for quick peer->link lookup
+            self._overlays[overlay_id]["Peers"][peerid] = lnkid
+            self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peerid)
+        params = {"OverlayId": overlay_id, "LinkId": lnkid, 
+                  "Type": self._cm_config["Overlays"][overlay_id]["Type"]}
+        if "Descriptor" not in self._overlays[overlay_id]:
+            self._create_overlay(params, parent_cbt=cbt)
+        else:
+            self._request_peer_endpoint(params, parent_cbt=cbt)
+
+    def resp_handler_create_overlay(self, cbt):
+        # Create Link: Phase 2 Node A
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 2/5 Node A")
+        parent_cbt = self.get_parent_cbt(cbt)
+        resp_data = cbt.response.data
+        if not cbt.response.status:
+            self.free_cbt(cbt)
+            parent_cbt.set_response(resp_data, False)
+            self.complete_cbt(parent_cbt)
+            self.register_cbt("Logger", "LOG_DEBUG", "Create overlay failed:{}"
+                              .format(parent_cbt.response.data))
+            return
+        # store the overlay data
+        overlay_id = cbt.request.params["OID"] # config overlay id
+        with self._lock:
+            self._update_overlay_descriptor(resp_data, overlay_id)
+        # create and send remote action to request endpoint from peer
+        params = copy.deepcopy(cbt.request.params)
+        params["OverlayId"] = overlay_id
+        self._request_peer_endpoint(params, parent_cbt)
+        self.free_cbt(cbt)
+
+    def req_handler_req_link_endpt(self, cbt):
+        """
+        Handle the request for capability LNK_REQ_LINK_ENDPT.
+        This request occurs on the remote node B. It determines if it can
+        facilitate a link between itself and the requesting node A. It must
+        first send a TCI_QUERY_OVERLAY_INFO to accomplish this.
+        """
+        # Create Link: Phase 3 Node B
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 1/4 Node B")
+        params = cbt.request.params
+        overlay_id = params["OverlayId"]
+        if (overlay_id not in self._cm_config["Overlays"]):
+            self.register_cbt("Logger", "LOG_WARNING",
+                "The requested overlay not specified in local config, it will "
+                "not be created")
+            cbt.set_response("Unknown overlay id specified in request", False)
+            self.complete_cbt(cbt)
+            return
+
+        lnkid = params["LinkId"]
+        node_data = params["NodeData"]
+        peer_id = node_data["UID"]
+        self._lock.acquire()
+        """
+        A request to create a local link endpt can be received after we have
+        sent out a similar request to a peer. To handle this race we choose to
+        service the request only if we have not yet started to create an endpt
+        - self._overlays[overlay_id]["Peers"][peer_id] is None, or our node id
+        is less than the peer. In which case we rename the existing link id to
+        the request.
+        """
+        # Node A, fails the request. Things then proceed as normal
+        if (peer_id in self._overlays[overlay_id]["Peers"]
+                and peer_id < self._cm_config["NodeId"]):
+            cbt.set_response("LNK_REQ_LINK_ENDPT denied", False)
+            self.complete_cbt(cbt)
+            self._lock.release()
+            self.register_cbt("Logger", "LOG_INFO", "A duplicate create link "
+                              "endpoint request was discarded {0}". format(cbt))
+            return
+        # On node B (the larger node id) switch the link id to use the one sent by node A
+        elif (peer_id in self._overlays[overlay_id]["Peers"]
+                and peer_id > self._cm_config["Peer_id"]):
+            def_lnk_descr = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id)
+            link_descr = self._links.pop(lnkid, def_lnk_descr)
+            self._links[lnkid] = link_descr
+            self._overlays[overlay_id]["Peers"][peer_id] = lnkid
+            self._lock.release()
+            self.register_cbt("Logger", "LOG_INFO", "A duplicate create link "
+                              "endpoint request was merged {0}". format(cbt))
+
+        elif(peer_id not in self._overlays[overlay_id]["Peers"]):
+            # add/replace to index for quick peer->link lookup
+            self._overlays[overlay_id]["Peers"][peer_id] = lnkid
+            self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id)
+            self._lock.release()
+
+        type = self._cm_config["Overlays"][overlay_id]["Type"]
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:15]
+        olid = overlay_id
+        if type == "TUNNEL":
+            tap_name = tap_name[:8] + str(lnkid[:7]) # to avoid name collision
+            olid = lnkid
+        create_link_params = {
+            "OID": overlay_id,
+            # overlay params
+            "OverlayId": olid,
+            "StunAddress": self._cm_config["Stun"][0],
+            "TurnAddress": self._cm_config["Turn"][0]["Address"],
+            "TurnPass": self._cm_config["Turn"][0]["Password"],
+            "TurnUser": self._cm_config["Turn"][0]["User"],
+            "Type": type,
+            "TapName": tap_name,
+            "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
+            "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
+            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id].get("IP4PrefixLen"),
+            # link params
+            "LinkId": lnkid,
+            "NodeData": {
+                "FPR": node_data["FPR"],
+                "MAC": node_data["MAC"],
+                "UID": node_data["UID"],
+                "VIP4": node_data.get("VIP4")}}
+        lcbt = self.create_linked_cbt(cbt)
+        lcbt.set_request(self._module_name, "TincanInterface",
+                            "TCI_CREATE_LINK", create_link_params)
+        self.submit_cbt(lcbt)
+
+    def _complete_link_endpt_request(self, cbt):
+        """
+        """
+        # Create Link: Phase 4 Node B
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 2/4 Node B")
+        parent_cbt = self.get_parent_cbt(cbt)
+        resp_data = cbt.response.data
+        if not cbt.response.status:
+            self.free_cbt(cbt)
+            parent_cbt.set_response(resp_data, False)
+            if parent_cbt.child_count == 1:
+                self.complete_cbt(parent_cbt)
+            self.register_cbt("Logger", "LOG_INFO", "Create link endpoint "
+            "failed :{}".format(cbt.response.data))
+            return
+        # store the overlay data
+        self._update_overlay_descriptor(resp_data, cbt.request.params["OID"])
+        # respond with this nodes connection parameters
+        node_data = {
+            "VIP4": resp_data.get("VIP4"),
+            "MAC": resp_data["MAC"],
+            "FPR": resp_data["FPR"],
+            "UID": self._cm_config["NodeId"],
+            "CAS": resp_data["CAS"]
+        }
+        data = {
+            "OverlayId": cbt.request.params["OID"],
+            "LinkId": cbt.request.params["LinkId"],
+            "NodeData": node_data
+        }
+        self.free_cbt(cbt)
+        parent_cbt.set_response(data, True)
+        self.complete_cbt(parent_cbt)
+
+    def _create_link_endpoint(self, rem_act, parent_cbt):
+        # Create Link: Phase 5 Node A
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 3/5 Node A")
+        lnkid = rem_act["Data"]["LinkId"]
+        node_data = rem_act["Data"]["NodeData"]
+        oid = rem_act["OverlayId"]
+        olid = oid
+        type = self._cm_config["Overlays"][oid]["Type"]
+        if type == "TUNNEL":
+            olid = lnkid
+        cbt_params = {"OID": oid, "OverlayId": olid,
+                "LinkId": lnkid,
+                "Type": type,
+                "NodeData": {
+                    "VIP4": node_data.get("VIP4"),
+                    "UID": node_data["UID"],
+                    "MAC": node_data["MAC"],
+                    "CAS": node_data["CAS"],
+                    "FPR": node_data["FPR"]}}
+        lcbt = self.create_linked_cbt(parent_cbt)
+        lcbt.set_request(self._module_name, "TincanInterface", "TCI_CREATE_LINK", cbt_params)
+        self.submit_cbt(lcbt)
+
+    def _send_local_cas_to_peer(self, cbt):
+        # Create Link: Phase 6 Node A
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 4/5 Node A")
+        local_cas = cbt.response.data["CAS"]
+        parent_cbt = self.get_parent_cbt(cbt)
+        oid = cbt.request.params["OID"]
+        olid = cbt.request.params["OverlayId"]
+        peerid = parent_cbt.request.params["PeerId"]
+        params = {
+            "OID": oid,
+            "OverlayId": olid,
+            "LinkId": cbt.request.params["LinkId"],
+            "NodeData": {
+                "UID": self._cm_config["NodeId"], "MAC": "",
+                "CAS": local_cas, "FPR": ""}}
+        remote_act = dict(OverlayId=oid, RecipientId=peerid,
+                    RecipientCM="LinkManager", Action="LNK_ADD_PEER_CAS",
+                    Params=params)
+        lcbt = self.create_linked_cbt(parent_cbt)
+        lcbt.set_request(self._module_name, "Signal", "SIG_REMOTE_ACTION", remote_act)
+        self.submit_cbt(lcbt)
+        self.free_cbt(cbt)
+
+    def req_handler_add_peer_cas(self, cbt):
+        # Create Link: Phase 7 Node B
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 3/4 Node B")
+        params = cbt.request.params
+        lcbt = self.create_linked_cbt(cbt)
+        oid = params["OID"]
+        params["Type"] = self._cm_config["Overlays"][oid]["Type"]
+        lcbt.set_request(self._module_name, "TincanInterface", "TCI_CREATE_LINK", params)
+        self.submit_cbt(lcbt)
+
+    def resp_handler_create_link_endpt(self, cbt):
+        parent_cbt = self.get_parent_cbt(cbt)
+        resp_data = cbt.response.data
+        if (not cbt.response.status):
+            self.register_cbt("Logger", "LOG_INFO", "Create link endpoint "
+                                "failed :{}".format(cbt))
+            self.free_cbt(cbt)
+            parent_cbt.set_response(resp_data, False)
+            self.complete_cbt(parent_cbt)
+            return
+
+        if parent_cbt.request.action == "LNK_REQ_LINK_ENDPT":
+            """
+            To complete this request the responding node has to supply its own
+            NodeData and CAS. The NodeData was previously queried and is stored
+            on the parent cbt. Add the cas and send to peer.
+            """
+            self._complete_link_endpt_request(cbt)
+
+        elif parent_cbt.request.action == "LNK_CREATE_LINK":
+            """
+            Both endpoints are created now but the peer doesn't have our cas.
+            It already has the node data so no need to send that again.
+            """
+            self._send_local_cas_to_peer(cbt)
+
+        elif parent_cbt.request.action == "LNK_ADD_PEER_CAS":
+            # Create Link: Phase 8 Node B
+            self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 4/4 Node B")
+            rem_act = parent_cbt.request.params
+            peer_id = rem_act["NodeData"]["UID"]
+            olid = rem_act["OID"]
+            lnkid = rem_act["LinkId"]
+            parent_cbt.set_response(data="LNK_ADD_PEER_CAS successful", status=True)
+            self.free_cbt(cbt)
+            self.complete_cbt(parent_cbt)
+            # publish notification of link creation Node B
+            param = {
+                "UpdateType": "ADDED", "OverlayId": olid,
+                "PeerId": peer_id, "LinkId": lnkid
+                }
+            self._link_updates_publisher.post_update(param)
+            self.register_cbt("Logger", "LOG_DEBUG", "Link created: {0}:{1}->{2}"
+                .format(olid[:7], self._cm_config["NodeId"][:7], peer_id[:7]))
+
+    def _complete_create_link_request(self, parent_cbt):
+        # Create Link: Phase 9 Node A
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link: Phase 5/5 Node A")
+        # Complete the cbt that started this all
+        olid = parent_cbt.request.params["OverlayId"]
+        peerid = parent_cbt.request.params["PeerId"]
+        self._lock.acquire()
+        lnkid = self._overlays[olid]["Peers"][peerid]
+        self._lock.release()
+        parent_cbt.set_response(data={"LinkId": lnkid}, status=True)
+        self.complete_cbt(parent_cbt)
+        # publish notification of link creation Node A
+        param = {
+            "UpdateType": "ADDED", "OverlayId": olid,
+            "PeerId": peerid, "LinkId": lnkid
+            }
+        self._link_updates_publisher.post_update(param)
+        self.register_cbt("Logger", "LOG_DEBUG", "Link created: {0}:{1}->{2}"
+            .format(olid[:7], self._cm_config["NodeId"][:7], peerid[:7]))
+
+    def resp_handler_remote_action(self, cbt):
+        parent_cbt = self.get_parent_cbt(cbt)
+        resp_data = cbt.response.data
+        if (not cbt.response.status):
+            self.register_cbt("Logger", "LOG_INFO", "Remote Action failed :{}"
+                              .format(cbt))
+            self.free_cbt(cbt)
+            parent_cbt.set_response(resp_data, False)
+            self.complete_cbt(parent_cbt)
+            return
+        else:
+            rem_act = cbt.response.data
+            self.free_cbt(cbt)
+            if rem_act["Action"] == "LNK_REQ_LINK_ENDPT":
+                self._create_link_endpoint(rem_act, parent_cbt)
+            elif rem_act["Action"] == "LNK_ADD_PEER_CAS":
+                self._complete_create_link_request(parent_cbt)
+
+    def req_handler_tincan_msg(self, cbt):
+        if cbt.request.params["Command"] == "LinkStateChange":
+            if cbt.request.params["Data"] == "LINK_STATE_DOWN":
+                lnkid = cbt.request.params["LinkId"]
+                oid = self._links[lnkid]["OverlayId"]
+                olid = oid
+                if self._cm_config["Overlays"][oid]["Type"] == "TUNNEL":
+                    olid = lnkid
+                params = {"OID": oid, "OverlayId": olid, "LinkId": lnkid}
+                self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
+            cbt.set_response(data=None, status=True)
+        else:
+            cbt.set_response(data=None, status=False)
+        self.complete_cbt(cbt)
+
+    def process_cbt(self, cbt):
+        if cbt.op_type == "Request":
+            if cbt.request.action == "LNK_CREATE_LINK":
+                # Create Link: Phase 1 Node A
+                # TOP wants a new link, first SIGnal peer to create endpt
+                self.req_handler_create_link(cbt)
+
+            elif cbt.request.action == "LNK_REQ_LINK_ENDPT":
+                # Create Link: Phase 3 Node B
+                # Rcvd peer req to create endpt, send to TCI
+                self.req_handler_req_link_endpt(cbt)
+
+            elif cbt.request.action == "LNK_ADD_PEER_CAS":
+                # Create Link: Phase 7 Node B
+                # CAS rcvd from peer, sends to TCI to update link's peer CAS info
+                self.req_handler_add_peer_cas(cbt)
+
+            elif cbt.request.action == "LNK_REMOVE_LINK":
+                self.req_handler_remove_link(cbt)
+
+            elif cbt.request.action == "LNK_QUERY_LINK_INFO":
+                self.req_handler_query_link_info(cbt)
+
+            elif cbt.request.action == "VIS_DATA_REQ":
+                self.req_handler_query_visualizer_data(cbt)
+
+            elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
+                self.req_handler_tincan_msg(cbt)
+            else:
+                self.req_handler_default(cbt)
+        elif cbt.op_type == "Response":
+            if cbt.request.action == "SIG_REMOTE_ACTION":
+                # Create Link: Phase 5 Node A
+                # Attempt to create our end of link
+                # Create Link: Phase 9 Node A
+                # Link created, notify others
+                self.resp_handler_remote_action(cbt)
+
+            elif cbt.request.action == "TCI_CREATE_LINK":
+                # Create Link: Phase 4 Node B
+                # Create Link: Phase 6 Node A
+                # SIGnal to peer to update CAS
+                # Create Link: Phase 8 Node B
+                # Complete setup
+                self.resp_handler_create_link_endpt(cbt)
+
+            elif cbt.request.action == "TCI_CREATE_OVERLAY":
+                # Create Link: Phase 2 Node A
+                # Retrieved our node data for response
+                self.resp_handler_create_overlay(cbt)
+
+            elif cbt.request.action == "TCI_QUERY_LINK_STATS":
+                self.resp_handler_query_link_stats(cbt)
+
+            elif cbt.request.action == "TCI_REMOVE_LINK":
+                self.resp_handler_remove_link(cbt)
+
+            elif cbt.request.action == "TCI_REMOVE_OVERLAY":
+                self.resp_handler_remove_overlay(cbt)
+
+            else:
+                parent_cbt = self.get_parent_cbt(cbt)
+                cbt_data = cbt.response.data
+                cbt_status = cbt.response.status
+                self.free_cbt(cbt)
+                if (parent_cbt is not None and parent_cbt.child_count == 1):
+                    parent_cbt.set_response(cbt_data, cbt_status)
+                    self.complete_cbt(parent_cbt)
 
     def timer_method(self):
-        try:
-            # Iterate across various virtual networks
-            self.peers_lck.acquire()
-            for interface_name in self.link_details.keys():
-                self.registerCBT("Logger","debug","Peer Nodes:: {0}".format(self.link_details[interface_name]["peers"]))
-                # Iterate over the Peer Table
-                for peeruid in self.link_details[interface_name]["peers"].keys():
-                    # Check whether the Peer MAC address has been obtained via XMPP
-                    if self.link_details[interface_name]["peers"][peeruid]["mac"] != "":
-                        message = {
-                            "interface_name": interface_name,
-                            "MAC": self.link_details[interface_name]["peers"][peeruid]["mac"],
-                            "uid": peeruid
-                        }
-                        # Get P2P Link state
-                        self.registerCBT('TincanInterface', 'DO_GET_STATE', message)
-                        # Get P2P Link stats
-                        self.registerCBT('TincanInterface', 'DO_QUERY_LINK_STATS', message)
-                # Check whether Local Node details have been obtained from Tincan, if not issue local 
-                # state message to Tincan
-                if "_uid" not in self.link_details[interface_name]["ipop_state"].keys():
-                    msg = {"interface_name": interface_name, "MAC": ""}
-                    self.registerCBT('TincanInterface', 'DO_GET_STATE', msg)
-                else:
-                    self.clean_p2plinks(interface_name)
-                    self.advertise_p2plinks(interface_name)
-            self.peers_lck.release()
-        except Exception as err:
-            self.peers_lck.release()
-            self.registerCBT('Logger', 'error', "Exception caught in LinkManager timer thread.\
-                             Error: {0}".format(str(err)))
+        self._query_link_stats()
 
     def terminate(self):
         pass

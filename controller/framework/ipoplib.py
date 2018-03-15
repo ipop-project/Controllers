@@ -22,9 +22,9 @@
 import sys
 py_ver = sys.version_info[0]
 
-RESPLINK = {
+CTL_CREATE_CTRL_LINK = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
@@ -33,172 +33,136 @@ RESPLINK = {
             "Protocol": "proto_datagram",
             "IP": "::1",
             "Port": 5801
+        }
+    }
+}
+CTL_CONFIGURE_LOGGING = {
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "ConfigureLogging",
+            "Level": "DEBUG",
+            "Device": "All",
+            "Directory": "./logs/",
+            "Filename": "tincan_log",
+            "MaxArchives": 10,
+            "MaxFileSize": 1048576,
+            "ConsoleLevel": "DEBUG"
+        }
+    }
+}
+CTL_QUERY_OVERLAY_INFO = {
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "QueryOverlayInfo",
+            "OverlayId": ""
+        }
+    }
+}
+CTL_CREATE_OVERLAY = {
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "ControlType": "TincanRequest",
+        "TransactionId": 0,
+        "Request": {
+            "Command": "CreateOverlay",
+            "TapName": "",
+            "IP4": "",
+            "IP4PrefixLen": "",
+            "MTU4": "",
+            "StunAddress": "",
+            "TurnAddress": "",
+            "TurnUser": "",
+            "TurnPass": "",
+        }
+    }
+}
+CTL_CREATE_LINK = {
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "CreateLink",
+            "OverlayId": "",
+            "LinkId": "",
+            "PeerInfo": {
+                "VIP4": "",
+                "UID": "",
+                "MAC": "",
+                "FPR": ""
             }
-    }
-}
-LOGCFG = {
-    "IPOP": {
-        "ProtocolVersion": 4,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-          "Command": "ConfigureLogging",
-          "Level": "WARNING",
-          "Device": "FILE",
-          "Directory": "./logs/",
-          "Filename": "tincan_log",
-          "MaxArchives": 10,
-          "MaxFileSize": 1048576
         }
     }
 }
-LSTATE = {
+CTL_SET_IGNORED_NET_INTERFACES = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-          "Command": "QueryNodeInfo",
-          "InterfaceName": "ipop_tap0",
-          "MAC": ""
+            "Command": "SetIgnoredNetInterfaces",
+            "OverlayId": "",
+            "IgnoredNetInterfaces": []
         }
     }
 }
-ECHO = {
-  "IPOP": {
-      "ProtocolVersion": 4,
-      "TransactionId": 0,
-      "ControlType": "TincanRequest",
-      "Request": {
-        "Command": "Echo",
-        "InterfaceName": "ipop_tap0",
-        "Message": "echo message"
-      }
-  }
-}
-VNET = {
+CTL_SEND_ICC = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
+        "Tag": 0,
         "ControlType": "TincanRequest",
-        "TransactionId": 0,
         "Request": {
-          "Command": "CreateVnet",
-          "InterfaceName": "ipop_tap0",
-          "Description": "My Devices",
-          "LocalVirtIP4": "",
-          "LocalPrefix4": "",
-          "MTU4": "",
-          "LocalUID": "",
-          "StunAddress": "",
-          "TurnAddress": "",
-          "TurnUser": "",
-          "TurnPass": "",
-          "AutoTrimEnabled": False,
-          "IPMappingEnabled": False
+            "Command": "SendIcc",
+            "LinkId": "",
+            "OverlayId": "",
+            "Data": "encoded string"
         }
     }
 }
-LCAS = {
-    "IPOP": {
-        "ProtocolVersion": 4,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-          "Command": "CreateTunnel",
-          "InterfaceName": "ipop_tap0",
-          "EncryptionEnabled": True,
-          "PeerInfo": {
-            "VIP4": "",
-            "UID": "",
-            "MAC": "",
-            "Fingerprint": ""
-          }
-        }
-    }
-}
-CONCT = {
-    "IPOP": {
-        "ProtocolVersion": 4,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-          "Command": "ConnectTunnel",
-          "InterfaceName": "ipop_tap0",
-          "EncryptionEnabled": True,
-          "PeerInfo": {
-            "VIP4": "",
-            "UID": "",
-            "MAC": "",
-            "Fingerprint": ""
-          }
-        }
-    }
-}
-IGNORE = {
-    "IPOP": {
-        "ProtocolVersion": 4,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-          "Command": "SetIgnoredNetInterfaces",
-          "InterfaceName": "ipop_tap0",
-          "IgnoredNetInterfaces": []
-        }
-    }    
-}
-ICC = {
-    "IPOP": {
-      "ProtocolVersion": 4,
-      "Tag": 100020,
-      "ControlType": "TincanRequest",
-      "Request": {
-        "Command": "ICC",
-        "RecipientMac": "",
-        "InterfaceName": "ipop_tap0",
-        "Recipient": "peer_uid",
-        "Data": "encoded string"
-      }
-     }
-  }
-PACKET = {
-    "IPOP": {
-        "ProtocolVersion": 4,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-            "Command": "UpdateRoutes",
-            "InterfaceName": "ipop_tap0",
-            "Data": "encoded_string"
-        }
-     }
-  }
 INSERT_TAP_PACKET = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "InjectFrame",
-            "InterfaceName": "ipop_tap0",
+            "OverlayId": "",
             "Data": "encoded_string"
         }
-     }
-  }
-REMOVE = {
+    }
+}
+CTL_REMOVE_OVERLAY = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-            "Command": "TrimTunnel",
-            "InterfaceName": "ipop_tap0",
-            "MAC": ""
+            "Command": "RemoveOverlay",
+            "OverlayId": ""
         }
-     }
-  }
+    }
+}
+CTL_REMOVE_LINK = {
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "RemoveLink",
+            "OverlayId": "",
+            "LinkId": ""
+        }
+    }
+}
 RESP = {
     "IPOP": {
-        "ProtocolVersion": 4,
+        "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanResponse",
         "Request": {
@@ -209,128 +173,130 @@ RESP = {
         }
     }
 }
-
 ADD_FORWARDING_RULE = {
-        "IPOP": {
-            "ProtocolVersion": 4,
-            "TransactionId": 0,
-            "ControlType": "TincanRequest",
-            "Request": {
-                "Command": "UpdateMap",
-                "InterfaceName": "ipop_tap0",
-                "Routes": []
-                }
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "UpdateMap",
+            "OverlayId": "",
+            "Routes": []
         }
+    }
+}
+DELETE_FORWARDING_RULE = {
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "RemoveRoutes",
+            "OverlayId": "",
+            "Routes": []
+        }
+    }
+}
+CTL_QUERY_LINK_STATS = {
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "QueryLinkStats",
+            "OverlayIds" : []
+        }
+    }
+}
+CTL_QUERY_CAS = {
+    "IPOP": {
+        "ProtocolVersion": 5,
+        "TransactionId": 0,
+        "ControlType": "TincanRequest",
+        "Request": {
+            "Command": "QueryCandidateAddressSet",
+            "OverlayId": "",
+            "LinkId": ""
+        }
+    }
 }
 
-DELETE_FORWARDING_RULE = {
-        "IPOP": {
-            "ProtocolVersion": 4,
-            "TransactionId": 0,
-            "ControlType": "TincanRequest",
-            "Request": {
-                "Command": "RemoveRoutes",
-                "InterfaceName": "ipop_tap0",
-                "Routes": []
-                }
-        }
-}
-LINK_STATS = {
-    "IPOP": {
-        "ProtocolVersion": 4,
-        "TransactionId" : 0,
-        "Owner" : "ModuleName",
-        "ControlType": "TincanRequest",
-        "Request": {
-        "Command": "QueryLinkStats",
-        "InterfaceName": "ipop_tap0",
-        "MAC" : ""
-        }
-    }
-}
-QUERY_CAS = {
-    "IPOP": {
-        "ProtocolVersion": 4,
-        "TransactionId" : 0,
-        "Owner" : "",
-        "ControlType": "TincanRequest",
-        "Request": {
-          "Command": "QueryCandidateAddressSet",
-          "InterfaceName": "ipop_tap0",
-          "MAC" : ""
-        }
-    }
-}
+
 def ip4_a2hex(ipstr):
     return "".join(hex(int(x, 10))[2:] for x in ipstr.split("."))
 
 
 def ip6_a2b(str_ip6):
     if py_ver == 3:
-        return b''.join(int(x, 16).to_bytes(2, byteorder='big') for x in str_ip6.split(':'))
+        return b"".join(int(x, 16).to_bytes(2, byteorder="big") for x in str_ip6.split(":"))
     else:
-        return ''.join(x.decode("hex") for x in str_ip6.split(':'))
+        return "".join(x.decode("hex") for x in str_ip6.split(":"))
+
 
 def ip6_b2a(bin_ip6):
     if py_ver == 3:
-        return ''.join("%04x" % int.from_bytes(bin_ip6[i:i+2], byteorder='big') + ':'\
-                for i in range(0, 16, 2))[:-1]
+        return "".join("%04x" % int.from_bytes(bin_ip6[i:i + 2], byteorder="big") + ":"
+                       for i in range(0, 16, 2))[:-1]
     else:
-        return ''.join(bin_ip6[x:x+2].encode("hex") + ":" for x in range(0, 16, 2))[:-1]
+        return "".join(bin_ip6[x:x + 2].encode("hex") + ":" for x in range(0, 16, 2))[:-1]
+
 
 def ip4_a2b(str_ip4):
     if py_ver == 3:
-        return b''.join(int(x, 10).to_bytes(1, byteorder='big') for x in str_ip4.split('.'))
+        return b"".join(int(x, 10).to_bytes(1, byteorder="big") for x in str_ip4.split("."))
     else:
-        return ''.join(chr(int(x)) for x in str_ip4.split('.'))
+        return "".join(chr(int(x)) for x in str_ip4.split("."))
+
 
 def ip4_b2a(bin_ip4):
     if py_ver == 3:
-        return ''.join(str(int.from_bytes(bin_ip4[i:i+1], byteorder='big')) + '.'\
-                for i in range(0, 4, 1))[:-1]
+        return "".join(str(int.from_bytes(bin_ip4[i:i + 1], byteorder="big")) + "."
+                       for i in range(0, 4, 1))[:-1]
     else:
-        return ''.join(str(ord(bin_ip4[x])) + "." for x in range(0, 4))[:-1]
+        return "".join(str(ord(bin_ip4[x])) + "." for x in range(0, 4))[:-1]
+
 
 def mac_a2b(str_mac):
     if py_ver == 3:
-        return b''.join(int(x, 16).to_bytes(1, byteorder='big') for x in str_mac.split(':'))
+        return b"".join(int(x, 16).to_bytes(1, byteorder="big") for x in str_mac.split(":"))
     else:
-        return ''.join(x.decode("hex") for x in str_mac.split(':'))
+        return "".join(x.decode("hex") for x in str_mac.split(":"))
+
 
 def mac_b2a(bin_mac):
     if py_ver == 3:
-        return ''.join("%02x" % int.from_bytes(bin_mac[i:i+1], byteorder='big') + ':'\
-                for i in range(0, 6, 1))[:-1]
+        return "".join("%02x" % int.from_bytes(bin_mac[i:i + 1], byteorder="big") + ":"
+                       for i in range(0, 6, 1))[:-1]
     else:
-        return ''.join(bin_mac[x].encode("hex") + ":" for x in range(0, 6))[:-1]
+        return "".join(bin_mac[x].encode("hex") + ":" for x in range(0, 6))[:-1]
 
 
 def uid_a2b(str_uid):
     if py_ver == 3:
-        return int(str_uid, 16).to_bytes(20, byteorder='big')
+        return int(str_uid, 16).to_bytes(20, byteorder="big")
     else:
         return str_uid.decode("hex")
 
 
 def uid_b2a(bin_uid):
     if py_ver == 3:
-        return "%40x" % int.from_bytes(bin_uid, byteorder='big')
+        return "%40x" % int.from_bytes(bin_uid, byteorder="big")
     else:
         return bin_uid.encode("hex")
 
 
 def hexstr2b(hexstr):
     if py_ver == 3:
-        return b''.join(int(hexstr[i:i+2], 16).to_bytes(1, byteorder='big') for i in range(0, len(hexstr), 2))
+        return b"".join(int(hexstr[i:i + 2], 16).to_bytes(1, byteorder="big") for i in range(0, len(hexstr), 2))
     else:
-        return hexstr.decode('hex')
+        return hexstr.decode("hex")
 
 
 def b2hexstr(binary):
     if py_ver == 3:
-        return ''.join("%02x" % int.from_bytes(binary[i:i+1], byteorder='big') for i in range(0, len(binary), 1))
+        return "".join("%02x" % int.from_bytes(binary[i:i + 1], byteorder="big") for i in range(0, len(binary), 1))
     else:
-        return binary.encode('hex')
+        return binary.encode("hex")
 
 
 def gen_ip4(uid, peer_map, ip4):

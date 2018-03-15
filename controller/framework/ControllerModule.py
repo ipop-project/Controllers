@@ -29,19 +29,18 @@ class ControllerModule(object):
 
     __metaclass__ = ABCMeta
 
-    def __init__(self, CFxHandle, paramDict, ModuleName):
-        self.pendingCBT = {}
-        self.CBTMappings = {}
-        self.CFxHandle = CFxHandle
-        self.CMConfig = paramDict
-        self.ModuleName = ModuleName
+    def __init__(self, cfx_handle, module_config, module_name):
+        #self._pending_cbt = {}
+        self._cfx_handle = cfx_handle
+        self._cm_config = module_config
+        self._module_name = module_name
 
     @abstractmethod
     def initialize(self):
         pass
 
     @abstractmethod
-    def processCBT(self, cbt):
+    def process_cbt(self, cbt):
         pass
 
     @abstractmethod
@@ -52,16 +51,37 @@ class ControllerModule(object):
     def terminate(self):
         pass
 
+    def req_handler_default(self, cbt):
+        log = "Unsupported CBT action {0}".format(cbt)
+        self.register_cbt("Logger", "LOG_WARNING", log)
+        cbt.set_response(log, False)
+        self.complete_cbt(cbt)
+
     # create and submit CBT mask method
-    def registerCBT(self, _recipient, _action, _data='', _tag=None):
-        cbt = self.CFxHandle.createCBT(
-            #vnet = _vnet,
-            initiator = self.ModuleName,
-            recipient = _recipient,
-            action = _action,
-            data = _data
+    def register_cbt(self, _recipient, _action, _params=None):
+        cbt = self._cfx_handle.create_cbt(
+            initiator=self._module_name,
+            recipient=_recipient,
+            action=_action,
+            params=_params
         )
-        if _tag is not None:
-            cbt.Tag = _tag
-        self.CFxHandle.submitCBT(cbt)
+        self._cfx_handle.submit_cbt(cbt)
         return cbt
+
+    def create_cbt(self, initiator, recipient, action, params=None):
+        return self._cfx_handle.create_cbt(initiator, recipient, action, params)
+
+    def create_linked_cbt(self, parent):
+        return self._cfx_handle.create_linked_cbt(parent)
+
+    def complete_cbt(self, cbt):
+        self._cfx_handle.complete_cbt(cbt)
+
+    def free_cbt(self, cbt):
+        self._cfx_handle.free_cbt(cbt)
+
+    def get_parent_cbt(self, cbt):
+        return self._cfx_handle.get_parent_cbt(cbt)
+
+    def submit_cbt(self, cbt):
+        self._cfx_handle.submit_cbt(cbt)

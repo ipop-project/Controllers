@@ -64,3 +64,6 @@ error.log
 *.suo
 *.opensdf
 *.sdf
+.vs/
+config.json
+nid
