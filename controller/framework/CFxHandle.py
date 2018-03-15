@@ -23,9 +23,9 @@ import sys
 import logging
 import threading
 import traceback
-from controller.framework.CBT import CBT
 import queue as Queue
 import time
+from controller.framework.CBT import CBT
 
 class CFxHandle(object):
     def __init__(self, CFxObject):
@@ -93,7 +93,7 @@ class CFxHandle(object):
         timer_enabled = False
         try:
             self.interval = int(self._cm_config.get("TimerInterval", 0))
-            if self.interval > 0: 
+            if self.interval > 0:
                 timer_enabled = True
         except Exception:
             logging.warning("Invalid TimerInterval for {0}. Timer method has " \

@@ -19,10 +19,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-ipop_ver_mjr = "18"
-ipop_ver_mnr = "02"
-ipop_ver_rev = "0"
-ipop_ver_rel = "{0}.{1}.{2}".format(ipop_ver_mjr, ipop_ver_mnr, ipop_ver_rev)
+IPOP_VER_MJR = "18"
+IPOP_VER_MNR = "04"
+IPOP_VER_REV = "0"
+IPOP_VER_REL = "{0}.{1}.{2}".format(IPOP_VER_MJR, IPOP_VER_MNR, IPOP_VER_REV)
 
 # set default config values
 MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
@@ -31,7 +31,7 @@ MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
 CONFIG = {
     "CFx": {
         "NodeId": "",  # Single unique node Id for all overlays
-        "IpopVersion": ipop_ver_rel,
+        "IpopVersion": IPOP_VER_REL,
         "Model": "Default"
     },
     "Logger": {

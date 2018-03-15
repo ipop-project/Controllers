@@ -19,7 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import time
 import threading
 import traceback
 import uuid
@@ -61,7 +60,6 @@ class LinkManager(ControllerModule):
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
     def req_handler_remove_link(self, cbt):
-        # TODO: send courtesy terminate link ICC.
         olid = cbt.request.params.get("OverlayId", None)
         lnkid = cbt.request.params.get("LinkId", None)
         peer_id = cbt.request.params.get("PeerId", None)

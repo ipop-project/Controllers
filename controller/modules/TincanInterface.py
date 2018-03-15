@@ -19,7 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from controller.framework.ControllerModule import ControllerModule
 import socket
 import select
 try:
@@ -29,6 +28,7 @@ except ImportError:
 import controller.framework.ipoplib as ipoplib
 from threading import Thread
 import traceback
+from controller.framework.ControllerModule import ControllerModule
 
 
 class TincanInterface(ControllerModule):
@@ -114,7 +114,7 @@ class TincanInterface(ControllerModule):
         cbt = self.create_cbt(self._module_name, self._module_name, "TCI_CONFIGURE_LOGGING")
         ctl = ipoplib.CTL_CONFIGURE_LOGGING
         ctl["IPOP"]["TransactionId"] = cbt.tag
-        if(not use_defaults):
+        if not use_defaults:
             ctl["IPOP"]["Request"]["Level"] = log_cfg["LogLevel"]
             ctl["IPOP"]["Request"]["Device"] = log_cfg["Device"]
             ctl["IPOP"]["Request"]["Directory"] = log_cfg["Directory"]
@@ -277,8 +277,8 @@ class TincanInterface(ControllerModule):
                 self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "LOG_QUERY_CONFIG":
-                self.configure_tincan_logging(cbt.response.data, 
-                                            not cbt.response.status)
+                self.configure_tincan_logging(cbt.response.data,
+                                              not cbt.response.status)
 
             elif cbt.request.action == "TCI_CREATE_CTRL_LINK":
                 self.resp_handler_create_control_link(cbt)

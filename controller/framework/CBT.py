@@ -67,7 +67,7 @@ class CBT(object):
                 \n\tcompleted: %r,\n\top_type: %s,\n\trequest: %r, \
                 \n\tresponse: %r\n}"
                % (self.tag, str(self.parent), self.child_count, self.completed,
-                 self.op_type, self.request, self.response))
+                  self.op_type, self.request, self.response))
         return msg
 
     def set_request(self, initiator="", recipient="", action="", params=""):
