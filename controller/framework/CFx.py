@@ -65,7 +65,7 @@ class CFX(object):
                 except Exception as error:
                     pass
 
-        if self.detect_cyclic_dependency(dependency_graph):
+        if CFX.detect_cyclic_dependency(dependency_graph):
             print("Circular dependency detected in config.json. Exiting")
             sys.exit()
 

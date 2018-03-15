@@ -105,7 +105,8 @@ class LinkManager(ControllerModule):
         with self._lock:
             for olid in self._overlays:
                 if self._cm_config["Overlays"][olid]["Type"] == "VNET":
-                    params.append(olid)
+                    if "Descriptor" in self._overlays[olid]:
+                        params.append(olid)
                 elif self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
                     for peer_id in self._overlays[olid]["Peers"]:
                         link_id = self._overlays[olid]["Peers"][peer_id]
