@@ -38,15 +38,15 @@ class Logger(ControllerModule):
             level = getattr(logging, self._cm_config["LogLevel"])
         else:
             level = getattr(logging, "info")
-        
+
         # If the Logging is set to Console by the User
         if self._cm_config["Device"] == "Console":
             # Console logging
-            logging.basicConfig(format="[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s\n",
+            logging.basicConfig(format="[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s",
                                 datefmt="%H:%M:%S",
                                 level=level)
             self.logger = logging.getLogger("IPOP console logger")
-        
+
         # If the Logging is set to File by the User
         elif self._cm_config["Device"] == "File":
             # Extracts the filepath else sets logs to current working directory
@@ -74,8 +74,9 @@ class Logger(ControllerModule):
 
             #Console Logger
             console_handler = logging.StreamHandler()
-            console_log_formatter = logging.Formatter("[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s\n",
-                                                      datefmt="%H:%M:%S")
+            console_log_formatter = logging.Formatter(
+                "[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s",
+                datefmt="%H:%M:%S")
             console_handler.setFormatter(console_log_formatter)
             self.logger.addHandler(console_handler)
 
@@ -85,7 +86,7 @@ class Logger(ControllerModule):
                 self._cm_config.get("CtrlLogFileName", "ctrl.log")
             if not os.path.isdir(filepath):
                 os.mkdir(filepath)
-            
+
             #File Logger
             # Creates rotating filehandler
             file_handler = lh.RotatingFileHandler(filename=fqname)
@@ -133,6 +134,7 @@ class Logger(ControllerModule):
         pass
 
     def pktdump(self, message, dump=None, *args, **argv):
+        """ Packet Information dumping method"""
         hext = ""
         if dump:
             for i in range(0, len(dump), 2):
