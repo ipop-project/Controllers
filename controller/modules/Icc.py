@@ -1,7 +1,4 @@
-<<<<<<< 9c243b2550fcb486fc8927270be40db9eea04d34
-=======
 """ Inter Controller Communication Module """
->>>>>>> Linter Changes
 # ipop-project
 # Copyright 2016, University of Florida
 #
