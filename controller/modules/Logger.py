@@ -1,3 +1,4 @@
+""" Logger Module """
 # ipop-project
 # Copyright 2016, University of Florida
 #
@@ -26,6 +27,7 @@ from controller.framework.ControllerModule import ControllerModule
 
 
 class Logger(ControllerModule):
+    """ This class contains all Logger methods """
     def __init__(self, cfx_handle, module_config, module_name):
         super(Logger, self).__init__(cfx_handle, module_config, module_name)
 
@@ -39,7 +41,8 @@ class Logger(ControllerModule):
         # Check whether the Logging is set to File by the User
         if self._cm_config["Device"] == "Console":
             # Console logging
-            logging.basicConfig(format="[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s\n", datefmt="%H:%M:%S",
+            logging.basicConfig(format="[%(asctime)s.%(msecs)03d] %(levelname)s: %(message)s\n",
+                                datefmt="%H:%M:%S",
                                 level=level)
             self.logger = logging.getLogger("IPOP console logger")
         else:
@@ -52,7 +55,8 @@ class Logger(ControllerModule):
             self.logger = logging.getLogger("IPOP Rotating Log")
             self.logger.setLevel(level)
             # Creates rotating filehandler
-            handler = lh.RotatingFileHandler(filename=fqname, maxBytes=self._cm_config["MaxFileSize"],
+            handler = lh.RotatingFileHandler(filename=fqname,
+                                             maxBytes=self._cm_config["MaxFileSize"],
                                              backupCount=self._cm_config["MaxArchives"])
             formatter = logging.Formatter(
                 "[%(asctime)s.%(msecs)03d] %(levelname)s:%(message)s", datefmt="%Y%m%d %H:%M:%S")
