@@ -128,11 +128,11 @@ class Icc(ControllerModule):
         rem_act = cbt.request.params
         peerid = rem_act["RecipientId"]
         overlayid = rem_act["OverlayId"]
-        if self._links.get(overlayid, False):
+        if self._links.get(overlayid) is None:
             cbt.set_response("Invalid overlay id for send remote action", False)
             self.complete_cbt(cbt)
             return
-        if self._links[overlayid]["Peers"].get(peerid, False):
+        if self._links[overlayid]["Peers"].get(peerid) is None:
             cbt.set_response("Invalid peer id for send remote action", False)
             self.complete_cbt(cbt)
             return
@@ -179,7 +179,7 @@ class Icc(ControllerModule):
             self._remote_acts[rcbt.tag] = rem_act
             self.submit_cbt(rcbt)
 
-        # Handling responses to the remote action recevied via Tincan
+        # Handle response to the remote action
         else:
             self.register_cbt("Logger", "LOG_DEBUG", "Remote action response {0}"
                                     .format(rem_act["ActionTag"]))
@@ -193,8 +193,7 @@ class Icc(ControllerModule):
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
 
-    # Complete the remote action by sending back the responses
-    # from the modules via Tincan
+    # Complete the remote action by sending the response from the modules
     def complete_remote_action(self,cbt):
         if cbt.tag in self._remote_acts:
             rem_act = self._remote_acts[cbt.tag]

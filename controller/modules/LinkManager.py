@@ -19,7 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import time
 import threading
 import traceback
 import uuid
@@ -61,7 +60,6 @@ class LinkManager(ControllerModule):
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
     def req_handler_remove_link(self, cbt):
-        # TODO: send courtesy terminate link ICC.
         olid = cbt.request.params.get("OverlayId", None)
         lnkid = cbt.request.params.get("LinkId", None)
         peer_id = cbt.request.params.get("PeerId", None)
@@ -97,7 +95,7 @@ class LinkManager(ControllerModule):
         if not "Descriptor" in self._overlays[olid]:
             self._overlays[olid]["Descriptor"] = dict()
         self._overlays[olid]["Descriptor"]["MAC"] = olay_desc["MAC"]
-        self._overlays[olid]["Descriptor"]["VIP4"] = olay_desc["VIP4"]
+        self._overlays[olid]["Descriptor"]["VIP4"] = olay_desc.get("VIP4")
         self._overlays[olid]["Descriptor"]["TapName"] = olay_desc["TapName"]
         self._overlays[olid]["Descriptor"]["FPR"] = olay_desc["FPR"]
         self._overlays[olid]["Descriptor"]["IP4PrefixLen"] = olay_desc["IP4PrefixLen"]
@@ -107,7 +105,8 @@ class LinkManager(ControllerModule):
         with self._lock:
             for olid in self._overlays:
                 if self._cm_config["Overlays"][olid]["Type"] == "VNET":
-                    params.append(olid)
+                    if "Descriptor" in self._overlays[olid]:
+                        params.append(olid)
                 elif self._cm_config["Overlays"][olid]["Type"] == "TUNNEL":
                     for peer_id in self._overlays[olid]["Peers"]:
                         link_id = self._overlays[olid]["Peers"][peer_id]
@@ -147,7 +146,7 @@ class LinkManager(ControllerModule):
                     descriptor = self._overlays[olid]["Descriptor"]
                     node_data = {
                         "TapName": descriptor["TapName"],
-                        "VIP4": descriptor["VIP4"],
+                        "VIP4": descriptor.get("VIP4"),
                         "IP4PrefixLen": descriptor["IP4PrefixLen"],
                         "MAC": descriptor["MAC"]
                     }
@@ -249,7 +248,7 @@ class LinkManager(ControllerModule):
     def _create_overlay(self, params, parent_cbt=None):
         overlay_id = params["OverlayId"]
         type = self._cm_config["Overlays"][overlay_id]["Type"]
-        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"]
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:15]
         lnkid = params["LinkId"]
         olid = overlay_id
         if type == "TUNNEL":
@@ -265,9 +264,9 @@ class LinkManager(ControllerModule):
             "TurnUser": self._cm_config["Turn"][0]["User"],
             "Type": type,
             "TapName": tap_name,
-            "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
-            "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
-            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
+            "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
+            "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
+            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id].get("IP4PrefixLen"),
         }
         if parent_cbt is not None:
             ovl_cbt = self.create_linked_cbt(parent_cbt)
@@ -286,7 +285,7 @@ class LinkManager(ControllerModule):
                     "FPR": ovl_data["FPR"],
                     "MAC": ovl_data["MAC"],
                     "UID": self._cm_config["NodeId"],
-                    "VIP4": ovl_data["VIP4"]}}
+                    "VIP4": ovl_data.get("VIP4")}}
         endp_param.update(params)
         remote_act = dict(OverlayId=overlay_id,
                           RecipientId=parent_cbt.request.params["PeerId"],
@@ -333,7 +332,7 @@ class LinkManager(ControllerModule):
             self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peerid)
         params = {"OverlayId": overlay_id, "LinkId": lnkid, 
                   "Type": self._cm_config["Overlays"][overlay_id]["Type"]}
-        if "Discriptor" not in self._overlays[overlay_id]:
+        if "Descriptor" not in self._overlays[overlay_id]:
             self._create_overlay(params, parent_cbt=cbt)
         else:
             self._request_peer_endpoint(params, parent_cbt=cbt)
@@ -393,7 +392,7 @@ class LinkManager(ControllerModule):
         """
         # Node A, fails the request. Things then proceed as normal
         if (peer_id in self._overlays[overlay_id]["Peers"]
-                and peer_id < self._cm_config["Peer_id"]):
+                and peer_id < self._cm_config["NodeId"]):
             cbt.set_response("LNK_REQ_LINK_ENDPT denied", False)
             self.complete_cbt(cbt)
             self._lock.release()
@@ -418,7 +417,7 @@ class LinkManager(ControllerModule):
             self._lock.release()
 
         type = self._cm_config["Overlays"][overlay_id]["Type"]
-        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"]
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:15]
         olid = overlay_id
         if type == "TUNNEL":
             tap_name = tap_name[:8] + str(lnkid[:7]) # to avoid name collision
@@ -433,16 +432,16 @@ class LinkManager(ControllerModule):
             "TurnUser": self._cm_config["Turn"][0]["User"],
             "Type": type,
             "TapName": tap_name,
-            "IP4": self._cm_config["Overlays"][overlay_id]["IP4"],
-            "MTU4": self._cm_config["Overlays"][overlay_id]["MTU4"],
-            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id]["IP4PrefixLen"],
+            "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
+            "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
+            "IP4PrefixLen": self._cm_config["Overlays"][overlay_id].get("IP4PrefixLen"),
             # link params
             "LinkId": lnkid,
             "NodeData": {
                 "FPR": node_data["FPR"],
                 "MAC": node_data["MAC"],
                 "UID": node_data["UID"],
-                "VIP4": node_data["VIP4"]}}
+                "VIP4": node_data.get("VIP4")}}
         lcbt = self.create_linked_cbt(cbt)
         lcbt.set_request(self._module_name, "TincanInterface",
                             "TCI_CREATE_LINK", create_link_params)
@@ -467,7 +466,7 @@ class LinkManager(ControllerModule):
         self._update_overlay_descriptor(resp_data, cbt.request.params["OID"])
         # respond with this nodes connection parameters
         node_data = {
-            "VIP4": resp_data["VIP4"],
+            "VIP4": resp_data.get("VIP4"),
             "MAC": resp_data["MAC"],
             "FPR": resp_data["FPR"],
             "UID": self._cm_config["NodeId"],
@@ -496,7 +495,7 @@ class LinkManager(ControllerModule):
                 "LinkId": lnkid,
                 "Type": type,
                 "NodeData": {
-                    "VIP4": node_data["VIP4"],
+                    "VIP4": node_data.get("VIP4"),
                     "UID": node_data["UID"],
                     "MAC": node_data["MAC"],
                     "CAS": node_data["CAS"],
@@ -518,7 +517,7 @@ class LinkManager(ControllerModule):
             "OverlayId": olid,
             "LinkId": cbt.request.params["LinkId"],
             "NodeData": {
-                "VIP4": "", "UID": self._cm_config["NodeId"], "MAC": "",
+                "UID": self._cm_config["NodeId"], "MAC": "",
                 "CAS": local_cas, "FPR": ""}}
         remote_act = dict(OverlayId=oid, RecipientId=peerid,
                     RecipientCM="LinkManager", Action="LNK_ADD_PEER_CAS",
