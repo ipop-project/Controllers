@@ -1,4 +1,3 @@
-""" Logger Module """
 # ipop-project
 # Copyright 2016, University of Florida
 #
@@ -27,7 +26,6 @@ from controller.framework.ControllerModule import ControllerModule
 
 
 class Logger(ControllerModule):
-    """ This class contains all Logger methods """
     def __init__(self, cfx_handle, module_config, module_name):
         super(Logger, self).__init__(cfx_handle, module_config, module_name)
 
@@ -67,7 +65,7 @@ class Logger(ControllerModule):
             # Adds the filehandler to the Python logger module
             self.logger.addHandler(handler)
 
-         # If the Logging is set to Both by the User
+         # If the Logging is set to All by the User
         else:
             self.logger = logging.getLogger("IPOP Console & File Logger")
             self.logger.setLevel(level)

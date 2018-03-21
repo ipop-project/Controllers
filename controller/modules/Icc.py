@@ -1,4 +1,3 @@
-""" Inter Controller Communication Module """
 # ipop-project
 # Copyright 2016, University of Florida
 #
@@ -23,8 +22,6 @@ import json
 from controller.framework.ControllerModule import ControllerModule
 
 class Icc(ControllerModule):
-    """ This class contains all the Icc methods """
-
     def __init__(self, cfx_handle, module_config, module_name):
         super(Icc, self).__init__(cfx_handle, module_config, module_name)
         # Dictionary to hold data about overlayID->peerID->linkID mappings
