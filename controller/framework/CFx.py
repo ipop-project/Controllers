@@ -27,8 +27,8 @@ import argparse
 import threading
 import importlib
 import uuid
-import controller.framework.fxlib as fxlib
 from collections import OrderedDict
+import controller.framework.fxlib as fxlib
 from controller.framework.CFxHandle import CFxHandle
 from controller.framework.CFxSubscription import CFxSubscription
 
@@ -39,8 +39,8 @@ class CFX(object):
         self._config = OrderedDict()
         self.parse_config()
         """
-        CFxHandleDict is a dict containing the references to CFxHandles of all CMs with key as the module name and
-        value as the CFxHandle reference
+        CFxHandleDict is a dict containing the references to CFxHandles of all
+        CMs. The key is the module name and value as the CFxHandle reference
         """
         self._cfx_handle_dict = {}
         self.model = self._config["CFx"]["Model"]
@@ -65,7 +65,7 @@ class CFX(object):
                 except Exception as error:
                     pass
 
-        if self.detect_cyclic_dependency(dependency_graph):
+        if CFX.detect_cyclic_dependency(dependency_graph):
             print("Circular dependency detected in config.json. Exiting")
             sys.exit()
 
@@ -85,22 +85,19 @@ class CFX(object):
                 self._cfx_handle_dict[module_name]._timer_thread.start()
 
     def load_module(self, module_name):
-        # import the modules dynamically
-        try:
-            module = importlib.import_module("controller.modules.{0}"
-                                             .format(module_name))
-        except ImportError as error:
-            # NOTE: this bit is important as importing a module may fail
-            # because an import inside it failed. If we don't handle this
-            # corner case, we will get an import error with the
-            # (incorrect) message that module_name does not exist.
-            if module_name not in str(error):
-                failed_dep_name = str(error).split(" ")[-1]
-                raise ImportError("Failed to load module \"{}\" due to an"
-                                  " ImportError on dependency \"{}\""
-                                  .format(module_name, failed_dep_name))
-            module = importlib.import_module("controller.modules.{0}.{1}"
-                                             .format(self.model, module_name))
+        """
+        Dynamically load the modules specified in the config file. Allow model
+        specific module implementations to override the default by attempting
+        to load them first.
+        """
+        if self.model:
+            if os.path.isfile("controller/modules/{0}/{1}.py"
+                              .format(self.model, module_name)):
+                module = importlib.import_module("controller.modules.{0}.{1}"
+                                                 .format(self.model, module_name))
+            else:
+                module = importlib.import_module("controller.modules.{0}"
+                                                  .format(module_name))
 
         # get the class with name key from module
         module_class = getattr(module, module_name)
@@ -136,19 +133,19 @@ class CFX(object):
         except KeyError:
             pass
 
-    def detect_cyclic_dependency(self, g):
+    def detect_cyclic_dependency(graph):
         # test if the directed graph g has a cycle
         path = set()
 
         def visit(vertex):
             path.add(vertex)
-            for neighbour in g.get(vertex, ()):
+            for neighbour in graph.get(vertex, ()):
                 if (neighbour in path) or visit(neighbour):
                     return True
             path.remove(vertex)
             return False
 
-        return any(visit(v) for v in g)
+        return any(visit(v) for v in graph)
 
     def __handler(self, signum=None, frame=None):
         print("Signal handler called with signal ", signum)
@@ -194,13 +191,13 @@ class CFX(object):
         config = self._config["CFx"]
         # if NodeId is not specified in Config file, generate NodeId
         nodeid = config.get("NodeId", None)
-        if nodeid is None or len(nodeid) == 0:
+        if nodeid is None or not nodeid:
             try:
                 with open("nid", "r") as f:
                     nodeid = f.read()
             except IOError:
                 pass
-        if nodeid is None or len(nodeid) == 0:
+        if nodeid is None or not nodeid:
             nodeid = str(uuid.uuid4().hex)
             with open("nid", "w") as f:
                 f.write(nodeid)
@@ -229,22 +226,19 @@ class CFX(object):
             signal.pause()
 
     def terminate(self):
-        for key in self._cfx_handle_dict:
-            # create a special terminate CBT to terminate all the CMs
-            terminate_cbt = self._cfx_handle_dict[key].create_cbt("CFx", key, "CFX_TERMINATE", None)
-
-            # clear all the queues and put the terminate CBT in all the queues
-            self._cfx_handle_dict[key]._cm_queue.queue.clear()
-
-            self.submit_cbt(terminate_cbt)
+        for module_name in self._cfx_handle_dict:
+            if self._cfx_handle_dict[module_name]._timer_thread:
+                self._cfx_handle_dict[module_name]._exit_event.set()
+            self._cfx_handle_dict[module_name]._cm_queue.put(None)
 
         # wait for the threads to process their current CBTs and exit
-            print("waiting for timer threads to exit gracefully...")
-        for handle in self._cfx_handle_dict:
-            if self._cfx_handle_dict[handle]._join_enabled:
-                self._cfx_handle_dict[handle]._cm_thread.join()
-                if self._cfx_handle_dict[handle]._timer_thread:
-                    self._cfx_handle_dict[handle]._timer_thread.join()
+        print("waiting for threads to exit ...")
+        for module_name in self._cfx_handle_dict:
+            self._cfx_handle_dict[module_name]._cm_thread.join()
+            print("{0} exited".format(self._cfx_handle_dict[module_name]._cm_thread.name))
+            if self._cfx_handle_dict[module_name]._timer_thread:
+                self._cfx_handle_dict[module_name]._timer_thread.join()
+                print("{0} exited".format(self._cfx_handle_dict[module_name]._timer_thread.name))
         sys.exit(0)
 
     def query_param(self, param_name=""):
@@ -259,7 +253,7 @@ class CFX(object):
                 return self.model
         except Exception as error:
             print("Exception occurred while querying data." + str(error))
-            return None
+        return None
 
     # Caller is the subscription source
     def publish_subscription(self, owner_name, subscription_name, owner):
@@ -295,10 +289,10 @@ class CFX(object):
         else:
             raise NameError("The specified subscription name was not found")
 
-    def end_subscription(self, owner_name, subscription_name, Sink):
+    def end_subscription(self, owner_name, subscription_name, sink):
         sub = self.find_subscription(owner_name, subscription_name)
         if sub is not None:
-            sub.remove_subscriber(Sink)
+            sub.remove_subscriber(sink)
 
 
 if __name__ == "__main__":

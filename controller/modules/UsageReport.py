@@ -51,9 +51,7 @@ class UsageReport(ControllerModule):
             else:
                 self.free_cbt(cbt)
         else:
-            log = "No Request action is supported in usage report {0}".format(cbt)
-            self.register_cbt("Logger", "LOG_WARNING", log)
-            self.complete_cbt(cbt)
+                self.req_handler_default(cbt)
 
     def timer_method(self):
         cur_time = datetime.datetime.now()
@@ -101,22 +99,24 @@ class UsageReport(ControllerModule):
 
     def submit_report(self, report_data):
         data = json.dumps(report_data).encode('utf8')
-        self.register_cbt("Logger", "LOG_INFO", "data at submit report {0}".format(data))  # for debugging
+        self.register_cbt("Logger", "LOG_DEBUG", "Usage report data: {0}".format(data))
         url = None
         try:
-            url = "http://" + self._cm_config["StatServerAddress"] + ":" + \
-                str(self._cm_config["StatServerPort"]) + "/api/submit"
+            url = "http://" + self._cm_config["ServerAddress"] + ":" + \
+                  str(self._cm_config["ServerPort"]) + "/api/submit"
             req = urllib2.Request(url=url, data=data)
             req.add_header("Content-Type", "application/json")
             res = urllib2.urlopen(req)
             if res.getcode() == 200:
-                log = "succesfully reported status to the stat-server {0}\n"\
-                    "HTTP response code:{1}, msg:{2}"\
+                log = "Usage report successfully submitted to server {0}\n" \
+                      "HTTP response code:{1}, msg:{2}" \
                     .format(url, res.getcode(), res.read())
                 self.register_cbt("Logger", "LOG_INFO", log)
             else:
-                self.register_cbt("Logger", "LOG_WARNING", "stat-server error code: {0}".format(res.getcode()))
+                self.register_cbt("Logger", "LOG_WARNING",
+                                  "Usage report server indicated error code: {0}".format(res.getcode()))
                 raise
         except Exception as error:
-            log = "statistics report failed to the stat-server ({0}).Error: {1}".format(url, error)
+            log = "Usage report submission failed to server {0}. Error: {1}".format(url, error)
             self.register_cbt("Logger", "LOG_WARNING", log)
+

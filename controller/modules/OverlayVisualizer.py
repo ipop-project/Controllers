@@ -34,18 +34,14 @@ class OverlayVisualizer(ControllerModule):
         super(OverlayVisualizer, self).__init__(cfx_handle, module_config, module_name)
         # Visualizer webservice URL
         self.vis_address = "http://" + self._cm_config["WebServiceAddress"]
-        # Datastructure to store Node network details
-
         self.node_id = str(self._cm_config["NodeId"])
+
         # The visualizer dataset which is forwarded to the collector service
         self._vis_ds = dict(NodeId=self.node_id, Data=defaultdict(dict))
         # Its lock
         self._vis_ds_lock = threading.Lock()
 
     def initialize(self):
-        # Get the list of overlays
-        self._overlays = self._cfx_handle.query_param("Overlays")
-
         # We're using the pub-sub model here to gather data for the visualizer
         # from other modules
         # Using this publisher, the OverlayVisualizer publishes events in the
@@ -77,9 +73,7 @@ class OverlayVisualizer(ControllerModule):
                     self.register_cbt("Logger", "LOG_WARNING", warn_msg)
                 self.free_cbt(cbt)
         else:
-            self.register_cbt("Logger", "LOG_WARNING", "Overlay Visualizer does not accept CBT requests")
-            cbt.set_response("Overlay Visualizer does not accept CBT requests", False)
-            self.complete_cbt(cbt)
+                self.req_handler_default(cbt)
 
     def timer_method(self):
         with self._vis_ds_lock:
@@ -87,16 +81,33 @@ class OverlayVisualizer(ControllerModule):
             # flush old data, next itr provides new data
             self._vis_ds = dict(NodeId=self.node_id,
                                 Data=defaultdict(dict))
+        collector_msg = dict(Data=dict())
 
-        if "Topology" in vis_ds and "LinkManager" in vis_ds \
-                and vis_ds["Topology"] and vis_ds["LinkManager"]:
-            print("Visualizer is going to send"
-                  " {}".format(json.dumps(vis_ds)))
+        # Filter out overlays for which we do not have LinkManager data
+        for overlay_id in vis_ds["Data"]:
+            overlay_data = vis_ds["Data"][overlay_id]
+            if "LinkManager" in overlay_data and overlay_data["LinkManager"]:
+                collector_msg["Data"][overlay_id] = overlay_data
+
+        if collector_msg["Data"]:
+
+            # Read the optional human-readable node name specified in the
+            # configuration and pass it along to the collector
+            if "NodeName" in self._cm_config:
+                collector_msg["NodeName"] = self._cm_config["NodeName"]
+
+            data_log = "Visualizer is going to send" \
+                  " {}".format(collector_msg)
+            self.register_cbt("Logger", "LOG_DEBUG", data_log)
+
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
 
             try:
-                resp = requests.put(req_url, data=json.dumps(vis_ds),
-                                    headers={"Content-Type": "application/json"})
+                resp = requests.put(req_url, data=json.dumps(collector_msg),
+                                    headers={"Content-Type":
+                                             "application/json"},
+                                    timeout=3
+                                   )
                 resp.raise_for_status()
 
             except requests.exceptions.RequestException as err:
@@ -104,11 +115,11 @@ class OverlayVisualizer(ControllerModule):
                     " webservice({0}). Exception: {1}" \
                     .format(self.vis_address, str(err))
                 self.register_cbt("Logger", "LOG_ERROR", err_msg)
-        else:
-            warn_msg = "Don't have enough data to send. Not forwarding" \
-                    " anything to the collector service. Data:" \
-                    " {}".format(vis_ds)
-            self.register_cbt("Logger", "LOG_WARNING", warn_msg)
+        #else:
+        #    warn_msg = "Don't have enough data to send. Not forwarding" \
+        #            " anything to the collector service. Data:" \
+        #            " {}".format(collector_msg)
+        #    self.register_cbt("Logger", "LOG_WARNING", warn_msg)
 
         # Now that all the accumulated data has been dealth with, we request
         # more data
