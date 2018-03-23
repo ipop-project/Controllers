@@ -106,7 +106,9 @@ class OverlayVisualizer(ControllerModule):
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
 
             try:
-                resp = requests.put(req_url, data=json.dumps(collector_msg), headers={"Content-Type":
+                resp = requests.put(req_url,
+                                    data=json.dumps(collector_msg),
+                                    headers={"Content-Type":
                                              "application/json"},
                                     timeout=3)
                 resp.raise_for_status()
