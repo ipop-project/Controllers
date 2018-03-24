@@ -247,11 +247,11 @@ class LinkManager(ControllerModule):
 
     def _create_overlay(self, params, parent_cbt=None):
         overlay_id = params["OverlayId"]
-        type = self._cm_config["Overlays"][overlay_id]["Type"]
+        ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
         tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:15]
         lnkid = params["LinkId"]
         olid = overlay_id
-        if type == "TUNNEL":
+        if ol_type == "TUNNEL":
             tap_name = tap_name[:8] + str(lnkid[:7]) # to avoid name collision
             olid = lnkid
         create_ovl_params = {
@@ -262,7 +262,7 @@ class LinkManager(ControllerModule):
             "TurnAddress": self._cm_config["Turn"][0]["Address"],
             "TurnPass": self._cm_config["Turn"][0]["Password"],
             "TurnUser": self._cm_config["Turn"][0]["User"],
-            "Type": type,
+            "Type": ol_type,
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
             "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
@@ -278,7 +278,7 @@ class LinkManager(ControllerModule):
         self.submit_cbt(ovl_cbt)
 
     def _request_peer_endpoint(self, params, parent_cbt):
-        overlay_id = params["OID"]
+        overlay_id = params["OverlayId"]
         ovl_data = self._overlays[overlay_id]["Descriptor"]
         endp_param = {
             "NodeData": {
@@ -416,10 +416,10 @@ class LinkManager(ControllerModule):
             self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id)
             self._lock.release()
 
-        type = self._cm_config["Overlays"][overlay_id]["Type"]
+        ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
         tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:15]
         olid = overlay_id
-        if type == "TUNNEL":
+        if ol_type == "TUNNEL":
             tap_name = tap_name[:8] + str(lnkid[:7]) # to avoid name collision
             olid = lnkid
         create_link_params = {
@@ -430,7 +430,7 @@ class LinkManager(ControllerModule):
             "TurnAddress": self._cm_config["Turn"][0]["Address"],
             "TurnPass": self._cm_config["Turn"][0]["Password"],
             "TurnUser": self._cm_config["Turn"][0]["User"],
-            "Type": type,
+            "Type": ol_type,
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
             "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
@@ -488,12 +488,12 @@ class LinkManager(ControllerModule):
         node_data = rem_act["Data"]["NodeData"]
         oid = rem_act["OverlayId"]
         olid = oid
-        type = self._cm_config["Overlays"][oid]["Type"]
-        if type == "TUNNEL":
+        ol_type = self._cm_config["Overlays"][oid]["Type"]
+        if ol_type == "TUNNEL":
             olid = lnkid
         cbt_params = {"OID": oid, "OverlayId": olid,
                 "LinkId": lnkid,
-                "Type": type,
+                "Type": ol_type,
                 "NodeData": {
                     "VIP4": node_data.get("VIP4"),
                     "UID": node_data["UID"],
@@ -571,13 +571,13 @@ class LinkManager(ControllerModule):
             olid = rem_act["OID"]
             lnkid = rem_act["LinkId"]
             parent_cbt.set_response(data="LNK_ADD_PEER_CAS successful", status=True)
-            self.free_cbt(cbt)
-            self.complete_cbt(parent_cbt)
             # publish notification of link creation Node B
             param = {
-                "UpdateType": "ADDED", "OverlayId": olid,
-                "PeerId": peer_id, "LinkId": lnkid
+                "UpdateType": "ADDED", "OverlayId": olid, "PeerId": peer_id,
+                "LinkId": lnkid#, "PortName": parent_cbt.request.params["TapName"]
                 }
+            self.free_cbt(cbt)
+            self.complete_cbt(parent_cbt)
             self._link_updates_publisher.post_update(param)
             self.register_cbt("Logger", "LOG_DEBUG", "Link created: {0}:{1}->{2}"
                 .format(olid[:7], self._cm_config["NodeId"][:7], peer_id[:7]))
@@ -592,12 +592,12 @@ class LinkManager(ControllerModule):
         lnkid = self._overlays[olid]["Peers"][peerid]
         self._lock.release()
         parent_cbt.set_response(data={"LinkId": lnkid}, status=True)
-        self.complete_cbt(parent_cbt)
         # publish notification of link creation Node A
         param = {
-            "UpdateType": "ADDED", "OverlayId": olid,
-            "PeerId": peerid, "LinkId": lnkid
+            "UpdateType": "ADDED", "OverlayId": olid, "PeerId": peerid,
+            "LinkId": lnkid#, "PortName": parent_cbt.request.params["TapName"]
             }
+        self.complete_cbt(parent_cbt)
         self._link_updates_publisher.post_update(param)
         self.register_cbt("Logger", "LOG_DEBUG", "Link created: {0}:{1}->{2}"
             .format(olid[:7], self._cm_config["NodeId"][:7], peerid[:7]))
