@@ -31,7 +31,8 @@ import requests
 
 class OverlayVisualizer(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
-        super(OverlayVisualizer, self).__init__(cfx_handle, module_config, module_name)
+        super(OverlayVisualizer, self).__init__(cfx_handle,
+                                                module_config, module_name)
         # Visualizer webservice URL
         self.vis_address = "http://" + self._cm_config["WebServiceAddress"]
 
@@ -99,17 +100,17 @@ class OverlayVisualizer(ControllerModule):
                 collector_msg["NodeName"] = self._cm_config["NodeName"]
 
             data_log = "Visualizer is going to send" \
-                  " {}".format(collector_msg)
+                " {}".format(collector_msg)
             self.register_cbt("Logger", "LOG_DEBUG", data_log)
 
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
 
             try:
-                resp = requests.put(req_url, data=json.dumps(collector_msg),
+                resp = requests.put(req_url,
+                                    data=json.dumps(collector_msg),
                                     headers={"Content-Type":
                                              "application/json"},
-                                    timeout=3
-                                   )
+                                    timeout=3)
                 resp.raise_for_status()
 
             except requests.exceptions.RequestException as err:
@@ -117,6 +118,7 @@ class OverlayVisualizer(ControllerModule):
                     " webservice({0}). Exception: {1}" \
                     .format(self.vis_address, str(err))
                 self.register_cbt("Logger", "LOG_ERROR", err_msg)
+        """
         #else:
         #    warn_msg = "Don't have enough data to send. Not forwarding" \
         #            " anything to the collector service. Data:" \
@@ -126,6 +128,7 @@ class OverlayVisualizer(ControllerModule):
         # Now that all the accumulated data has been dealth with, we request
         # more data
         self._vis_req_publisher.post_update(None)
+        """
 
     def terminate(self):
         pass

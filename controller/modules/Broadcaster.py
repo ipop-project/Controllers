@@ -27,8 +27,9 @@ from controller.framework.ControllerModule import ControllerModule
 
 class Broadcaster(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
-        super(Broadcaster, self).__init__(cfx_handle, module_config,
-            module_name)
+        super(Broadcaster, self).__init__(cfx_handle,
+                                          module_config,
+                                          module_name)
         self._bcast_data = None
         self._node_id = str(self._cm_config["NodeId"])
 
@@ -41,7 +42,7 @@ class Broadcaster(ControllerModule):
 
     def initialize(self):
         self.register_cbt("Logger", "LOG_INFO", "{} module"
-                " loaded".format(self._module_name))
+                          " loaded".format(self._module_name))
 
     def _bcast_on_icc(self, bcast_data):
         for recipient_id in self._overlay_peers[bcast_data["overlay_id"]]:
@@ -65,7 +66,7 @@ class Broadcaster(ControllerModule):
             # Get all peers from Topology
             lcbt = self.create_linked_cbt(cbt)
             lcbt.set_request(self._module_name, "Topology",
-                                "TOP_QUERY_PEER_IDS", "BuildCache")
+                             "TOP_QUERY_PEER_IDS", "BuildCache")
             self.submit_cbt(lcbt)
 
     def resp_handler_remote_act(self, cbt):
