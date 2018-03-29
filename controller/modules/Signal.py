@@ -19,7 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-
 import ssl
 import time
 from controller.framework.ControllerModule import ControllerModule
@@ -296,6 +295,7 @@ class Signal(ControllerModule):
         return xport
 
     def initialize(self):
+        
         self._presence_publisher = self._cfx_handle.publish_subscription("SIG_PEER_PRESENCE_NOTIFY")
         for overlay_id in self._cm_config["Overlays"]:
             overlay_descr = self._cm_config["Overlays"][overlay_id]

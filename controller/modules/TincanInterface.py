@@ -19,7 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-
 import socket
 import select
 try:
@@ -29,7 +28,6 @@ except ImportError:
 import controller.framework.ipoplib as ipoplib
 from threading import Thread
 import traceback
-
 from controller.framework.ControllerModule import ControllerModule
 
 

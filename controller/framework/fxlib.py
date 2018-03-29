@@ -40,7 +40,6 @@ CONFIG = {
         "Device": "File",      # Send logging output to <File> or <Console>
         "Directory": "./logs/",
         "CtrlLogFileName": "ctrl.log",
-
         "TincanLogFileName": "tincan_log",
         "MaxFileSize": 1000000,   # 1MB sized log files
         "MaxArchives": 5,   # Keep up to 5 files of history

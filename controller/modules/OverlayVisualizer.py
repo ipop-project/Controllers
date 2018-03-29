@@ -35,6 +35,7 @@ class OverlayVisualizer(ControllerModule):
                                                 module_config, module_name)
         # Visualizer webservice URL
         self.vis_address = "http://" + self._cm_config["WebServiceAddress"]
+
         self.node_id = str(self._cm_config["NodeId"])
 
         # The visualizer dataset which is forwarded to the collector service
@@ -82,6 +83,7 @@ class OverlayVisualizer(ControllerModule):
             # flush old data, next itr provides new data
             self._vis_ds = dict(NodeId=self.node_id,
                                 Data=defaultdict(dict))
+            
         collector_msg = dict(Data=dict())
 
         # Filter out overlays for which we do not have LinkManager data

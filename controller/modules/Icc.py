@@ -32,7 +32,6 @@ class Icc(ControllerModule):
 
     def initialize(self):
         self.register_cbt("Logger", "LOG_INFO",
-
                           "Module loaded")
 
        # Subscribe for link updates from LinkManager
@@ -42,7 +41,6 @@ class Icc(ControllerModule):
         # Subscribe for messages from TincanInterface
         self._cfx_handle.start_subscription("TincanInterface",
                                             "TCI_TINCAN_MSG_NOTIFY")
-
     def update_links(self, cbt):
         """ Update the self._links dict based on
             updates from the LinkManager """

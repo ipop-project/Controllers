@@ -65,7 +65,5 @@ error.log
 *.opensdf
 *.sdf
 .vs/
-
 config.json
 nid
-

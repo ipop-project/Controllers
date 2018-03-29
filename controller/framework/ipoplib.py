@@ -125,7 +125,6 @@ CTL_SEND_ICC = {
         }
     }
 }
-
 INSERT_TAP_PACKET = {
     "IPOP": {
         "ProtocolVersion": 5,
@@ -138,7 +137,6 @@ INSERT_TAP_PACKET = {
         }
     }
 }
-
 CTL_REMOVE_OVERLAY = {
     "IPOP": {
         "ProtocolVersion": 5,

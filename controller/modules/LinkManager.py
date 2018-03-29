@@ -24,7 +24,6 @@ import traceback
 import uuid
 import copy
 from collections import defaultdict
-
 try:
     import simplejson as json
 except ImportError:
@@ -673,6 +672,7 @@ class LinkManager(ControllerModule):
                 # Create Link: Phase 9 Node A
                 # Link created, notify others
                 self.resp_handler_remote_action(cbt)
+                
             elif cbt.request.action == "TCI_CREATE_LINK":
                 # Create Link: Phase 4 Node B
                 # Create Link: Phase 6 Node A
