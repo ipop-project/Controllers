@@ -295,7 +295,7 @@ class Signal(ControllerModule):
         return xport
 
     def initialize(self):
-        
+
         self._presence_publisher = self._cfx_handle.publish_subscription("SIG_PEER_PRESENCE_NOTIFY")
         for overlay_id in self._cm_config["Overlays"]:
             overlay_descr = self._cm_config["Overlays"][overlay_id]
@@ -410,4 +410,4 @@ class Signal(ControllerModule):
             self._log("Terminating XMPP transport for overlay {}".format(overlay_id))
             self._circles[overlay_id]["Transport"].shutdown()
         #for k in self._cfx_handle._owned_cbts.keys():
-        #    self.free_cbt(self._cfx_handle._owned_cbts[k])
+        #    self.free_cbt(self._cfx_handle._owned_cbts[k]) 

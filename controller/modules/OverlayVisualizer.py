@@ -83,7 +83,7 @@ class OverlayVisualizer(ControllerModule):
             # flush old data, next itr provides new data
             self._vis_ds = dict(NodeId=self.node_id,
                                 Data=defaultdict(dict))
-            
+
         collector_msg = dict(Data=dict())
 
         # Filter out overlays for which we do not have LinkManager data
