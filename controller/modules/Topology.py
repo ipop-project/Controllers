@@ -20,12 +20,10 @@
 # THE SOFTWARE.
 
 import threading
-
 try:
     import simplejson as json
 except ImportError:
     import json
-
 from collections import defaultdict
 from controller.framework.ControllerModule import ControllerModule
 from controller.framework.CFx import CFX
