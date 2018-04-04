@@ -122,7 +122,6 @@ class CFxHandle(object):
                     if not cbt.completed:
                         self._pending_cbts[cbt.tag] = cbt
                     self._cm_instance.process_cbt(cbt)
-                    self._cm_queue.task_done()
                 except Exception:
                     log_cbt = self.create_cbt(
                         initiator=self._cm_instance.__class__.__name__,
@@ -133,7 +132,10 @@ class CFxHandle(object):
                     if cbt.request.initiator == self._cm_instance.__class__.__name__:
                         self.free_cbt(cbt)
                     else:
+                        cbt.set_response(None, False)
                         self.complete_cbt(cbt)
+                finally:
+                    self._cm_queue.task_done()
 
     def __timer_worker(self):
         # call the timer_method of each CM every timer_interval seconds
