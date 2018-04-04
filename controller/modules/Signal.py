@@ -241,7 +241,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             elif type == "cmpt":
                 rem_act = json.loads(payload)
                 self._log("Rcvd completed remote act from peer ID: {0}\n Payload: {1}"
-                          .format(rem_act["InitiatorId"], payload), "LOG_DEBUG")
+                          .format(rem_act["RecipientId"], payload), "LOG_DEBUG")
                 tag = rem_act["ActionTag"]
                 cbt_status = rem_act["Status"]
                 pending_cbt = self.cm_mod._cfx_handle._pending_cbts[tag]
