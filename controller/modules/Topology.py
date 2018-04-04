@@ -19,20 +19,22 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from controller.framework.ControllerModule import ControllerModule
-from controller.framework.CFx import CFX
+import threading
 try:
     import simplejson as json
 except ImportError:
     import json
 from collections import defaultdict
-import threading
+from controller.framework.ControllerModule import ControllerModule
+from controller.framework.CFx import CFX
+
 
 class Topology(ControllerModule, CFX):
     def __init__(self, cfx_handle, module_config, module_name):
         super(Topology, self).__init__(cfx_handle, module_config, module_name)
         self._overlays = {}
         self._lock = threading.Lock()
+        self._links = dict()
 
     def initialize(self):
         self._cfx_handle.start_subscription("Signal",
@@ -41,7 +43,6 @@ class Topology(ControllerModule, CFX):
                                             "TCI_TINCAN_MSG_NOTIFY")
         self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
         overlay_ids = self._cfx_handle.query_param("Overlays")
-        self._links = dict()
         for olid in overlay_ids:
             self._overlays[olid] = (
                 dict(Descriptor=dict(IsReady=False, State="Bootstrapping"),
@@ -74,7 +75,7 @@ class Topology(ControllerModule, CFX):
         """
         Start the connection process to a peer if a direct edge is desirable
         """
-        self.register_cbt("Logger", "LOG_DEBUG", "Connecting to peer {0}:{1}->{2}"
+        self.register_cbt("Logger", "LOG_DEBUG", "Connecting to peer {0}:{1}->{2}"\
             .format(overlay_id, self._cm_config["NodeId"][:7], peer_id[:7]))
         # initiate a new connection if not already connected and the peer id
         # is greater than our own
@@ -132,7 +133,8 @@ class Topology(ControllerModule, CFX):
         except KeyError:
             cbt.set_response(data=None, status=False)
             self.complete_cbt(cbt)
-            self.register_cbt("Logger", "LOG_WARNING", "Overlay Id is not valid {0}".format(cbt.response.data))
+            self.register_cbt("Logger", "LOG_WARNING", "Overlay Id is not valid {0}".\
+                              format(cbt.response.data))
 
     def req_handler_vis_data(self, cbt):
         topo_data = defaultdict(dict)
@@ -149,7 +151,8 @@ class Topology(ControllerModule, CFX):
         except KeyError:
             cbt.set_response(data=None, status=False)
             self.complete_cbt(cbt)
-            self.register_cbt("Logger", "LOG_WARNING", "Topology data not available {0}".format(cbt.response.data))
+            self.register_cbt("Logger", "LOG_WARNING", "Topology data not available {0}".\
+                              format(cbt.response.data))
 
     def req_handler_broadcast_frame(self, cbt):
         if cbt.request.params["Command"] == "ReqRouteUpdate":
