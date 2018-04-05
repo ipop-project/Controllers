@@ -170,8 +170,8 @@ class LinkManager(ControllerModule):
             item = self._peers[olid].pop(peerid, None)
             # Notify subs of link removal
             param = {
-                "UpdateType": "REMOVED", "OverlayId": olid,
-                "LinkId": lnkid, "PeerId": peerid}
+                "UpdateType": "REMOVED", "OverlayId": olid, "LinkId": lnkid, "PeerId": peerid,
+                "TapName": self._tunnels[lnkid]["Descriptor"]["TapName"]}
             self._link_updates_publisher.post_update(param)
             del lnk_entry
             del item
