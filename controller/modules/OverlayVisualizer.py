@@ -118,17 +118,15 @@ class OverlayVisualizer(ControllerModule):
                     " webservice({0}). Exception: {1}" \
                     .format(self.vis_address, str(err))
                 self.register_cbt("Logger", "LOG_ERROR", err_msg)
-        """
-        #else:
-        #    warn_msg = "Don't have enough data to send. Not forwarding" \
-        #            " anything to the collector service. Data:" \
-        #            " {}".format(collector_msg)
-        #    self.register_cbt("Logger", "LOG_WARNING", warn_msg)
-
+        else:
+            warn_msg = "Don't have enough data to send. Not forwarding" \
+                    " anything to the collector service. Data:" \
+                    " {}".format(collector_msg)
+            self.register_cbt("Logger", "LOG_WARNING", warn_msg)
+        
         # Now that all the accumulated data has been dealth with, we request
         # more data
         self._vis_req_publisher.post_update(None)
-        """
 
     def terminate(self):
         pass
