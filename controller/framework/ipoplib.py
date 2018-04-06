@@ -19,8 +19,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+from distutils import spawn
 import subprocess
 import sys
+
 py_ver = sys.version_info[0]
 
 CTL_CREATE_CTRL_LINK = {
@@ -316,13 +318,13 @@ def runshell(cmd):
         exception = "Failed to run {}".format(str(cmd))
         raise RuntimeError(exception)
     return p
-from distutils import spawn
+
 def runshell_su(cmd):
     sudoexe = spawn.find_executable("sudo")
     cmd = [sudoexe]+cmd
     print(cmd)
     p = subprocess.run(cmd, stdout=subprocess.PIPE)
     if p.returncode != 0:
-        err = p.stdout()
-        raise RuntimeError(exception)
+        err = "Failed to run {}".format(str(cmd))
+        raise RuntimeError(err)
     return p
