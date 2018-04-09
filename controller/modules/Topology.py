@@ -173,9 +173,8 @@ class Topology(ControllerModule, CFX):
             cbt.set_response(data=None, status=True)
         else:
             cbt.set_response(data=None, status=False)
-
         self.complete_cbt(cbt)
-    
+
     def req_handler_link_data_update(self, cbt):
         params = cbt.request.params
         olid = params["OverlayId"]

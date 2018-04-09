@@ -53,7 +53,7 @@ class BridgeABC():
         pass
 
 class OvsBridge(BridgeABC):
-    brctlexe = spawn.find_executable("ovs-ctl")
+    brctlexe = spawn.find_executable("ovs-vsctl")
     def __init__(self, name, ip_addr, prefix_len):
         """ Initialize a bridge object. """
         super(OvsBridge, self).__init__(name, ip_addr, prefix_len)
