@@ -114,11 +114,12 @@ class Topology(ControllerModule, CFX):
             self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", cbt.request.params)
 
     def req_handler_peer_presence(self, cbt):
+        peer = cbt.request.params
         with self._lock:
-            peer = cbt.request.params
-            self._overlays[peer["OverlayId"]]["Peers"][peer["PeerId"]] = "PeerStateAvailable"
-            self._overlays[peer["OverlayId"]]["Descriptor"]["State"] = "Isolated"
-            self.connect_to_peer(peer["OverlayId"], peer["PeerId"])
+            if self._overlays[peer["OverlayId"]]["Peers"].get(peer["PeerId"], "PeerStateUnknown") != "PeerStateConnected":
+                self._overlays[peer["OverlayId"]]["Peers"][peer["PeerId"]] = "PeerStateAvailable"
+                self._overlays[peer["OverlayId"]]["Descriptor"]["State"] = "Isolated"
+                self.connect_to_peer(peer["OverlayId"], peer["PeerId"])
             cbt.set_response(None, True)
             self.complete_cbt(cbt)
 
