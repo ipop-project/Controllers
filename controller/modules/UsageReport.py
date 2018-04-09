@@ -18,6 +18,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+
 import datetime
 import hashlib
 import threading
@@ -42,8 +43,9 @@ class UsageReport(ControllerModule):
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
             if cbt.request.action == "SIG_QUERY_REPORTING_DATA":
-                if (not cbt.response.status):
-                    self.register_cbt("Logger", "LOG_WARNING", "CBT failed {0}".format(cbt.response.data))
+                if not cbt.response.status:
+                    self.register_cbt("Logger", "LOG_WARNING",
+                                      "CBT failed {0}".format(cbt.response.data))
                     self.free_cbt(cbt)
                     return
                 else:
@@ -51,7 +53,7 @@ class UsageReport(ControllerModule):
             else:
                 self.free_cbt(cbt)
         else:
-                self.req_handler_default(cbt)
+            self.req_handler_default(cbt)
 
     def timer_method(self):
         cur_time = datetime.datetime.now()
@@ -80,8 +82,10 @@ class UsageReport(ControllerModule):
         report_data = cbt.response.data
         for overlay_id in report_data:
             report_data[overlay_id] = {
-                "xmpp_host": hashlib.sha1(report_data[overlay_id]["xmpp_host"].encode("utf-8")).hexdigest(),
-                "xmpp_username": hashlib.sha1(report_data[overlay_id]["xmpp_username"].encode("utf-8")).hexdigest(),
+                "xmpp_host": hashlib.sha1(report_data[overlay_id]["xmpp_host"].\
+                                          encode("utf-8")).hexdigest(),
+                "xmpp_username": hashlib.sha1(report_data[overlay_id]["xmpp_username"].\
+                                              encode("utf-8")).hexdigest(),
             }
         stat = {
             "NodeId": hashlib.sha1(nid.encode("utf-8")).hexdigest(),
@@ -103,18 +107,21 @@ class UsageReport(ControllerModule):
         url = None
         try:
             url = "http://" + self._cm_config["ServerAddress"] + ":" + \
-                str(self._cm_config["ServerPort"]) + "/api/submit"
+                  str(self._cm_config["ServerPort"]) + "/api/submit"
             req = urllib2.Request(url=url, data=data)
             req.add_header("Content-Type", "application/json")
             res = urllib2.urlopen(req)
             if res.getcode() == 200:
-                log = "Usage report successfully submitted to server {0}\n"\
-                    "HTTP response code:{1}, msg:{2}"\
+                log = "Usage report successfully submitted to server {0}\n" \
+                      "HTTP response code:{1}, msg:{2}" \
                     .format(url, res.getcode(), res.read())
                 self.register_cbt("Logger", "LOG_INFO", log)
             else:
-                self.register_cbt("Logger", "LOG_WARNING", "Usage report server indicated error code: {0}".format(res.getcode()))
+                self.register_cbt("Logger", "LOG_WARNING",
+                                  "Usage report server indicated error "
+                                  "code: {0}".format(res.getcode()))
                 raise
         except Exception as error:
-            log = "Usage report submission failed to server {0}. Error: {1}".format(url, error)
+            log = "Usage report submission failed to server {0}. " \
+                  "Error: {1}".format(url, error)
             self.register_cbt("Logger", "LOG_WARNING", log)

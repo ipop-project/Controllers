@@ -189,7 +189,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                     if (pstatus == "ident"):
                         self.presence_publisher.post_update(
                             dict(PeerId=peer_id, OverlayId=self.overlay_id))
-                        self._log("Resolved Peer@Overlay {0}@{1} - {2}"
+                        self._log("Presence has resolved Peer@Overlay {0}@{1} - {2}"
                                   .format(peer_id[:7], self.overlay_id, presence_sender))
                         self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                     elif (pstatus == "uid?"):
@@ -241,7 +241,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             elif type == "cmpt":
                 rem_act = json.loads(payload)
                 self._log("Rcvd completed remote act from peer ID: {0}\n Payload: {1}"
-                          .format(rem_act["InitiatorId"], payload), "LOG_DEBUG")
+                          .format(rem_act["RecipientId"], payload), "LOG_DEBUG")
                 tag = rem_act["ActionTag"]
                 cbt_status = rem_act["Status"]
                 pending_cbt = self.cm_mod._cfx_handle._pending_cbts[tag]
@@ -401,9 +401,9 @@ class Signal(ControllerModule):
                     self.complete_cbt(parent_cbt)
 
     def timer_method(self):
-        # Clean up JID cache for stale XMPP entries
         for overlay_id in self._circles.keys():
             self._circles[overlay_id]["JidCache"].scavenge()
+            self._circles[overlay_id]["Transport"].send_presence(pstatus="ident#" + self._cm_config["NodeId"])
 
     def terminate(self):
         for overlay_id in self._circles.keys():
