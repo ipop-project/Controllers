@@ -115,10 +115,10 @@ class Topology(ControllerModule, CFX):
 
     def req_handler_peer_presence(self, cbt):
         peer = cbt.request.params
+        peer_id = peer["PeerId"]
+        overlay_id = peer["OverlayId"]
         with self._lock:
-            if self._overlays[peer["OverlayId"]]["Peers"].get(peer["PeerId"], "PeerStateUnknown") != 
-            "PeerStateConnected" or self._overlays[peer["OverlayId"]]["Peers"].get(peer["PeerId"], "PeerStateUnknown") != 
-            "PeerStateAvailable":
+            if peer_id not in self._overlays[overlay_id]["Peers"]:
                 self._overlays[peer["OverlayId"]]["Peers"][peer["PeerId"]] = "PeerStateAvailable"
                 self._overlays[peer["OverlayId"]]["Descriptor"]["State"] = "Isolated"
                 self.connect_to_peer(peer["OverlayId"], peer["PeerId"])
