@@ -46,7 +46,7 @@ class BridgeABC():
         pass
 
     @abstractmethod
-    def del_br(self, port_name):
+    def del_br(self):
         pass
 
     @property
@@ -73,7 +73,7 @@ class OvsBridge(BridgeABC):
         self.stp(True)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "up"])
 
-    def del_br(self, port_name):
+    def del_br(self):
         ipoplib.runshell_su([OvsBridge.brctlexe, "--if-exists", "del-br", self.name])
 
     def add_port(self, port_name):
