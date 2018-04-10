@@ -123,8 +123,8 @@ class OverlayVisualizer(ControllerModule):
                     " anything to the collector service. Data:" \
                     " {}".format(collector_msg)
             self.register_cbt("Logger", "LOG_WARNING", warn_msg)
-        
-        # Now that all the accumulated data has been dealth with, we request
+
+        # Now that all the accumulated data has been dealt with, we request
         # more data
         self._vis_req_publisher.post_update(None)
 
