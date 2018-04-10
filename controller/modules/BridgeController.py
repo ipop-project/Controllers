@@ -64,7 +64,11 @@ class OvsBridge(BridgeABC):
         ipoplib.runshell_su([OvsBridge.brctlexe, "--may-exist", "add-br", self.name])
 
         net = "{0}/{1}".format(ip_addr, prefix_len)
-        ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", self.name])
+        p = ipoplib.runshell_su([IPEXE, "addr", "show", self.name])
+        std_out, _ = p.communicate()
+        ip_addr_info = std_out.read()
+        if net not in ip_addr_info:
+            ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", self.name])
 
         self.stp(True)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "up"])
