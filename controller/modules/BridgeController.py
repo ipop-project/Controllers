@@ -70,7 +70,7 @@ class OvsBridge(BridgeABC):
         if net not in ip_addr_info:
             ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", self.name])
 
-        self.stp(True)
+        self.stp(False)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "up"])
 
     def del_br(self):
