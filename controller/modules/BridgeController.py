@@ -61,7 +61,8 @@ class OvsBridge(BridgeABC):
     def __init__(self, name, ip_addr, prefix_len):
         """ Initialize a bridge object. """
         super(OvsBridge, self).__init__(name, ip_addr, prefix_len)
-        ipoplib.runshell_su([OvsBridge.brctlexe, "--may-exist", "add-br", self.name])
+        ipoplib.runshell_su([OvsBridge.brctlexe,
+                             "--may-exist", "add-br", self.name])
 
         net = "{0}/{1}".format(ip_addr, prefix_len)
 
@@ -74,19 +75,26 @@ class OvsBridge(BridgeABC):
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "up"])
 
     def del_br(self):
-        ipoplib.runshell_su([OvsBridge.brctlexe, "--if-exists", "del-br", self.name])
+        ipoplib.runshell_su([OvsBridge.brctlexe,
+                             "--if-exists", "del-br", self.name])
 
     def add_port(self, port_name):
-        ipoplib.runshell_su([OvsBridge.brctlexe, "--may-exist", "add-port", self.name, port_name])
+        ipoplib.runshell_su([OvsBridge.brctlexe,
+                             "--may-exist", "add-port", self.name, port_name])
 
     def del_port(self, port_name):
-        ipoplib.runshell_su([OvsBridge.brctlexe, "--if-exists", "del-port", self.name, port_name])
+        ipoplib.runshell_su([OvsBridge.brctlexe,
+                             "--if-exists", "del-port", self.name, port_name])
 
     def stp(self, enable):
         if enable:
-            ipoplib.runshell_su([OvsBridge.brctlexe, "set", "bridge", self.name, "stp_enable=true"])
+            ipoplib.runshell_su([OvsBridge.brctlexe,
+                                 "set", "bridge", self.name,
+                                 "stp_enable=true"])
         else:
-            ipoplib.runshell_su([OvsBridge.brctlexe, "set", "bridge", self.name, "stp_enable=false"])
+            ipoplib.runshell_su([OvsBridge.brctlexe,
+                                 "set", "bridge", self.name,
+                                 "stp_enable=false"])
 
 
 class LinuxBridge(BridgeABC):
@@ -143,21 +151,24 @@ class LinuxBridge(BridgeABC):
 
     def set_bridge_prio(self, prio):
         """ Set bridge priority value. """
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "setbridgeprio", self.name, str(prio)])
+        ipoplib.runshell_su([LinuxBridge.brctlexe,
+                             "setbridgeprio", self.name, str(prio)])
 
     def set_path_cost(self, port, cost):
         """ Set port path cost value for STP protocol. """
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "setpathcost", self.name, port, str(cost)])
+        ipoplib.runshell_su([LinuxBridge.brctlexe,
+                             "setpathcost", self.name, port, str(cost)])
 
     def set_port_prio(self, port, prio):
         """ Set port priority value. """
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "setportprio", self.name, port, str(prio)])
+        ipoplib.runshell_su([LinuxBridge.brctlexe,
+                             "setportprio", self.name, port, str(prio)])
 
 
 class BridgeController(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(BridgeController, self).__init__(cfx_handle, module_config,
-            module_name)
+                                               module_name)
         self._overlays = dict()
         self._lock = threading.Lock()
 
