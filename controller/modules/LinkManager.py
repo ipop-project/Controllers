@@ -288,7 +288,6 @@ class LinkManager(ControllerModule):
         """
          # Create Link: Phase 1 Node A
         lnkid = uuid.uuid4().hex
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 1/5 Node A")
         overlay_id = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["PeerId"]
         with self._lock:
@@ -302,13 +301,13 @@ class LinkManager(ControllerModule):
             # index for quick peer->link lookup
             self._peers[overlay_id][peerid] = lnkid
             self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peerid)
+        self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 1/5 Node A".format(lnkid[:7]))
         params = {"OverlayId": overlay_id, "LinkId": lnkid,
                   "Type": self._cm_config["Overlays"][overlay_id]["Type"]}
         self._create_overlay(params, parent_cbt=cbt)
 
     def resp_handler_create_overlay(self, cbt):
         # Create Link: Phase 2 Node A
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 2/5 Node A")
         parent_cbt = self.get_parent_cbt(cbt)
         resp_data = cbt.response.data
         if not cbt.response.status:
@@ -319,12 +318,13 @@ class LinkManager(ControllerModule):
                               .format(parent_cbt.response.data))
             return
         # store the overlay data
-        link_id = cbt.request.params["LinkId"] # config overlay id
+        lnkid = cbt.request.params["LinkId"] # config overlay id
         overlay_id = cbt.request.params["OID"] # config overlay id
+        self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 2/5 Node A".format(lnkid[:7]))
         with self._lock:
-            self._update_tunnel_descriptor(resp_data, link_id)
+            self._update_tunnel_descriptor(resp_data, lnkid)
         # create and send remote action to request endpoint from peer
-        params = {"OverlayId": overlay_id, "LinkId": link_id}
+        params = {"OverlayId": overlay_id, "LinkId": lnkid}
         self._request_peer_endpoint(params, parent_cbt)
         self.free_cbt(cbt)
 
@@ -336,7 +336,6 @@ class LinkManager(ControllerModule):
         first send a TCI_QUERY_OVERLAY_INFO to accomplish this.
         """
         # Create Link: Phase 3 Node B
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 1/4 Node B")
         params = cbt.request.params
         overlay_id = params["OverlayId"]
         if overlay_id not in self._cm_config["Overlays"]:
@@ -349,6 +348,7 @@ class LinkManager(ControllerModule):
         lnkid = params["LinkId"]
         node_data = params["NodeData"]
         peer_id = node_data["UID"]
+        self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 1/4 Node B".format(lnkid[:7]))
         self._lock.acquire()
         """
         A request to create a local link endpt can be received after we have
@@ -416,7 +416,6 @@ class LinkManager(ControllerModule):
         """
         """
         # Create Link: Phase 4 Node B
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 2/4 Node B")
         parent_cbt = self.get_parent_cbt(cbt)
         resp_data = cbt.response.data
         if not cbt.response.status:
@@ -427,8 +426,10 @@ class LinkManager(ControllerModule):
             self.register_cbt("Logger", "LOG_INFO", "Create link endpoint failed :{}"
                               .format(cbt.response.data))
             return
+        lnkid = cbt.request.params["LinkId"]
+        self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 2/4 Node B".format(lnkid[:7]))
         # store the overlay data
-        self._update_tunnel_descriptor(resp_data, cbt.request.params["LinkId"])
+        self._update_tunnel_descriptor(resp_data, lnkid)
         # respond with this nodes connection parameters
         node_data = {
             "VIP4": resp_data.get("VIP4"),
@@ -439,7 +440,7 @@ class LinkManager(ControllerModule):
         }
         data = {
             "OverlayId": cbt.request.params["OID"],
-            "LinkId": cbt.request.params["LinkId"],
+            "LinkId": lnkid,
             "NodeData": node_data
         }
         self.free_cbt(cbt)
@@ -448,8 +449,8 @@ class LinkManager(ControllerModule):
 
     def _create_link_endpoint(self, rem_act, parent_cbt):
         # Create Link: Phase 5 Node A
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 3/5 Node A")
         lnkid = rem_act["Data"]["LinkId"]
+        self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 3/5 Node A".format(lnkid[:7]))
         node_data = rem_act["Data"]["NodeData"]
         oid = rem_act["OverlayId"]
         olid = lnkid
@@ -466,7 +467,8 @@ class LinkManager(ControllerModule):
 
     def _send_local_cas_to_peer(self, cbt):
         # Create Link: Phase 6 Node A
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 4/5 Node A")
+        lnkid = cbt.request.params["LinkId"]
+        self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 4/5 Node A".format(lnkid[:7]))
         local_cas = cbt.response.data["CAS"]
         parent_cbt = self.get_parent_cbt(cbt)
         oid = cbt.request.params["OID"]
@@ -475,7 +477,7 @@ class LinkManager(ControllerModule):
         params = {
             "OID": oid,
             "OverlayId": olid,
-            "LinkId": cbt.request.params["LinkId"],
+            "LinkId": lnkid,
             "NodeData": {
                 "UID": self._cm_config["NodeId"], "MAC": "",
                 "CAS": local_cas, "FPR": ""}}
@@ -488,7 +490,8 @@ class LinkManager(ControllerModule):
 
     def req_handler_add_peer_cas(self, cbt):
         # Create Link: Phase 7 Node B
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 3/4 Node B")
+        lnkid = cbt.request.params["LinkId"]
+        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 3/4 Node B".format(lnkid[:7]))
         params = cbt.request.params
         lcbt = self.create_linked_cbt(cbt)
         oid = params["OID"]
@@ -523,11 +526,11 @@ class LinkManager(ControllerModule):
 
         elif parent_cbt.request.action == "LNK_ADD_PEER_CAS":
             # Create Link: Phase 8 Node B
-            self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 4/4 Node B")
             rem_act = parent_cbt.request.params
+            lnkid = rem_act["LinkId"]
+            self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 4/4 Node B".format(lnkid[:7]))
             peer_id = rem_act["NodeData"]["UID"]
             olid = rem_act["OID"]
-            lnkid = rem_act["LinkId"]
             parent_cbt.set_response(data="LNK_ADD_PEER_CAS successful", status=True)
             # publish notification of link creation Node B
             param = {
@@ -542,13 +545,12 @@ class LinkManager(ControllerModule):
 
     def _complete_create_link_request(self, parent_cbt):
         # Create Link: Phase 9 Node A
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 5/5 Node A")
         # Complete the cbt that started this all
         olid = parent_cbt.request.params["OverlayId"]
         peerid = parent_cbt.request.params["PeerId"]
-        self._lock.acquire()
-        lnkid = self._peers[olid][peerid]
-        self._lock.release()
+        with self._lock:
+            lnkid = self._peers[olid][peerid]
+        self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 5/5 Node A".format(lnkid[:7]))
         parent_cbt.set_response(data={"LinkId": lnkid}, status=True)
         # publish notification of link creation Node A
         param = {
