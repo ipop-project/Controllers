@@ -46,7 +46,7 @@ class BridgeABC():
         pass
 
     @abstractmethod
-    def del_br(self, port_name):
+    def del_br(self):
         pass
 
     @property
@@ -64,10 +64,16 @@ class OvsBridge(BridgeABC):
         ipoplib.runshell_su([OvsBridge.brctlexe, "--may-exist", "add-br", self.name])
 
         net = "{0}/{1}".format(ip_addr, prefix_len)
-        ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", self.name])
+
+        p = ipoplib.runshell_su([IPEXE, "addr", "show", self.name])
+        ip_addr_info = p.stdout.decode()
+        if net not in ip_addr_info:
+            ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", self.name])
+
+        self.stp(True)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "up"])
 
-    def del_br(self, port_name):
+    def del_br(self):
         ipoplib.runshell_su([OvsBridge.brctlexe, "--if-exists", "del-br", self.name])
 
     def add_port(self, port_name):
@@ -75,6 +81,12 @@ class OvsBridge(BridgeABC):
 
     def del_port(self, port_name):
         ipoplib.runshell_su([OvsBridge.brctlexe, "--if-exists", "del-port", self.name, port_name])
+
+    def stp(self, enable):
+        if enable:
+            ipoplib.runshell_su([OvsBridge.brctlexe, "set", "bridge", self.name, "stp_enable=true"])
+        else:
+            ipoplib.runshell_su([OvsBridge.brctlexe, "set", "bridge", self.name, "stp_enable=false"])
 
 
 class LinuxBridge(BridgeABC):
