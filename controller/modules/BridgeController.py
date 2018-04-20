@@ -137,7 +137,7 @@ class LinuxBridge(BridgeABC):
         ipoplib.runshell_su([LinuxBridge.brctlexe, "addbr", self.name])
         net = "{0}/{1}".format(ip_addr, prefix_len)
         ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", name])
-        self.stp(True)
+        self.stp(False)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", name, "up"])
 
     def __str__(self):
@@ -208,7 +208,7 @@ class BridgeController(ControllerModule):
                                   sdn_ctrl_cfg=br_cfg.get("SDNController",
                                                           dict()))
 
-        self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
+        self._cfx_handle.start_subscription("TincanInterface", "TCI_TINCAN_MSG_NOTIFY")
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
     def req_handler_add_port(self, cbt):
@@ -222,16 +222,17 @@ class BridgeController(ControllerModule):
             olid = cbt.request.params["OverlayId"]
             port_name = cbt.request.params["TapName"]
             br = self._overlays[olid]
-            if cbt.request.params["UpdateType"] == "ADDED":
-                br.add_port(port_name)
-                self.register_cbt(
-                    "Logger", "LOG_INFO", "Port {0} added to bridge {1}"
-                    .format(port_name, str(br)))
-            elif cbt.request.params["UpdateType"] == "REMOVED":
-                br.del_port(port_name)
-                self.register_cbt(
-                    "Logger", "LOG_INFO", "Port {0} removed from bridge {1}"
-                    .format(port_name, str(br)))
+            if cbt.request.params["Command"] == "LinkStateChange":
+                if cbt.request.params["Data"] == "LINK_STATE_UP":
+                    br.add_port(port_name)
+                    self.register_cbt(
+                        "Logger", "LOG_INFO", "Port {0} added to bridge {1}"
+                        .format(port_name, str(br)))
+                elif cbt.request.params["Data"] == "LINK_STATE_DOWN":
+                    br.del_port(port_name)
+                    self.register_cbt(
+                        "Logger", "LOG_INFO", "Port {0} removed from bridge {1}"
+                        .format(port_name, str(br)))
         except RuntimeError as err:
             self.register_cbt("Logger", "LOG_WARNING", str(err))
         cbt.set_response(None, True)
@@ -246,7 +247,7 @@ class BridgeController(ControllerModule):
                 self.req_handler_add_port(cbt)
             if cbt.request.action == "BRG_DEL_PORT":
                 self.req_handler_del_port(cbt)
-            if cbt.request.action == "LNK_DATA_UPDATES":
+            if cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
                 self.req_handler_manage_bridge(cbt)
             else:
                 self.req_handler_default(cbt)
