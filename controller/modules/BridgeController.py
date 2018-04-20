@@ -79,9 +79,9 @@ class OvsBridge(BridgeABC):
     def add_sdn_ctrl(self, sdn_ctrl_cfg):
         if sdn_ctrl_cfg:
             if sdn_ctrl_cfg["ConnectionType"] == "tcp":
-                ctrl_conn_str = (sdn_ctrl_cfg["ConnectionType"]
-                                 + sdn_ctrl_cfg["HostName"]
-                                 + sdn_ctrl_cfg["Port"])
+                ctrl_conn_str = ":".join(sdn_ctrl_cfg["ConnectionType"],
+                                         sdn_ctrl_cfg["HostName"],
+                                         sdn_ctrl_cfg["Port"])
 
                 ipoplib.runshell_su([OvsBridge.brctlexe,
                                      "set-controller",
