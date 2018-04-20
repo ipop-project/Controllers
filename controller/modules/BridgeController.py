@@ -32,7 +32,7 @@ IPEXE = spawn.find_executable("ip")
 class BridgeABC():
     __metaclass__ = ABCMeta
 
-    def __init__(self, name, ip_addr, prefix_len):
+    def __init__(self, name, ip_addr, prefix_len, *args, **kwargs):
         self.name = name
         self.ip_addr = ip_addr
         self.prefix_len = prefix_len
@@ -58,10 +58,11 @@ class BridgeABC():
 class OvsBridge(BridgeABC):
     brctlexe = spawn.find_executable("ovs-vsctl")
 
-    def __init__(self, name, ip_addr, prefix_len):
+    def __init__(self, name, ip_addr, prefix_len, sdn_ctrl_cfg=dict()):
         """ Initialize a bridge object. """
         super(OvsBridge, self).__init__(name, ip_addr, prefix_len)
-        ipoplib.runshell_su([OvsBridge.brctlexe, "--may-exist", "add-br", self.name])
+        ipoplib.runshell_su([OvsBridge.brctlexe,
+                             "--may-exist", "add-br", self.name])
 
         net = "{0}/{1}".format(ip_addr, prefix_len)
 
@@ -70,29 +71,55 @@ class OvsBridge(BridgeABC):
         if net not in ip_addr_info:
             ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", self.name])
 
-        self.stp(True)
+        self.stp(False)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "up"])
 
+        self.add_sdn_ctrl(sdn_ctrl_cfg)
+
+    def add_sdn_ctrl(self, sdn_ctrl_cfg):
+        if sdn_ctrl_cfg:
+            if sdn_ctrl_cfg["ConnectionType"] == "tcp":
+                ctrl_conn_str = ":".join([sdn_ctrl_cfg["ConnectionType"],
+                                         sdn_ctrl_cfg["HostName"],
+                                         sdn_ctrl_cfg["Port"]])
+
+                ipoplib.runshell_su([OvsBridge.brctlexe,
+                                     "set-controller",
+                                     self.name,
+                                     ctrl_conn_str])
+
+    def del_sdn_ctrl(self):
+        ipoplib.runshell_su([OvsBridge.brctlexe, "del-controller", self.name])
+
     def del_br(self):
-        ipoplib.runshell_su([OvsBridge.brctlexe, "--if-exists", "del-br", self.name])
+        self.del_sdn_ctrl()
+
+        ipoplib.runshell_su([OvsBridge.brctlexe,
+                             "--if-exists", "del-br", self.name])
 
     def add_port(self, port_name):
-        ipoplib.runshell_su([OvsBridge.brctlexe, "--may-exist", "add-port", self.name, port_name])
+        ipoplib.runshell_su([OvsBridge.brctlexe,
+                             "--may-exist", "add-port", self.name, port_name])
 
     def del_port(self, port_name):
-        ipoplib.runshell_su([OvsBridge.brctlexe, "--if-exists", "del-port", self.name, port_name])
+        ipoplib.runshell_su([OvsBridge.brctlexe,
+                             "--if-exists", "del-port", self.name, port_name])
 
     def stp(self, enable):
         if enable:
-            ipoplib.runshell_su([OvsBridge.brctlexe, "set", "bridge", self.name, "stp_enable=true"])
+            ipoplib.runshell_su([OvsBridge.brctlexe,
+                                 "set", "bridge", self.name,
+                                 "stp_enable=true"])
         else:
-            ipoplib.runshell_su([OvsBridge.brctlexe, "set", "bridge", self.name, "stp_enable=false"])
+            ipoplib.runshell_su([OvsBridge.brctlexe,
+                                 "set", "bridge", self.name,
+                                 "stp_enable=false"])
 
 
 class LinuxBridge(BridgeABC):
     brctlexe = spawn.find_executable("brctl")
 
-    def __init__(self, name, ip_addr, prefix_len):
+    def __init__(self, name, ip_addr, prefix_len, *args, **kwargs):
         """ Initialize a bridge object. """
 
         super(LinuxBridge, self).__init__(name, ip_addr, prefix_len)
@@ -143,34 +170,43 @@ class LinuxBridge(BridgeABC):
 
     def set_bridge_prio(self, prio):
         """ Set bridge priority value. """
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "setbridgeprio", self.name, str(prio)])
+        ipoplib.runshell_su([LinuxBridge.brctlexe,
+                             "setbridgeprio", self.name, str(prio)])
 
     def set_path_cost(self, port, cost):
         """ Set port path cost value for STP protocol. """
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "setpathcost", self.name, port, str(cost)])
+        ipoplib.runshell_su([LinuxBridge.brctlexe,
+                             "setpathcost", self.name, port, str(cost)])
 
     def set_port_prio(self, port, prio):
         """ Set port priority value. """
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "setportprio", self.name, port, str(prio)])
+        ipoplib.runshell_su([LinuxBridge.brctlexe,
+                             "setportprio", self.name, port, str(prio)])
 
 
 class BridgeController(ControllerModule):
-    def __init__(self, cfx_handle, module_config, module_name):
+    def __init__(self, cfx_handle, module_config,
+                 module_name, *args, **kwargs):
         super(BridgeController, self).__init__(cfx_handle, module_config,
-            module_name)
+                                               module_name)
         self._overlays = dict()
         self._lock = threading.Lock()
 
     def initialize(self):
         for olid in self._cm_config["Overlays"]:
+            br_cfg = self._cm_config["Overlays"][olid]
+
             if self._cm_config["Overlays"][olid]["Type"] == "LXBR":
-                self._overlays[olid] = LinuxBridge(self._cm_config["Overlays"][olid]["BridgeName"],
-                                                   self._cm_config["Overlays"][olid]["IP4"],
-                                                   self._cm_config["Overlays"][olid]["PrefixLen"])
+                self._overlays[olid] = LinuxBridge(br_cfg["BridgeName"],
+                                                   br_cfg["IP4"],
+                                                   br_cfg["PrefixLen"])
             elif self._cm_config["Overlays"][olid]["Type"] == "OVS":
-                self._overlays[olid] = OvsBridge(self._cm_config["Overlays"][olid]["BridgeName"],
-                                                 self._cm_config["Overlays"][olid]["IP4"],
-                                                 self._cm_config["Overlays"][olid]["PrefixLen"])
+                self._overlays[olid] = \
+                        OvsBridge(br_cfg["BridgeName"],
+                                  br_cfg["IP4"],
+                                  br_cfg["PrefixLen"],
+                                  sdn_ctrl_cfg=br_cfg.get("SDNController",
+                                                          dict()))
 
         self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
@@ -188,12 +224,14 @@ class BridgeController(ControllerModule):
             br = self._overlays[olid]
             if cbt.request.params["UpdateType"] == "ADDED":
                 br.add_port(port_name)
-                self.register_cbt("Logger", "LOG_INFO", "Port {0} added to bridge {1}"
-                                  .format(port_name, str(br)))
+                self.register_cbt(
+                    "Logger", "LOG_INFO", "Port {0} added to bridge {1}"
+                    .format(port_name, str(br)))
             elif cbt.request.params["UpdateType"] == "REMOVED":
                 br.del_port(port_name)
-                self.register_cbt("Logger", "LOG_INFO", "Port {0} removed from bridge {1}"
-                                  .format(port_name, str(br)))
+                self.register_cbt(
+                    "Logger", "LOG_INFO", "Port {0} removed from bridge {1}"
+                    .format(port_name, str(br)))
         except RuntimeError as err:
             self.register_cbt("Logger", "LOG_WARNING", str(err))
         cbt.set_response(None, True)
