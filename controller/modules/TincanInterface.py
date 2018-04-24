@@ -25,10 +25,10 @@ try:
     import simplejson as json
 except ImportError:
     import json
-import controller.framework.ipoplib as ipoplib
 from threading import Thread
 import traceback
 from controller.framework.ControllerModule import ControllerModule
+import controller.framework.ipoplib as ipoplib
 
 
 class TincanInterface(ControllerModule):

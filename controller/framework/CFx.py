@@ -194,7 +194,7 @@ class CFX(object):
         if nodeid is None or not nodeid:
             try:
                 with open("nid", "r") as f:
-                    nodeid = f.read()
+                    nodeid = f.read().strip()
             except IOError:
                 pass
         if nodeid is None or not nodeid:

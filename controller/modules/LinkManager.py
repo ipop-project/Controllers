@@ -221,9 +221,9 @@ class LinkManager(ControllerModule):
     def _create_overlay(self, params, parent_cbt=None):
         overlay_id = params["OverlayId"]
         ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
-        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:15]
         lnkid = params["LinkId"]
-        tap_name = tap_name[:8] + str(lnkid[:7]) # to avoid name collision
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + \
+            str(lnkid[:7])
         olid = lnkid
         create_ovl_params = {
             "OID": overlay_id,
@@ -384,8 +384,8 @@ class LinkManager(ControllerModule):
             self._lock.release()
 
         ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
-        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:15]
-        tap_name = tap_name[:8] + str(lnkid[:7]) # to avoid name collision
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + \
+            str(lnkid[:7])
         olid = lnkid
         create_link_params = {
             "OID": overlay_id,

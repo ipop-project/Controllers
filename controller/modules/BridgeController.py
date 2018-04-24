@@ -137,7 +137,7 @@ class LinuxBridge(BridgeABC):
         ipoplib.runshell_su([LinuxBridge.brctlexe, "addbr", self.name])
         net = "{0}/{1}".format(ip_addr, prefix_len)
         ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", name])
-        self.stp(True)
+        self.stp(False)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", name, "up"])
 
     def __str__(self):
