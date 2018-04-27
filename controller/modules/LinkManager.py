@@ -34,6 +34,7 @@ class LinkManager(ControllerModule):
         self._links = {}     # maps link id to stats, overlay id and peer id
         self._lock = threading.Lock() # serializes access to _overlays, _links
         self._link_updates_publisher = None
+        self._ignored_net_interfaces = set()
 
     def initialize(self):
         self._link_updates_publisher = \
@@ -54,6 +55,19 @@ class LinkManager(ControllerModule):
             self._peers[olid] = dict()
 
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
+
+    def _get_ignored_tap_names(self, new_inf_name=None):
+        ign_tap_names = set()
+        if new_inf_name:
+            ign_tap_names.add(new_inf_name)
+        for olid in self._tunnels:
+            ign_tap_names.add(self._tunnels[olid]["Descriptor"]["TapName"])
+        for name in self._ignored_net_interfaces:
+            ign_tap_names.add(name)
+        return ign_tap_names
+    
+    def req_handler_add_ign_inf(self, cbt):
+        self._ignored_net_interfaces.add(str(cbt.request.params))
 
     def req_handler_remove_link(self, cbt):
         olid = cbt.request.params.get("OverlayId", None)
@@ -238,6 +252,7 @@ class LinkManager(ControllerModule):
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
             "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
             "IP4PrefixLen": self._cm_config["Overlays"][overlay_id].get("IP4PrefixLen"),
+            "IgnoredNetInterfaces": list(self._get_ignored_tap_names(tap_name))
         }
         if parent_cbt is not None:
             ovl_cbt = self.create_linked_cbt(parent_cbt)
@@ -282,7 +297,7 @@ class LinkManager(ControllerModule):
         caller after the local endpoint creation is completed asynchronously.
         The link is not necessarily ready for read/write at this time. The link
         status can be queried to determine when it is writeable. We request
-        creatation of the remote endpoint first to avoid cleaning up a local
+        creation of the remote endpoint first to avoid cleaning up a local
         endpoint if the peer denies our request. The link id is communicated
         in the request and will be the same at both nodes.
         """
@@ -382,7 +397,6 @@ class LinkManager(ControllerModule):
             self._peers[overlay_id][peer_id] = lnkid
             self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id)
             self._lock.release()
-
         ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
         tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + \
             str(lnkid[:7])
@@ -400,6 +414,7 @@ class LinkManager(ControllerModule):
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
             "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
             "IP4PrefixLen": self._cm_config["Overlays"][overlay_id].get("IP4PrefixLen"),
+            "IgnoredNetInterfaces": list(self._get_ignored_tap_names(tap_name)),
             # link params
             "LinkId": lnkid,
             "NodeData": {
@@ -528,7 +543,8 @@ class LinkManager(ControllerModule):
             # Create Link: Phase 8 Node B
             rem_act = parent_cbt.request.params
             lnkid = rem_act["LinkId"]
-            self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 4/4 Node B".format(lnkid[:7]))
+            self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 4/4 Node B"
+                              .format(lnkid[:7]))
             peer_id = rem_act["NodeData"]["UID"]
             olid = rem_act["OID"]
             parent_cbt.set_response(data="LNK_ADD_PEER_CAS successful", status=True)
@@ -621,6 +637,9 @@ class LinkManager(ControllerModule):
 
             elif cbt.request.action == "TCI_TINCAN_MSG_NOTIFY":
                 self.req_handler_tincan_msg(cbt)
+
+            elif cbt.request.action == "LNK_ADD_IGN_INF":
+                self.req_handler_add_ign_inf(cbt)
             else:
                 self.req_handler_default(cbt)
         elif cbt.op_type == "Response":

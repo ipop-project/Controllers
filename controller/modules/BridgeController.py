@@ -207,6 +207,7 @@ class BridgeController(ControllerModule):
                                   br_cfg["PrefixLen"],
                                   sdn_ctrl_cfg=br_cfg.get("SDNController",
                                                           dict()))
+            self.register_cbt("LinkManager", "LNK_ADD_IGN_INF", br_cfg["BridgeName"])
 
         self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
