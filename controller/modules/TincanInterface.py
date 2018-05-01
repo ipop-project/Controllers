@@ -152,6 +152,7 @@ class TincanInterface(ControllerModule):
         req["IP4"] = msg.get("IP4")
         req["IP4PrefixLen"] = msg.get("IP4PrefixLen")
         req["MTU4"] = msg.get("MTU4")
+        req["IgnoredNetInterfaces"] = msg.get("IgnoredNetInterfaces")
         self.send_control(json.dumps(ctl))
 
     def req_handler_create_overlay(self, cbt):
@@ -169,6 +170,7 @@ class TincanInterface(ControllerModule):
         req["IP4PrefixLen"] = msg["IP4PrefixLen"]
         req["MTU4"] = msg["MTU4"]
         req["OverlayId"] = msg["OverlayId"]
+        req["IgnoredNetInterfaces"] = msg.get("IgnoredNetInterfaces")
         self.send_control(json.dumps(ctl))
 
     def req_handler_inject_frame(self, cbt):
