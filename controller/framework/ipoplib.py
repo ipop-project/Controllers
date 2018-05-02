@@ -322,7 +322,6 @@ def runshell(cmd):
 def runshell_su(cmd):
     sudoexe = spawn.find_executable("sudo")
     cmd = [sudoexe]+cmd
-    print(cmd)
     p = subprocess.run(cmd, stdout=subprocess.PIPE)
     if p.returncode != 0:
         err = "Failed to run {}".format(str(cmd))

@@ -216,8 +216,8 @@ class LinkManager(ControllerModule):
         """
         parent_cbt = self.get_parent_cbt(rmv_ovl_cbt)
         olid = rmv_ovl_cbt.request.params["OverlayId"]
-        ovl_dscr = self._tunnels[olid].pop("Descriptor", None)
-        del ovl_dscr
+        ovl = self._tunnels.pop(olid, None)
+        del ovl
         if parent_cbt is not None:
             parent_cbt.set_response("Overlay removed", True)
             self.complete_cbt(parent_cbt)
