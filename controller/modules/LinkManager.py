@@ -244,9 +244,6 @@ class LinkManager(ControllerModule):
             "OverlayId": olid,
             "LinkId": lnkid,
             "StunAddress": self._cm_config["Stun"][0],
-            "TurnAddress": self._cm_config["Turn"][0]["Address"],
-            "TurnPass": self._cm_config["Turn"][0]["Password"],
-            "TurnUser": self._cm_config["Turn"][0]["User"],
             "Type": ol_type,
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
@@ -254,6 +251,9 @@ class LinkManager(ControllerModule):
             "IP4PrefixLen": self._cm_config["Overlays"][overlay_id].get("IP4PrefixLen"),
             "IgnoredNetInterfaces": list(self._get_ignored_tap_names(tap_name))
         }
+        if self._cm_config.get("Turn"):
+            create_ovl_params.update(self._cm_config["Turn"][0])
+
         if parent_cbt is not None:
             ovl_cbt = self.create_linked_cbt(parent_cbt)
             ovl_cbt.set_request(self._module_name, "TincanInterface",
@@ -406,9 +406,6 @@ class LinkManager(ControllerModule):
             # overlay params
             "OverlayId": olid,
             "StunAddress": self._cm_config["Stun"][0],
-            "TurnAddress": self._cm_config["Turn"][0]["Address"],
-            "TurnPass": self._cm_config["Turn"][0]["Password"],
-            "TurnUser": self._cm_config["Turn"][0]["User"],
             "Type": ol_type,
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
@@ -422,6 +419,8 @@ class LinkManager(ControllerModule):
                 "MAC": node_data["MAC"],
                 "UID": node_data["UID"],
                 "VIP4": node_data.get("VIP4")}}
+        if self._cm_config.get("Turn"):
+            create_link_params.update(self._cm_config["Turn"][0])
         lcbt = self.create_linked_cbt(cbt)
         lcbt.set_request(self._module_name, "TincanInterface",
                          "TCI_CREATE_LINK", create_link_params)
@@ -506,7 +505,7 @@ class LinkManager(ControllerModule):
     def req_handler_add_peer_cas(self, cbt):
         # Create Link: Phase 7 Node B
         lnkid = cbt.request.params["LinkId"]
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 3/4 Node B".format(lnkid[:7]))
+        self.register_cbt("Logger", "LOG_INFO", "Create Link: {} Phase 3/4 Node B".format(lnkid[:7]))
         params = cbt.request.params
         lcbt = self.create_linked_cbt(cbt)
         oid = params["OID"]
