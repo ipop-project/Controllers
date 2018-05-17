@@ -1,7 +1,7 @@
 {
   "CFx": {
     "Model": "Default",
-    "Overlays": [  "A0FB389", "A0FB390" ]
+    "Overlays": [ "A0FB389", "A0FB390" ]
   },
   "Logger": {
     "Enabled": true,
@@ -12,7 +12,7 @@
     "TincanLogFileName": "tincan_log",
     "MaxFileSize": 5000000,
     "MaxArchives": 5
-  
+
   },
   "TincanInterface": {
     "Enabled": true
@@ -42,16 +42,12 @@
     "Enabled": true,
     "Overlays": {
       "A0FB389": {
-        "Name": "ipop_vnet_overlay0",
-        "Description": "GVPN Network",
-        "EnableIPMapping": false,
-        "EncryptionEnabled": true
+        "Name": "vNetOverlay",
+        "Description": "Multi-link Tunnels"
       },
       "A0FB390": {
-        "Name": "IpopSwitchOverlay01",
-        "Description": "SVPN Network",
-        "EnableIPMapping": false,
-        "EncryptionEnabled": true
+        "Name": "BridgedOverlay",
+        "Description": "Single-link Tunnels"
       }
     }
   },
@@ -68,32 +64,36 @@
     "Overlays": {
       "A0FB389": {
         "Type": "VNET",
-        "IP4": "10.254.0.10",
-        "IP4PrefixLen": 16,
-        "MTU4": 1500,
-        "TapName": "ipop_tap0",
-        "IgnoredNetInterfaces": [ "ipop_tap0" ]
+        "TapName": "ipop_tap0"
       },
       "A0FB390": {
         "Type": "TUNNEL",
-        "IP4": "10.253.0.10",
-        "IP4PrefixLen": 16,
-        "MTU4": 1500,
-        "TapName": "ipop_tap",
-        "IgnoredNetInterfaces": [ "ipop_tap" ]
+        "TapName": "ipop"
       }
     }
-  }, 
+  },
   "Icc": {
     "Enabled": true
   },
   "Broadcaster": {
-    "Enabled": true
-  },  
+    "Enabled": false
+  },
   "OverlayVisualizer": {
     "Enabled": false,
     "WebServiceAddress": "***:5000",
     "NodeName": "Node1"
 
-  }   
+  },
+  "BridgeController": {
+    "Enabled": true,
+    "Dependencies": [ "Logger", "LinkManager" ],
+    "Overlays": {
+      "A0FB390": {
+        "Type": "LXBR",
+        "BridgeName": "ipopbr0",
+        "IP4": "10.0.0.1",
+        "PrefixLen": 8
+      }
+    }
+  }
 }
