@@ -250,7 +250,7 @@ class LinkManager(ControllerModule):
             "OID": overlay_id,
             "OverlayId": olid,
             "LinkId": lnkid,
-            "StunAddress": self._cm_config["Stun"][0],
+            "StunServers": self._cm_config["Stun"],
             "Type": ol_type,
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
@@ -260,7 +260,7 @@ class LinkManager(ControllerModule):
                 self._get_ignored_tap_names(overlay_id, tap_name))
         }
         if self._cm_config.get("Turn"):
-            create_ovl_params.update(self._cm_config["Turn"][0])
+            create_ovl_params["TurnServers"] = self._cm_config["Turn"]
 
         if parent_cbt is not None:
             ovl_cbt = self.create_linked_cbt(parent_cbt)
@@ -413,7 +413,7 @@ class LinkManager(ControllerModule):
             "OID": overlay_id,
             # overlay params
             "OverlayId": olid,
-            "StunAddress": self._cm_config["Stun"][0],
+            "StunServers": self._cm_config["Stun"],
             "Type": ol_type,
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
@@ -429,7 +429,7 @@ class LinkManager(ControllerModule):
                 "UID": node_data["UID"],
                 "VIP4": node_data.get("VIP4")}}
         if self._cm_config.get("Turn"):
-            create_link_params.update(self._cm_config["Turn"][0])
+            create_link_params["TurnServers"] = self._cm_config["Turn"]
         lcbt = self.create_linked_cbt(cbt)
         lcbt.set_request(self._module_name, "TincanInterface",
                          "TCI_CREATE_LINK", create_link_params)
