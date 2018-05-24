@@ -74,7 +74,10 @@ class LinkManager(ControllerModule):
         return ign_tap_names
 
     def req_handler_add_ign_inf(self, cbt):
-        self._ignored_net_interfaces.add(str(cbt.request.params))
+        ign_inf_details = cbt.request.params
+
+        for olid in ign_inf_details:
+            self._ignored_net_interfaces[olid].add(ign_inf_details[olid])
 
     def req_handler_remove_link(self, cbt):
         olid = cbt.request.params.get("OverlayId", None)
