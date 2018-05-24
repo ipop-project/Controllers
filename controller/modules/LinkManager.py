@@ -62,7 +62,7 @@ class LinkManager(ControllerModule):
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
     def _get_ignored_tap_names(self, overlay_id, new_inf_name=None):
-        ign_tap_names = set()
+        ign_tap_names = defaultdict(set)
         if new_inf_name:
             ign_tap_names[overlay_id].add(new_inf_name)
 
