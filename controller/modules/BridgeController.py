@@ -58,7 +58,8 @@ class BridgeABC():
 class OvsBridge(BridgeABC):
     brctlexe = spawn.find_executable("ovs-vsctl")
 
-    def __init__(self, name, ip_addr, prefix_len, sdn_ctrl_cfg=dict()):
+    def __init__(self, name, ip_addr, prefix_len, stp_enable,
+                 sdn_ctrl_cfg=dict()):
         """ Initialize a bridge object. """
         super(OvsBridge, self).__init__(name, ip_addr, prefix_len)
         ipoplib.runshell_su([OvsBridge.brctlexe,
@@ -71,22 +72,22 @@ class OvsBridge(BridgeABC):
         if net not in ip_addr_info:
             ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", self.name])
 
-        self.stp(False)
+        self.stp(stp_enable)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "up"])
 
-        self.add_sdn_ctrl(sdn_ctrl_cfg)
+        if sdn_ctrl_cfg:
+            self.add_sdn_ctrl(sdn_ctrl_cfg)
 
     def add_sdn_ctrl(self, sdn_ctrl_cfg):
-        if sdn_ctrl_cfg:
-            if sdn_ctrl_cfg["ConnectionType"] == "tcp":
-                ctrl_conn_str = ":".join([sdn_ctrl_cfg["ConnectionType"],
-                                         sdn_ctrl_cfg["HostName"],
-                                         sdn_ctrl_cfg["Port"]])
+        if sdn_ctrl_cfg["ConnectionType"] == "tcp":
+            ctrl_conn_str = ":".join([sdn_ctrl_cfg["ConnectionType"],
+                                      sdn_ctrl_cfg["HostName"],
+                                      sdn_ctrl_cfg["Port"]])
 
-                ipoplib.runshell_su([OvsBridge.brctlexe,
-                                     "set-controller",
-                                     self.name,
-                                     ctrl_conn_str])
+            ipoplib.runshell_su([OvsBridge.brctlexe,
+                                 "set-controller",
+                                 self.name,
+                                 ctrl_conn_str])
 
     def del_sdn_ctrl(self):
         ipoplib.runshell_su([OvsBridge.brctlexe, "del-controller", self.name])
@@ -119,7 +120,8 @@ class OvsBridge(BridgeABC):
 class LinuxBridge(BridgeABC):
     brctlexe = spawn.find_executable("brctl")
 
-    def __init__(self, name, ip_addr, prefix_len, *args, **kwargs):
+    def __init__(self, name, ip_addr, prefix_len, stp_enable,
+                 *args, **kwargs):
         """ Initialize a bridge object. """
 
         super(LinuxBridge, self).__init__(name, ip_addr, prefix_len)
@@ -137,7 +139,7 @@ class LinuxBridge(BridgeABC):
         ipoplib.runshell_su([LinuxBridge.brctlexe, "addbr", self.name])
         net = "{0}/{1}".format(ip_addr, prefix_len)
         ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", name])
-        self.stp(False)
+        self.stp(stp_enable)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", name, "up"])
 
     def __str__(self):
@@ -193,21 +195,28 @@ class BridgeController(ControllerModule):
         self._lock = threading.Lock()
 
     def initialize(self):
+        ign_br_names = dict()
+
         for olid in self._cm_config["Overlays"]:
             br_cfg = self._cm_config["Overlays"][olid]
 
             if self._cm_config["Overlays"][olid]["Type"] == "LXBR":
                 self._overlays[olid] = LinuxBridge(br_cfg["BridgeName"],
                                                    br_cfg["IP4"],
-                                                   br_cfg["PrefixLen"])
+                                                   br_cfg["PrefixLen"],
+                                                   br_cfg.get("STP", False))
             elif self._cm_config["Overlays"][olid]["Type"] == "OVS":
                 self._overlays[olid] = \
                         OvsBridge(br_cfg["BridgeName"],
                                   br_cfg["IP4"],
                                   br_cfg["PrefixLen"],
+                                  br_cfg.get("STP", False),
                                   sdn_ctrl_cfg=br_cfg.get("SDNController",
                                                           dict()))
-            self.register_cbt("LinkManager", "LNK_ADD_IGN_INF", br_cfg["BridgeName"])
+                ign_br_names[olid] = br_cfg["BridgeName"]
+
+            self.register_cbt("LinkManager",
+                              "LNK_ADD_IGN_INF", ign_br_names)
 
         self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
