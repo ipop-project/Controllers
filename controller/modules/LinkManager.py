@@ -62,14 +62,19 @@ class LinkManager(ControllerModule):
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
     def _get_ignored_tap_names(self, overlay_id, new_inf_name=None):
-        ign_tap_names = defaultdict(set)
+        ign_tap_names = set()
         if new_inf_name:
-            ign_tap_names[overlay_id].add(new_inf_name)
+            ign_tap_names.add(new_inf_name)
 
-        ign_tap_names[overlay_id].add(
-            self._tunnels[overlay_id]["Descriptor"]["TapName"])
+        # We need to ignore ALL the ipop tap devices (regardless
+        # of their overlay id/link id)
+        for olid in self._tunnels:
+            ign_tap_names.add(
+                self._tunnels[olid]["Descriptor"]["TapName"])
 
-        ign_tap_names[overlay_id] \
+        # Please note that overlay_id is only used to selectively
+        # ignore physical interfaces and bridges
+        ign_tap_names \
             |= self._ignored_net_interfaces[overlay_id]
         return ign_tap_names
 
