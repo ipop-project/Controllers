@@ -64,17 +64,25 @@ class LinkManager(ControllerModule):
     def _get_ignored_tap_names(self, overlay_id, new_inf_name=None):
         ign_tap_names = set()
         if new_inf_name:
-            ign_tap_names[overlay_id].add(new_inf_name)
+            ign_tap_names.add(new_inf_name)
 
-        ign_tap_names[overlay_id].add(
-            self._tunnels[overlay_id]["Descriptor"]["TapName"])
+        # We need to ignore ALL the ipop tap devices (regardless
+        # of their overlay id/link id)
+        for olid in self._tunnels:
+            ign_tap_names.add(
+                self._tunnels[olid]["Descriptor"]["TapName"])
 
-        ign_tap_names[overlay_id] \
+        # Please note that overlay_id is only used to selectively
+        # ignore physical interfaces and bridges
+        ign_tap_names \
             |= self._ignored_net_interfaces[overlay_id]
         return ign_tap_names
 
     def req_handler_add_ign_inf(self, cbt):
-        self._ignored_net_interfaces.add(str(cbt.request.params))
+        ign_inf_details = cbt.request.params
+
+        for olid in ign_inf_details:
+            self._ignored_net_interfaces[olid].add(ign_inf_details[olid])
 
     def req_handler_remove_link(self, cbt):
         olid = cbt.request.params.get("OverlayId", None)

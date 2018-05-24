@@ -195,6 +195,8 @@ class BridgeController(ControllerModule):
         self._lock = threading.Lock()
 
     def initialize(self):
+        ign_br_names = dict()
+
         for olid in self._cm_config["Overlays"]:
             br_cfg = self._cm_config["Overlays"][olid]
 
@@ -211,8 +213,10 @@ class BridgeController(ControllerModule):
                                   br_cfg.get("STP", False),
                                   sdn_ctrl_cfg=br_cfg.get("SDNController",
                                                           dict()))
+                ign_br_names[olid] = br_cfg["BridgeName"]
+
             self.register_cbt("LinkManager",
-                              "LNK_ADD_IGN_INF", br_cfg["BridgeName"])
+                              "LNK_ADD_IGN_INF", ign_br_names)
 
         self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
