@@ -123,10 +123,10 @@ class LinkManager(ControllerModule):
             self.free_cbt(cbt)
             return
         data = cbt.response.data
+        self.register_cbt("Logger", "LOG_INFO", "Tunnel stats: {0}".format(data))
         with self._lock:
             for olid in data:
                 for lnkid in data[olid]:
-                   #! oid = self._links[lnkid]["OverlayId"]
                     if data[olid][lnkid]["Status"] == "UNKNOWN":
                         self._link_removed_cleanup(lnkid)
                     else:
@@ -138,9 +138,9 @@ class LinkManager(ControllerModule):
     def req_handler_query_viz_data(self, cbt):
         vis_data = dict(LinkManager=defaultdict(dict))
         #with self._lock:
-        #    for olid in self._overlays:
-        #        if "Descriptor" in self._overlays[olid]:
-        #            descriptor = self._overlays[olid]["Descriptor"]
+        #    for lnkid in self._tunnels:
+        #        if "Descriptor" in self._tunnels[lnkid]:
+        #            descriptor = self._tunnels[lnkid]["Descriptor"]
         #            node_data = {
         #                "TapName": descriptor["TapName"],
         #                "VIP4": descriptor.get("VIP4"),
@@ -148,10 +148,10 @@ class LinkManager(ControllerModule):
         #                "MAC": descriptor["MAC"]
         #            }
         #            node_id = str(self._cm_config["NodeId"])
-        #            vis_data["LinkManager"][olid][node_id] = dict(NodeData=node_data,
+        #            vis_data["LinkManager"][real overlay id from config][node_id] = dict(NodeData=node_data,
         #                                                          Links=dict())
-        #            # self._overlays[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
-        #            peers = self._overlays[olid]["Peers"]
+        #            # self._tunnels[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
+        #            peers = self._tunnels[lnkid]["Peers"]
         #            for peerid in peers:
         #                lnkid = peers[peerid]
         #                stats = self._links[lnkid]["Stats"]
@@ -171,7 +171,7 @@ class LinkManager(ControllerModule):
         #                if "Status" in self._links[lnkid]:
         #                    link_data["Status"] = self._links[lnkid]["Status"]
 
-        #                vis_data["LinkManager"][olid][node_id]["Links"][lnkid] = link_data
+        #                vis_data["LinkManager"][lnkid][node_id]["Links"][lnkid] = link_data
 
         cbt.set_response(vis_data, True if vis_data["LinkManager"] else False)
         self.complete_cbt(cbt)
@@ -226,18 +226,16 @@ class LinkManager(ControllerModule):
     def req_handler_query_link_info(self, cbt):
         olid = cbt.request.params["OverlayId"]
         peerid = cbt.request.params["LinkId"]
-        self._lock.acquire()
-        lnkid = self._peers[olid][peerid]
-        cbt.set_response(self._links[lnkid]["Stats"], status=True)
-        self._lock.release()
+        with self._lock:
+            lnkid = self._peers[olid][peerid]
+            cbt.set_response(self._links[lnkid]["Stats"], status=True)
         self.complete_cbt(cbt)
 
     def _create_overlay(self, params, parent_cbt=None):
         overlay_id = params["OverlayId"]
         ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
         lnkid = params["LinkId"]
-        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + \
-            str(lnkid[:7])
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + str(lnkid[:7])
         olid = lnkid
         create_ovl_params = {
             "OID": overlay_id,
@@ -364,7 +362,6 @@ class LinkManager(ControllerModule):
         node_data = params["NodeData"]
         peer_id = node_data["UID"]
         self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 1/4 Node B".format(lnkid[:7]))
-        self._lock.acquire()
         """
         A request to create a local link endpt can be received after we have
         sent out a similar request to a peer. To handle this race we choose to
@@ -373,33 +370,30 @@ class LinkManager(ControllerModule):
         is less than the peer. In which case we rename the existing link id to
         the request.
         """
-        # Node A, fails the request. Things then proceed as normal
-        if (peer_id in self._peers[overlay_id]
-                and peer_id < self._cm_config["NodeId"]):
-            cbt.set_response("LNK_REQ_LINK_ENDPT denied", False)
-            self.complete_cbt(cbt)
-            self._lock.release()
-            self.register_cbt("Logger", "LOG_INFO", "A duplicate create link "
-                              "endpoint request was discarded {0}". format(cbt))
-            return
-        # On node B (the larger node id) switch the link id to use the one sent by node A
-        elif peer_id in self._peers[overlay_id] and peer_id > self._cm_config["Peer_id"]:
-            def_lnk_descr = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id)
-            link_descr = self._links.pop(lnkid, def_lnk_descr)
-            self._links[lnkid] = link_descr
-            self._peers[overlay_id][peer_id] = lnkid
-            self._lock.release()
-            self.register_cbt("Logger", "LOG_INFO", "A duplicate create link "
-                              "endpoint request was merged {0}". format(cbt))
+        with self._lock:
+            # Node A, fails the request. Things then proceed as normal
+            if (peer_id in self._peers[overlay_id]
+                    and peer_id < self._cm_config["NodeId"]):
+                cbt.set_response("LNK_REQ_LINK_ENDPT denied", False)
+                self.complete_cbt(cbt)
+                self.register_cbt("Logger", "LOG_INFO", "A duplicate create link "
+                                  "endpoint request was discarded {0}". format(cbt))
+                return
+            # On node B (the larger node id) switch the link id to use the one sent by node A
+            elif peer_id in self._peers[overlay_id] and peer_id > self._cm_config["Peer_id"]:
+                def_lnk_descr = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id)
+                link_descr = self._links.pop(lnkid, def_lnk_descr)
+                self._links[lnkid] = link_descr
+                self._peers[overlay_id][peer_id] = lnkid
+                self.register_cbt("Logger", "LOG_INFO", "A duplicate create link "
+                                  "endpoint request was merged {0}". format(cbt))
 
-        elif peer_id not in self._peers[overlay_id]:
-            # add/replace to index for quick peer->link lookup
-            self._peers[overlay_id][peer_id] = lnkid
-            self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id)
-            self._lock.release()
+            elif peer_id not in self._peers[overlay_id]:
+                # add/replace to index for quick peer->link lookup
+                self._peers[overlay_id][peer_id] = lnkid
+                self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id)
         ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
-        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + \
-            str(lnkid[:7])
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + str(lnkid[:7])
         olid = lnkid
         create_link_params = {
             "OID": overlay_id,
