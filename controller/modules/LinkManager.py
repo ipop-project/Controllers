@@ -56,8 +56,9 @@ class LinkManager(ControllerModule):
 
         for overlay_id in self._cm_config["Overlays"]:
             ol_cfg = self._cm_config["Overlays"][overlay_id]
-            for ign_inf in ol_cfg["IgnoredNetInterfaces"]:
-                self._ignored_net_interfaces[overlay_id].add(ign_inf)
+            if "IgnoredNetInterfaces" in ol_cfg:
+                for ign_inf in ol_cfg["IgnoredNetInterfaces"]:
+                    self._ignored_net_interfaces[overlay_id].add(ign_inf)
 
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
