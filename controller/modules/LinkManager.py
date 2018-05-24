@@ -34,7 +34,7 @@ class LinkManager(ControllerModule):
         self._links = {}     # maps link id to stats, overlay id and peer id
         self._lock = threading.Lock() # serializes access to _overlays, _links
         self._link_updates_publisher = None
-        self._ignored_net_interfaces = set()
+        self._ignored_net_interfaces = defaultdict(set)
 
     def initialize(self):
         self._link_updates_publisher = \
@@ -54,20 +54,35 @@ class LinkManager(ControllerModule):
         for olid in overlay_ids:
             self._peers[olid] = dict()
 
+        for overlay_id in self._cm_config["Overlays"]:
+            ol_cfg = self._cm_config["Overlays"][overlay_id]
+            for ign_inf in ol_cfg["IgnoredNetInterfaces"]:
+                self._ignored_net_interfaces[overlay_id].add(ign_inf)
+
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
-    def _get_ignored_tap_names(self, new_inf_name=None):
+    def _get_ignored_tap_names(self, overlay_id, new_inf_name=None):
         ign_tap_names = set()
         if new_inf_name:
             ign_tap_names.add(new_inf_name)
+
+        # We need to ignore ALL the ipop tap devices (regardless
+        # of their overlay id/link id)
         for olid in self._tunnels:
-            ign_tap_names.add(self._tunnels[olid]["Descriptor"]["TapName"])
-        for name in self._ignored_net_interfaces:
-            ign_tap_names.add(name)
+            ign_tap_names.add(
+                self._tunnels[olid]["Descriptor"]["TapName"])
+
+        # Please note that overlay_id is only used to selectively
+        # ignore physical interfaces and bridges
+        ign_tap_names \
+            |= self._ignored_net_interfaces[overlay_id]
         return ign_tap_names
-    
+
     def req_handler_add_ign_inf(self, cbt):
-        self._ignored_net_interfaces.add(str(cbt.request.params))
+        ign_inf_details = cbt.request.params
+
+        for olid in ign_inf_details:
+            self._ignored_net_interfaces[olid].add(ign_inf_details[olid])
 
     def req_handler_remove_link(self, cbt):
         olid = cbt.request.params.get("OverlayId", None)
@@ -242,16 +257,17 @@ class LinkManager(ControllerModule):
             "OverlayId": olid,
             "LinkId": lnkid,
             "StunAddress": self._cm_config["Stun"][0],
-            "TurnAddress": self._cm_config["Turn"][0]["Address"],
-            "TurnPass": self._cm_config["Turn"][0]["Password"],
-            "TurnUser": self._cm_config["Turn"][0]["User"],
             "Type": ol_type,
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
             "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
             "IP4PrefixLen": self._cm_config["Overlays"][overlay_id].get("IP4PrefixLen"),
-            "IgnoredNetInterfaces": list(self._get_ignored_tap_names(tap_name))
+            "IgnoredNetInterfaces": list(
+                self._get_ignored_tap_names(overlay_id, tap_name))
         }
+        if self._cm_config.get("Turn"):
+            create_ovl_params.update(self._cm_config["Turn"][0])
+
         if parent_cbt is not None:
             ovl_cbt = self.create_linked_cbt(parent_cbt)
             ovl_cbt.set_request(self._module_name, "TincanInterface",
@@ -400,15 +416,13 @@ class LinkManager(ControllerModule):
             # overlay params
             "OverlayId": olid,
             "StunAddress": self._cm_config["Stun"][0],
-            "TurnAddress": self._cm_config["Turn"][0]["Address"],
-            "TurnPass": self._cm_config["Turn"][0]["Password"],
-            "TurnUser": self._cm_config["Turn"][0]["User"],
             "Type": ol_type,
             "TapName": tap_name,
             "IP4": self._cm_config["Overlays"][overlay_id].get("IP4"),
             "MTU4": self._cm_config["Overlays"][overlay_id].get("MTU4"),
             "IP4PrefixLen": self._cm_config["Overlays"][overlay_id].get("IP4PrefixLen"),
-            "IgnoredNetInterfaces": list(self._get_ignored_tap_names(tap_name)),
+            "IgnoredNetInterfaces": list(
+                self._get_ignored_tap_names(overlay_id, tap_name)),
             # link params
             "LinkId": lnkid,
             "NodeData": {
@@ -416,6 +430,8 @@ class LinkManager(ControllerModule):
                 "MAC": node_data["MAC"],
                 "UID": node_data["UID"],
                 "VIP4": node_data.get("VIP4")}}
+        if self._cm_config.get("Turn"):
+            create_link_params.update(self._cm_config["Turn"][0])
         lcbt = self.create_linked_cbt(cbt)
         lcbt.set_request(self._module_name, "TincanInterface",
                          "TCI_CREATE_LINK", create_link_params)
@@ -500,7 +516,7 @@ class LinkManager(ControllerModule):
     def req_handler_add_peer_cas(self, cbt):
         # Create Link: Phase 7 Node B
         lnkid = cbt.request.params["LinkId"]
-        self.register_cbt("Logger", "LOG_INFO", "Create Link: Phase 3/4 Node B".format(lnkid[:7]))
+        self.register_cbt("Logger", "LOG_INFO", "Create Link: {} Phase 3/4 Node B".format(lnkid[:7]))
         params = cbt.request.params
         lcbt = self.create_linked_cbt(cbt)
         oid = params["OID"]

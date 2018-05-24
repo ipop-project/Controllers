@@ -161,9 +161,9 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["StunAddress"] = msg["StunAddress"]
-        req["TurnAddress"] = msg["TurnAddress"]
-        req["TurnPass"] = msg["TurnPass"]
-        req["TurnUser"] = msg["TurnUser"]
+        req["TurnAddress"] = msg.get("TurnAddress")
+        req["TurnPass"] = msg.get("TurnPass")
+        req["TurnUser"] = msg.get("TurnUser")
         req["Type"] = msg["Type"]
         req["TapName"] = msg["TapName"]
         req["IP4"] = msg["IP4"]
