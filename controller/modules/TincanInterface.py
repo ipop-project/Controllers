@@ -143,10 +143,8 @@ class TincanInterface(ControllerModule):
         req["PeerInfo"]["CAS"] = msg["NodeData"].get("CAS")
         req["PeerInfo"]["FPR"] = msg["NodeData"].get("FPR")
         # Optional overlay data to create overlay on demand
-        req["StunAddress"] = msg.get("StunAddress")
-        req["TurnAddress"] = msg.get("TurnAddress")
-        req["TurnPass"] = msg.get("TurnPass")
-        req["TurnUser"] = msg.get("TurnUser")
+        req["StunServers"] = msg.get("StunServers")
+        req["TurnServers"] = msg.get("TurnServers")
         req["Type"] = msg["Type"]
         req["TapName"] = msg.get("TapName")
         req["IP4"] = msg.get("IP4")
@@ -160,10 +158,8 @@ class TincanInterface(ControllerModule):
         ctl = ipoplib.CTL_CREATE_OVERLAY
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
-        req["StunAddress"] = msg["StunAddress"]
-        req["TurnAddress"] = msg.get("TurnAddress")
-        req["TurnPass"] = msg.get("TurnPass")
-        req["TurnUser"] = msg.get("TurnUser")
+        req["StunServers"] = msg["StunServers"]
+        req["TurnServers"] = msg.get("TurnServers")
         req["Type"] = msg["Type"]
         req["TapName"] = msg["TapName"]
         req["IP4"] = msg["IP4"]
