@@ -136,7 +136,7 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
-        req["NodeId"] = msg["NodeId"]
+        req["NodeId"] = msg.get("NodeId")
         req["LinkId"] = msg["LinkId"]
         req["PeerInfo"]["VIP4"] = msg["NodeData"].get("VIP4")
         req["PeerInfo"]["UID"] = msg["NodeData"].get("UID")
@@ -167,7 +167,7 @@ class TincanInterface(ControllerModule):
         req["IP4PrefixLen"] = msg["IP4PrefixLen"]
         req["MTU4"] = msg["MTU4"]
         req["OverlayId"] = msg["OverlayId"]
-        req["NodeId"] = msg["NodeId"]
+        req["NodeId"] = msg.get("NodeId")
         req["IgnoredNetInterfaces"] = msg.get("IgnoredNetInterfaces")
         self.send_control(json.dumps(ctl))
 
