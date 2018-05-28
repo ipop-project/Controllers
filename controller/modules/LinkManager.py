@@ -255,6 +255,7 @@ class LinkManager(ControllerModule):
         olid = lnkid
         create_ovl_params = {
             "OID": overlay_id,
+            "NodeId": self._cm_config["NodeId"],
             "OverlayId": olid,
             "LinkId": lnkid,
             "StunServers": self._cm_config["Stun"],
@@ -416,6 +417,7 @@ class LinkManager(ControllerModule):
             "OID": overlay_id,
             # overlay params
             "OverlayId": olid,
+            "NodeId": self._cm_config["NodeId"],
             "StunServers": self._cm_config["Stun"],
             "Type": ol_type,
             "TapName": tap_name,
