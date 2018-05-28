@@ -78,10 +78,8 @@ CTL_CREATE_OVERLAY = {
             "IP4": "",
             "IP4PrefixLen": "",
             "MTU4": "",
-            "StunAddress": "",
-            "TurnAddress": "",
-            "TurnUser": "",
-            "TurnPass": "",
+            "StunServers": [],
+            "TurnServers": [],
         }
     }
 }

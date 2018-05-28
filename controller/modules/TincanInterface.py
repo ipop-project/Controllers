@@ -136,6 +136,7 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
+        req["NodeId"] = msg.get("NodeId")
         req["LinkId"] = msg["LinkId"]
         req["PeerInfo"]["VIP4"] = msg["NodeData"].get("VIP4")
         req["PeerInfo"]["UID"] = msg["NodeData"].get("UID")
@@ -143,10 +144,8 @@ class TincanInterface(ControllerModule):
         req["PeerInfo"]["CAS"] = msg["NodeData"].get("CAS")
         req["PeerInfo"]["FPR"] = msg["NodeData"].get("FPR")
         # Optional overlay data to create overlay on demand
-        req["StunAddress"] = msg.get("StunAddress")
-        req["TurnAddress"] = msg.get("TurnAddress")
-        req["TurnPass"] = msg.get("TurnPass")
-        req["TurnUser"] = msg.get("TurnUser")
+        req["StunServers"] = msg.get("StunServers")
+        req["TurnServers"] = msg.get("TurnServers")
         req["Type"] = msg["Type"]
         req["TapName"] = msg.get("TapName")
         req["IP4"] = msg.get("IP4")
@@ -160,16 +159,15 @@ class TincanInterface(ControllerModule):
         ctl = ipoplib.CTL_CREATE_OVERLAY
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
-        req["StunAddress"] = msg["StunAddress"]
-        req["TurnAddress"] = msg.get("TurnAddress")
-        req["TurnPass"] = msg.get("TurnPass")
-        req["TurnUser"] = msg.get("TurnUser")
+        req["StunServers"] = msg["StunServers"]
+        req["TurnServers"] = msg.get("TurnServers")
         req["Type"] = msg["Type"]
         req["TapName"] = msg["TapName"]
         req["IP4"] = msg["IP4"]
         req["IP4PrefixLen"] = msg["IP4PrefixLen"]
         req["MTU4"] = msg["MTU4"]
         req["OverlayId"] = msg["OverlayId"]
+        req["NodeId"] = msg.get("NodeId")
         req["IgnoredNetInterfaces"] = msg.get("IgnoredNetInterfaces")
         self.send_control(json.dumps(ctl))
 
