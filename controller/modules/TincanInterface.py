@@ -148,9 +148,6 @@ class TincanInterface(ControllerModule):
         req["TurnServers"] = msg.get("TurnServers")
         req["Type"] = msg["Type"]
         req["TapName"] = msg.get("TapName")
-        req["IP4"] = msg.get("IP4")
-        req["IP4PrefixLen"] = msg.get("IP4PrefixLen")
-        req["MTU4"] = msg.get("MTU4")
         req["IgnoredNetInterfaces"] = msg.get("IgnoredNetInterfaces")
         self.send_control(json.dumps(ctl))
 
@@ -163,9 +160,6 @@ class TincanInterface(ControllerModule):
         req["TurnServers"] = msg.get("TurnServers")
         req["Type"] = msg["Type"]
         req["TapName"] = msg["TapName"]
-        req["IP4"] = msg["IP4"]
-        req["IP4PrefixLen"] = msg["IP4PrefixLen"]
-        req["MTU4"] = msg["MTU4"]
         req["OverlayId"] = msg["OverlayId"]
         req["NodeId"] = msg.get("NodeId")
         req["IgnoredNetInterfaces"] = msg.get("IgnoredNetInterfaces")

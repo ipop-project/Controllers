@@ -75,9 +75,6 @@ CTL_CREATE_OVERLAY = {
         "Request": {
             "Command": "CreateOverlay",
             "TapName": "",
-            "IP4": "",
-            "IP4PrefixLen": "",
-            "MTU4": "",
             "StunServers": [],
             "TurnServers": [],
         }
@@ -93,23 +90,10 @@ CTL_CREATE_LINK = {
             "OverlayId": "",
             "LinkId": "",
             "PeerInfo": {
-                "VIP4": "",
                 "UID": "",
                 "MAC": "",
                 "FPR": ""
             }
-        }
-    }
-}
-CTL_SET_IGNORED_NET_INTERFACES = {
-    "IPOP": {
-        "ProtocolVersion": 5,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-            "Command": "SetIgnoredNetInterfaces",
-            "OverlayId": "",
-            "IgnoredNetInterfaces": []
         }
     }
 }
