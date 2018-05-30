@@ -138,7 +138,6 @@ class TincanInterface(ControllerModule):
         req["OverlayId"] = msg["OverlayId"]
         req["NodeId"] = msg.get("NodeId")
         req["LinkId"] = msg["LinkId"]
-        req["PeerInfo"]["VIP4"] = msg["NodeData"].get("VIP4")
         req["PeerInfo"]["UID"] = msg["NodeData"].get("UID")
         req["PeerInfo"]["MAC"] = msg["NodeData"].get("MAC")
         req["PeerInfo"]["CAS"] = msg["NodeData"].get("CAS")

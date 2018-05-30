@@ -103,8 +103,6 @@ class Topology(ControllerModule, CFX):
                 self._overlays[olid]["Descriptor"]["IsReady"] = cbt.response.status
                 cbt_data = json.loads(cbt.response.data)
                 self._overlays[olid]["Descriptor"]["MAC"] = cbt_data["MAC"]
-                self._overlays[olid]["Descriptor"]["IP4PrefixLen"] = cbt_data["IP4PrefixLen"]
-                self._overlays[olid]["Descriptor"]["VIP4"] = cbt_data["VIP4"]
                 self._overlays[olid]["Descriptor"]["TapName"] = cbt_data["TapName"]
                 self._overlays[olid]["Descriptor"]["FPR"] = cbt_data["FPR"]
         else:
