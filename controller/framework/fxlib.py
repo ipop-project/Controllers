@@ -95,6 +95,10 @@ CONFIG = {
         "ServerAddress": "metrics.ipop-project.org",
         "ServerPort": 8081,
         "Dependencies": ["Logger", "Signal"]
+    },
+    "BridgeController": {
+        "Enabled": True,
+        "Dependencies": [ "Logger", "LinkManager" ]
     }
 }
 

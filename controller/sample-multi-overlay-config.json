@@ -42,18 +42,18 @@
     "Enabled": true,
     "Overlays": {
       "A0FB389": {
-        "Name": "vNetOverlay",
-        "Description": "Multi-link Tunnels"
+        "Name": "Overlay1",
+        "Description": "Single-link Tunnels"
       },
       "A0FB390": {
-        "Name": "BridgedOverlay",
+        "Name": "Overlay2",
         "Description": "Single-link Tunnels"
       }
     }
   },
   "LinkManager": {
     "Enabled": true,
-    "Stun": [ "stun.l.google.com:19302" ],
+    "Stun": [ "stun.l.google.com:19302", "stun1.l.google.com:19302" ],
     "Turn": [
       {
         "Address": "***:***",
@@ -63,8 +63,8 @@
     ],
     "Overlays": {
       "A0FB389": {
-        "Type": "VNET",
-        "TapName": "ipop_tap0"
+        "Type": "TUNNEL",
+        "TapName": "ipop"
       },
       "A0FB390": {
         "Type": "TUNNEL",
@@ -72,8 +72,30 @@
       }
     }
   },
+  "BridgeController": {
+    "Enabled": true,
+    "Dependencies": [ "Logger", "LinkManager" ],
+    "Overlays": {
+      "A0FB389": {
+        "Type": "LXBR",
+        "BridgeName": "ipopbr0",
+        "IP4": "10.0.0.1",
+        "PrefixLen": 24,
+        "MTU": 1200,
+        "STP": true
+      },
+      "A0FB390": {
+        "Type": "OVS",
+        "BridgeName": "ipopbr1",
+        "IP4": "10.0.1.1",
+        "PrefixLen": 24,
+        "MTU": 1200,
+        "STP": true
+      }
+    }
+  },
   "Icc": {
-    "Enabled": true
+    "Enabled": false
   },
   "Broadcaster": {
     "Enabled": false
@@ -82,18 +104,5 @@
     "Enabled": false,
     "WebServiceAddress": "***:5000",
     "NodeName": "Node1"
-
-  },
-  "BridgeController": {
-    "Enabled": true,
-    "Dependencies": [ "Logger", "LinkManager" ],
-    "Overlays": {
-      "A0FB390": {
-        "Type": "LXBR",
-        "BridgeName": "ipopbr0",
-        "IP4": "10.0.0.1",
-        "PrefixLen": 8
-      }
-    }
   }
 }
