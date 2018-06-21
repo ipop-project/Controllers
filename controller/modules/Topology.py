@@ -109,7 +109,7 @@ class Topology(ControllerModule, CFX):
             self.register_cbt("Logger", "LOG_INFO",
                               "Query overlay info failed {0}".format(cbt.response.data))
             # retry the query
-            self.register_cbt("TincanInterface", "TCI_QUERY_OVERLAY_INFO", cbt.request.params)
+            self.register_cbt("TincanInterface", "TCI_QUERY_TUNNEL_INFO", cbt.request.params)
 
     def req_handler_peer_presence(self, cbt):
         peer = cbt.request.params
@@ -202,7 +202,7 @@ class Topology(ControllerModule, CFX):
             else:
                 self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
-            if cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
+            if cbt.request.action == "TCI_QUERY_TUNNEL_INFO":
                 self.resp_handler_query_overlay_info(cbt)
             elif cbt.request.action == "LNK_CREATE_LINK":
                 self.resp_handler_create_link(cbt)

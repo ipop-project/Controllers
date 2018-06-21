@@ -19,8 +19,8 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import psutil
 import time
+import psutil
 from controller.framework.CFx import CFX
 
 
@@ -29,7 +29,7 @@ def is_tincan_proc():
     # Iterates across process table to find Tincan process
     for process in psutil.process_iter():
         if process.name().find("ipop-tincan") != -1:
-          return True
+            return True
     return False
 
 

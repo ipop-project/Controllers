@@ -86,7 +86,7 @@ class TincanInterface(ControllerModule):
         except:
             log_cbt = self.register_cbt(
                 "Logger", "LOG_WARNING", "Tincan Listener exception:\n"
-                        "{0}".format(traceback.format_exc()))
+                "{0}".format(traceback.format_exc()))
             self.submit_cbt(log_cbt)
 
     def create_control_link(self,):
@@ -136,6 +136,7 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
+        req["TunnelId"] = msg["TunnelId"]
         req["NodeId"] = msg.get("NodeId")
         req["LinkId"] = msg["LinkId"]
         req["PeerInfo"]["UID"] = msg["NodeData"].get("UID")
@@ -150,9 +151,9 @@ class TincanInterface(ControllerModule):
         req["IgnoredNetInterfaces"] = msg.get("IgnoredNetInterfaces")
         self.send_control(json.dumps(ctl))
 
-    def req_handler_create_overlay(self, cbt):
+    def req_handler_create_tunnel(self, cbt):
         msg = cbt.request.params
-        ctl = ipoplib.CTL_CREATE_OVERLAY
+        ctl = ipoplib.CTL_CREATE_TUNNEL
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["StunServers"] = msg["StunServers"]
@@ -160,6 +161,7 @@ class TincanInterface(ControllerModule):
         req["Type"] = msg["Type"]
         req["TapName"] = msg["TapName"]
         req["OverlayId"] = msg["OverlayId"]
+        req["TunnelId"] = msg["TunnelId"]
         req["NodeId"] = msg.get("NodeId")
         req["IgnoredNetInterfaces"] = msg.get("IgnoredNetInterfaces")
         self.send_control(json.dumps(ctl))
@@ -187,23 +189,24 @@ class TincanInterface(ControllerModule):
         ctl = ipoplib.CTL_QUERY_LINK_STATS
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
-        req["OverlayIds"] = msg
+        req["TunnelIds"] = msg
         self.send_control(json.dumps(ctl))
 
-    def req_handler_query_overlay_info(self, cbt):
+    def req_handler_query_tunnel_info(self, cbt):
         msg = cbt.request.params
-        ctl = ipoplib.CTL_QUERY_OVERLAY_INFO
+        ctl = ipoplib.CTL_QUERY_TUNNEL_INFO
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
         self.send_control(json.dumps(ctl))
 
-    def req_handler_remove_overlay(self, cbt):
+    def req_handler_remove_tunnel(self, cbt):
         msg = cbt.request.params
-        ctl = ipoplib.CTL_REMOVE_OVERLAY
+        ctl = ipoplib.CTL_REMOVE_TUNNEL
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
+        req["TunnelId"] = msg["TunnelId"]
         self.send_control(json.dumps(ctl))
 
     def req_handler_remove_link(self, cbt):
@@ -242,8 +245,8 @@ class TincanInterface(ControllerModule):
             elif cbt.request.action == "TCI_REMOVE_LINK":
                 self.req_handler_remove_link(cbt)
 
-            elif cbt.request.action == "TCI_CREATE_OVERLAY":
-                self.req_handler_create_overlay(cbt)
+            elif cbt.request.action == "TCI_CREATE_TUNNEL":
+                self.req_handler_create_tunnel(cbt)
 
             elif cbt.request.action == "TCI_ICC":
                 self.req_handler_send_icc(cbt)
@@ -257,11 +260,11 @@ class TincanInterface(ControllerModule):
             elif cbt.request.action == "TCI_QUERY_LINK_STATS":
                 self.req_handler_query_link_stats(cbt)
 
-            elif cbt.request.action == "TCI_QUERY_OVERLAY_INFO":
-                self.req_handler_query_overlay_info(cbt)
+            elif cbt.request.action == "TCI_QUERY_TUNNEL_INFO":
+                self.req_handler_query_tunnel_info(cbt)
 
-            elif cbt.request.action == "TCI_REMOVE_OVERLAY":
-                self.req_handler_remove_overlay(cbt)
+            elif cbt.request.action == "TCI_REMOVE_TUNNEL":
+                self.req_handler_remove_tunnel(cbt)
 
             elif cbt.request.action == "TCI_SET_IGNORED_NET_INTERFACES":
                 self.req_handler_set_ignored_net_interfaces(cbt)

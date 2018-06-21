@@ -155,10 +155,10 @@ class LinuxBridge(BridgeABC):
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "down"])
         ipoplib.runshell_su([LinuxBridge.brctlexe, "delbr", self.name])
 
-    def add_port(self, port):
+    def add_port(self, port_name):
         ipoplib.runshell_su([LinuxBridge.brctlexe, "addif", self.name, port])
 
-    def del_port(self, port):
+    def del_port(self, port_name):
         ipoplib.runshell_su([LinuxBridge.brctlexe, "delif", self.name, port])
 
     def stp(self, val=True):

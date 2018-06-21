@@ -56,27 +56,32 @@ CTL_CONFIGURE_LOGGING = {
         }
     }
 }
-CTL_QUERY_OVERLAY_INFO = {
+CTL_QUERY_TUNNEL_INFO = {
     "IPOP": {
         "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "QueryOverlayInfo",
-            "OverlayId": ""
+            "OverlayId": "",
+            "TunnelId": ""
         }
     }
 }
-CTL_CREATE_OVERLAY = {
+CTL_CREATE_TUNNEL = {
     "IPOP": {
         "ProtocolVersion": 5,
         "ControlType": "TincanRequest",
         "TransactionId": 0,
         "Request": {
-            "Command": "CreateOverlay",
+            "Command": "CreateTunnel",
+            "OverlayId": "",
+            "NodeId": "",
+            "TunnelId": "",
             "TapName": "",
             "StunServers": [],
             "TurnServers": [],
+            "Type": "",
         }
     }
 }
@@ -88,6 +93,7 @@ CTL_CREATE_LINK = {
         "Request": {
             "Command": "CreateLink",
             "OverlayId": "",
+            "TunnelId": "",
             "LinkId": "",
             "PeerInfo": {
                 "UID": "",
@@ -122,14 +128,15 @@ INSERT_TAP_PACKET = {
         }
     }
 }
-CTL_REMOVE_OVERLAY = {
+CTL_REMOVE_TUNNEL = {
     "IPOP": {
         "ProtocolVersion": 5,
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "RemoveOverlay",
-            "OverlayId": ""
+            "OverlayId": "",
+            "TunnelId": ""
         }
     }
 }
@@ -189,7 +196,7 @@ CTL_QUERY_LINK_STATS = {
         "ControlType": "TincanRequest",
         "Request": {
             "Command": "QueryLinkStats",
-            "OverlayIds" : []
+            "TunnelIds" : []
         }
     }
 }
@@ -216,21 +223,21 @@ def ip6_a2b(str_ip6):
 
 def ip6_b2a(bin_ip6):
     return "".join("%04x" % int.from_bytes(bin_ip6[i:i + 2], byteorder="big") + ":"
-                       for i in range(0, 16, 2))[:-1]
+                   for i in range(0, 16, 2))[:-1]
 
 def ip4_a2b(str_ip4):
     return b"".join(int(x, 10).to_bytes(1, byteorder="big") for x in str_ip4.split("."))
 
 def ip4_b2a(bin_ip4):
     return "".join(str(int.from_bytes(bin_ip4[i:i + 1], byteorder="big")) + "."
-                       for i in range(0, 4, 1))[:-1]
+                   for i in range(0, 4, 1))[:-1]
 
 def mac_a2b(str_mac):
     return b"".join(int(x, 16).to_bytes(1, byteorder="big") for x in str_mac.split(":"))
 
 def mac_b2a(bin_mac):
     return "".join("%02x" % int.from_bytes(bin_mac[i:i + 1], byteorder="big") + ":"
-                       for i in range(0, 6, 1))[:-1]
+                   for i in range(0, 6, 1))[:-1]
 
 def uid_a2b(str_uid):
     return int(str_uid, 16).to_bytes(20, byteorder="big")
