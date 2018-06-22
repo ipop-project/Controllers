@@ -121,7 +121,6 @@ class LinkManager(ControllerModule):
         self._tunnels[link_id]["Descriptor"]["MAC"] = tnl_desc["MAC"]
         self._tunnels[link_id]["Descriptor"]["TapName"] = tnl_desc["TapName"]
         self._tunnels[link_id]["Descriptor"]["FPR"] = tnl_desc["FPR"]
-        self._tunnels[link_id]["Descriptor"]["IP4PrefixLen"] = tnl_desc["IP4PrefixLen"]
         self.register_cbt("Logger", "LOG_DEBUG", "_tunnels:{}".format(self._tunnels))
 
     def _query_link_stats(self):
@@ -169,7 +168,7 @@ class LinkManager(ControllerModule):
     #            vis_data["LinkManager"][real overlay id from
     #            config][node_id] = dict(NodeData=node_data,
     #                                                          Links=dict())
-    #            # self._tunnels[olid]["Descriptor"]["GeoIP"] # TODO: GeoIP
+    #            # self._tunnels[olid]["Descriptor"]["GeoIP"]
     #            peers = self._tunnels[lnkid]["Peers"]
     #            for peerid in peers:
     #                lnkid = peers[peerid]
@@ -257,7 +256,7 @@ class LinkManager(ControllerModule):
         overlay_id = params["OverlayId"]
         ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
         lnkid = params["LinkId"]
-        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] #+ str(lnkid[:7])
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + str(lnkid[:7])
         create_tnl_params = {
             "OverlayId": overlay_id,
             "NodeId": self._cm_config["NodeId"],
@@ -444,7 +443,7 @@ class LinkManager(ControllerModule):
                                       CreationState=0xB1, CreationStartTime=time.time())
         self._links[lnkid]["CreationState"] = 0xB1
         ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
-        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] #+ str(lnkid[:7])
+        tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + str(lnkid[:7])
         create_link_params = {
             "OverlayId": overlay_id,
             # overlay params
@@ -519,7 +518,20 @@ class LinkManager(ControllerModule):
                           .format(lnkid[:7]))
         peer_id = rem_act["NodeData"]["UID"]
         olid = rem_act["OverlayId"]
-        parent_cbt.set_response(data="LNK_ADD_PEER_CAS successful", status=True)
+        resp_data = cbt.response.data
+        node_data = {
+            "MAC": resp_data["MAC"],
+            "FPR": resp_data["FPR"],
+            "UID": self._cm_config["NodeId"],
+            "CAS": resp_data["CAS"]
+        }
+        data = {
+            "OverlayId": cbt.request.params["OverlayId"],
+            "TunnelId": lnkid,
+            "LinkId": lnkid,
+            "NodeData": node_data
+        }
+        parent_cbt.set_response(data=data, status=True)
         # publish notification of link creation Node B
         param = {
             "UpdateType": "ADDED", "OverlayId": olid, "PeerId": peer_id, "TunnelId": lnkid,
@@ -569,8 +581,8 @@ class LinkManager(ControllerModule):
             "TunnelId": lnkid,
             "LinkId": lnkid,
             "NodeData": {
-                "UID": self._cm_config["NodeId"], "MAC": "",
-                "CAS": local_cas, "FPR": ""}}
+                "UID": self._cm_config["NodeId"], "MAC": cbt.response.data["MAC"],
+                "CAS": local_cas, "FPR": cbt.response.data["FPR"]}}
         remote_act = dict(OverlayId=olid, RecipientId=peerid, RecipientCM="LinkManager",
                           Action="LNK_ADD_PEER_CAS", Params=params)
         lcbt = self.create_linked_cbt(parent_cbt)
