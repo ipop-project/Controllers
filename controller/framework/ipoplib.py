@@ -134,7 +134,7 @@ CTL_REMOVE_TUNNEL = {
         "TransactionId": 0,
         "ControlType": "TincanRequest",
         "Request": {
-            "Command": "RemoveOverlay",
+            "Command": "RemoveTunnel",
             "OverlayId": "",
             "TunnelId": ""
         }

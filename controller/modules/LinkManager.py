@@ -143,14 +143,14 @@ class LinkManager(ControllerModule):
             return
         data = cbt.response.data
         self.register_cbt("Logger", "LOG_INFO", "Tunnel stats: {0}".format(data))
-        for olid in data:
-            for lnkid in data[olid]:
-                if data[olid][lnkid]["Status"] == "UNKNOWN":
+        for tnl_id in data:
+            for lnkid in data[tnl_id]:
+                if data[tnl_id][lnkid]["Status"] == "UNKNOWN":
                     self._link_removed_cleanup(lnkid)
                 elif lnkid in self._links:
-                    self._links[lnkid]["Stats"] = data[olid][lnkid]["Stats"]
-                    self._links[lnkid]["IceRole"] = data[olid][lnkid]["IceRole"]
-                    self._links[lnkid]["Status"] = data[olid][lnkid]["Status"]
+                    self._links[lnkid]["Stats"] = data[tnl_id][lnkid]["Stats"]
+                    self._links[lnkid]["IceRole"] = data[tnl_id][lnkid]["IceRole"]
+                    self._links[lnkid]["Status"] = data[tnl_id][lnkid]["Status"]
         self.free_cbt(cbt)
 
     def req_handler_query_viz_data(self, cbt):
