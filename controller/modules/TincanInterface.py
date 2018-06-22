@@ -215,6 +215,7 @@ class TincanInterface(ControllerModule):
         ctl["IPOP"]["TransactionId"] = cbt.tag
         req = ctl["IPOP"]["Request"]
         req["OverlayId"] = msg["OverlayId"]
+        req["TunnelId"] = msg["TunnelId"]
         req["LinkId"] = msg["LinkId"]
         self.send_control(json.dumps(ctl))
 
