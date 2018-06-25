@@ -102,7 +102,7 @@ class CFxHandle(object):
             # create the timer worker thread, which is started by CFx
             thread_name = self._cm_instance.__class__.__name__ + "::__timer"
             self._timer_thread = threading.Thread(target=self.__timer_worker,
-                                                 name=thread_name, daemon=False)
+                                                  name=thread_name, daemon=False)
 
     def update_timer_interval(self, interval):
         self.interval = interval

@@ -64,7 +64,7 @@ class Topology(ControllerModule, CFX):
 
     def terminate(self):
         #for k in self._cfx_handle._owned_cbts.keys():
-        #    self.free_cbt(self._cfx_handle._owned_cbts[k]) 
+        #    self.free_cbt(self._cfx_handle._owned_cbts[k])
         #for k in self._cfx_handle._pending_cbts.keys():
         #    cbt = self._pending_cbts._owned_cbts[k]
         #    cbt.set_response("Module terminating", False)

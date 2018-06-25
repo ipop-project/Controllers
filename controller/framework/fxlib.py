@@ -98,7 +98,7 @@ CONFIG = {
     },
     "BridgeController": {
         "Enabled": True,
-        "Dependencies": [ "Logger", "LinkManager" ]
+        "Dependencies": ["Logger", "LinkManager"]
     }
 }
 

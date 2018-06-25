@@ -32,7 +32,7 @@ IPEXE = spawn.find_executable("ip")
 class BridgeABC():
     __metaclass__ = ABCMeta
 
-    def __init__(self, name, ip_addr, prefix_len, mtu, *args, **kwargs):
+    def __init__(self, name, ip_addr, prefix_len, mtu):
         self.name = name
         self.ip_addr = ip_addr
         self.prefix_len = prefix_len
@@ -60,7 +60,7 @@ class OvsBridge(BridgeABC):
     brctlexe = spawn.find_executable("ovs-vsctl")
 
     def __init__(self, name, ip_addr, prefix_len, mtu, stp_enable,
-                 sdn_ctrl_cfg=dict()):
+                 sdn_ctrl_cfg=None):
         """ Initialize a bridge object. """
         super(OvsBridge, self).__init__(name, ip_addr, prefix_len, mtu)
         ipoplib.runshell_su([OvsBridge.brctlexe,
@@ -123,8 +123,7 @@ class OvsBridge(BridgeABC):
 class LinuxBridge(BridgeABC):
     brctlexe = spawn.find_executable("brctl")
 
-    def __init__(self, name, ip_addr, prefix_len, mtu, stp_enable,
-                 *args, **kwargs):
+    def __init__(self, name, ip_addr, prefix_len, mtu, stp_enable):
         """ Initialize a bridge object. """
 
         super(LinuxBridge, self).__init__(name, ip_addr, prefix_len, mtu)
@@ -160,10 +159,10 @@ class LinuxBridge(BridgeABC):
         ipoplib.runshell_su([LinuxBridge.brctlexe, "delbr", self.name])
 
     def add_port(self, port_name):
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "addif", self.name, port])
+        ipoplib.runshell_su([LinuxBridge.brctlexe, "addif", self.name, port_name])
 
     def del_port(self, port_name):
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "delif", self.name, port])
+        ipoplib.runshell_su([LinuxBridge.brctlexe, "delif", self.name, port_name])
 
     def stp(self, val=True):
         """ Turn STP protocol on/off. """
@@ -191,8 +190,7 @@ class LinuxBridge(BridgeABC):
 
 
 class BridgeController(ControllerModule):
-    def __init__(self, cfx_handle, module_config,
-                 module_name, *args, **kwargs):
+    def __init__(self, cfx_handle, module_config, module_name):
         super(BridgeController, self).__init__(cfx_handle, module_config,
                                                module_name)
         self._overlays = dict()
@@ -218,7 +216,7 @@ class BridgeController(ControllerModule):
                                                  br_cfg.get("MTU", 1500),
                                                  br_cfg.get("STP", False),
                                                  sdn_ctrl_cfg=br_cfg.get("SDNController",
-                                                 dict()))
+                                                                         dict()))
                 ign_br_names[olid] = br_cfg["BridgeName"]
 
             self.register_cbt("LinkManager",
@@ -268,7 +266,8 @@ class BridgeController(ControllerModule):
                 self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "TOP_QUERY_PEER_IDS":
-                self.resp_handler_query_peers(cbt)
+                pass
+                # self.resp_handler_query_peers(cbt)
             else:
                 parent_cbt = self.get_parent_cbt(cbt)
                 cbt_data = cbt.response.data

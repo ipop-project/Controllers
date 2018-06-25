@@ -97,7 +97,7 @@ class CFX(object):
                                                  .format(self.model, module_name))
             else:
                 module = importlib.import_module("controller.modules.{0}"
-                                                  .format(module_name))
+                                                 .format(module_name))
 
         # get the class with name key from module
         module_class = getattr(module, module_name)

@@ -120,7 +120,6 @@ class UsageReport(ControllerModule):
                 self.register_cbt("Logger", "LOG_WARNING",
                                   "Usage report server indicated error "
                                   "code: {0}".format(res.getcode()))
-                raise
         except Exception as error:
             log = "Usage report submission failed to server {0}. " \
                   "Error: {1}".format(url, error)

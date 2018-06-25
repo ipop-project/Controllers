@@ -25,8 +25,8 @@ except ImportError:
     import json
 import threading
 from collections import defaultdict
-from controller.framework.ControllerModule import ControllerModule
 import requests
+from controller.framework.ControllerModule import ControllerModule
 
 
 class OverlayVisualizer(ControllerModule):
@@ -35,7 +35,7 @@ class OverlayVisualizer(ControllerModule):
                                                 module_config, module_name)
         # Visualizer webservice URL
         self.vis_address = "http://" + self._cm_config["WebServiceAddress"]
-
+        self._vis_req_publisher = None
         self.node_id = str(self._cm_config["NodeId"])
 
         # The visualizer dataset which is forwarded to the collector service
@@ -66,8 +66,7 @@ class OverlayVisualizer(ControllerModule):
                     self._vis_ds_lock.acquire()
                     for mod_name in msg:
                         for ovrl_id in msg[mod_name]:
-                            self._vis_ds["Data"][ovrl_id][mod_name] \
-                                = msg[mod_name][ovrl_id]
+                            self._vis_ds["Data"][ovrl_id][mod_name] = msg[mod_name][ovrl_id]
                     self._vis_ds_lock.release()
                 else:
                     warn_msg = "Got no data in CBT response from module" \
@@ -75,7 +74,7 @@ class OverlayVisualizer(ControllerModule):
                     self.register_cbt("Logger", "LOG_WARNING", warn_msg)
                 self.free_cbt(cbt)
         else:
-                self.req_handler_default(cbt)
+            self.req_handler_default(cbt)
 
     def timer_method(self):
         with self._vis_ds_lock:

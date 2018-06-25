@@ -48,7 +48,8 @@ class TincanInterface(ControllerModule):
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self._sock_svr = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             # Controller UDP listening socket
-            self._sock_svr.bind((self._cm_config["RcvServiceAddress"], self._cm_config["CtrlRecvPort"]))
+            self._sock_svr.bind((self._cm_config["RcvServiceAddress"],
+                                 self._cm_config["CtrlRecvPort"]))
             # Controller UDP sending socket
             self._dest = (self._cm_config["SndServiceAddress"], self._cm_config["CtrlSendPort"])
         self._sock.bind(("", 0))
@@ -79,7 +80,8 @@ class TincanInterface(ControllerModule):
                         # Get the original CBT if this is the response
                         if ctl["IPOP"]["ControlType"] == "TincanResponse":
                             cbt = self._cfx_handle._pending_cbts[ctl["IPOP"]["TransactionId"]]
-                            cbt.set_response(ctl["IPOP"]["Response"]["Message"], ctl["IPOP"]["Response"]["Success"])
+                            cbt.set_response(ctl["IPOP"]["Response"]["Message"],
+                                             ctl["IPOP"]["Response"]["Success"])
                             self.complete_cbt(cbt)
                         else:
                             self._tci_publisher.post_update(ctl["IPOP"]["Request"])
@@ -229,15 +231,6 @@ class TincanInterface(ControllerModule):
         req["Data"] = msg["Data"]
         self.send_control(json.dumps(ctl))
 
-    def req_handler_set_ignored_net_interfaces(self, cbt):
-        msg = cbt.request.params
-        ctl = ipoplib.CTL_SET_IGNORED_NET_INTERFACES
-        ctl["IPOP"]["TransactionId"] = cbt.tag
-        req = ctl["IPOP"]["Request"]
-        req["OverlayId"] = msg["OverlayId"]
-        req["IgnoredNetInterfaces"] = msg["IgnoredNetInterfaces"]
-        self.send_control(json.dumps(ctl))
-
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
             if cbt.request.action == "TCI_CREATE_LINK":
@@ -266,9 +259,6 @@ class TincanInterface(ControllerModule):
 
             elif cbt.request.action == "TCI_REMOVE_TUNNEL":
                 self.req_handler_remove_tunnel(cbt)
-
-            elif cbt.request.action == "TCI_SET_IGNORED_NET_INTERFACES":
-                self.req_handler_set_ignored_net_interfaces(cbt)
 
             else:
                 self.req_handler_default(cbt)
