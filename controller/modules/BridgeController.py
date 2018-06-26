@@ -207,14 +207,14 @@ class BridgeController(ControllerModule):
                                                    br_cfg["IP4"],
                                                    br_cfg["PrefixLen"],
                                                    br_cfg.get("MTU", 1500),
-                                                   br_cfg.get("STP", False))
+                                                   br_cfg.get("STP", True))
 
             elif self._cm_config["Overlays"][olid]["Type"] == "OVS":
                 self._overlays[olid] = OvsBridge(br_cfg["BridgeName"],
                                                  br_cfg["IP4"],
                                                  br_cfg["PrefixLen"],
                                                  br_cfg.get("MTU", 1500),
-                                                 br_cfg.get("STP", False),
+                                                 br_cfg.get("STP", True),
                                                  sdn_ctrl_cfg=br_cfg.get("SDNController",
                                                                          dict()))
                 ign_br_names[olid] = br_cfg["BridgeName"]
