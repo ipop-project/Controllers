@@ -36,9 +36,8 @@ from sleekxmpp.stanza.message import Message
 from controller.framework.ControllerModule import ControllerModule
 
 
-
-# set up a new custom message stanza
 class IpopSignal(ElementBase):
+    """Representation of SIGNAL's custom message stanza"""
     name = "ipop"
     namespace = "signal"
     plugin_attrib = "ipop"
@@ -63,7 +62,8 @@ class JidCache:
     def scavenge(self,):
         self.lck.acquire()
         curr_time = time.time()
-        keys_to_be_deleted = [key for key, value in self.cache.items() if curr_time - value[1] >= 120]
+        keys_to_be_deleted = \
+            [key for key, value in self.cache.items() if curr_time - value[1] >= 120]
         for key in keys_to_be_deleted:
             del self.cache[key]
             self._log("Deleted entry from JID cache {0}".format(key), severity="LOG_DEBUG")
@@ -90,6 +90,8 @@ class XmppTransport(sleekxmpp.ClientXMPP):
         self.jid_cache = None
         self.cbts = None
         self._cbt_to_action_tag = {}  # maps remote action tags to cbt tags
+        self.host = None
+        self.port = None
 
     @staticmethod
     def factory(overlay_id, overlay_descr, cm_mod, presence_publisher, jid_cache, cbts):
@@ -156,14 +158,10 @@ class XmppTransport(sleekxmpp.ClientXMPP):
     def _log(self, msg, severity="LOG_INFO"):
         self.cm_mod._log(msg, severity)
 
-    # Triggered at start of XMPP session
     def start_event_handler(self, event):
+        """Registers custom event handlers at the start of XMPP session"""
         self._log("Start event overlay_id {0}".format(self.overlay_id))
         try:
-            # Get the friends list for the user
-            self.get_roster()
-            # Send sign-on presence
-            self.send_presence(pstatus="ident#" + self.node_id)
             # Notification of peer signon
             self.add_event_handler("presence_available",
                                    self.presence_event_handler)
@@ -171,20 +169,25 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             register_stanza_plugin(Message, IpopSignal)
             self.registerHandler(
                 Callback("ipop", StanzaPath("message/ipop"), self.message_listener))
+            # Get the friends list for the user
+            self.get_roster()
+            # Send sign-on presence
+            self.send_presence(pstatus="ident#" + self.node_id)
         except Exception as err:
             self._log("XmppTransport:Exception:{0} Event:{1}"
                       .format(err, event), severity="LOG_ERROR")
 
-    # Callback Function to keep track of Online XMPP Peers
     def presence_event_handler(self, presence):
+        """
+        Handles peer presence event messages
+        """
         try:
             presence_sender = presence["from"]
             presence_receiver_jid = JID(presence["to"])
             presence_receiver = str(presence_receiver_jid.user) + "@" \
                 + str(presence_receiver_jid.domain)
             status = presence["status"]
-            if(presence_receiver == self.boundjid.bare
-               and presence_sender != self.boundjid.full):
+            if(presence_receiver == self.boundjid.bare and presence_sender != self.boundjid.full):
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
                     if pstatus == "ident":
@@ -256,8 +259,8 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             self._log("XmppTransport:Exception:{0} msg:{1}".format(err, msg),
                       severity="LOG_ERROR")
 
-    # Send message to Peer JID via XMPP server
     def send_msg(self, peer_jid, msg_type, payload):
+        """Send a message to Peer JID via XMPP server"""
         msg = self.Message()
         msg["to"] = peer_jid
         msg["from"] = self.boundjid.full
@@ -272,11 +275,12 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                 self.process(block=False)
                 self._log("Starting connection to XMPP server {0}:{1}".format(self.host, self.port))
         except Exception as err:
-            self._log("Unable to initialize XMPP transport instanace.\n"
-                      + str(err), severity="LOG_ERROR")
+            self._log("Unable to initialize XMPP transport instanace.\n" + str(err),
+                      severity="LOG_ERROR")
 
     def shutdown(self,):
         self.disconnect()
+
 
 class Signal(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
@@ -403,8 +407,8 @@ class Signal(ControllerModule):
     def timer_method(self):
         for overlay_id in self._circles:
             self._circles[overlay_id]["JidCache"].scavenge()
-            self._circles[overlay_id]["Transport"].send_presence(pstatus="ident#" \
-                + self._cm_config["NodeId"])
+            self._circles[overlay_id]["Transport"].send_presence(pstatus="ident#" +
+                                                                 self._cm_config["NodeId"])
 
     def terminate(self):
         for overlay_id in self._circles:

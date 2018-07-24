@@ -77,13 +77,12 @@ class Topology(ControllerModule, CFX):
         """
         # initiate a new connection if not already connected and the peer id
         # is greater than our own
-        if (self._overlays[overlay_id]["Peers"]
-                .get(peer_id, "PeerStateUnknown") != "PeerStateConnected"
-                and self._cm_config["NodeId"] < peer_id):
+        if (self._overlays[overlay_id]["Peers"].get(peer_id, "PeerStateUnknown") !=
+                "PeerStateConnected" and self._cm_config["NodeId"] < peer_id):
             params = {"OverlayId": overlay_id, "PeerId": peer_id}
             self.register_cbt("LinkManager", "LNK_CREATE_LINK", params)
-        self.register_cbt("Logger", "LOG_DEBUG", "Connecting to peer {0}:{1}->{2}"
-                          .format(overlay_id, self._cm_config["NodeId"][:7], peer_id[:7]))
+            self.register_cbt("Logger", "LOG_DEBUG", "Connecting to peer {0}:{1}->{2}"
+                              .format(overlay_id, self._cm_config["NodeId"][:7], peer_id[:7]))
 
     def resp_handler_create_link(self, cbt):
         olid = cbt.request.params["OverlayId"]
@@ -134,7 +133,7 @@ class Topology(ControllerModule, CFX):
         except KeyError:
             cbt.set_response(data=None, status=False)
             self.complete_cbt(cbt)
-            self.register_cbt("Logger", "LOG_WARNING", "Overlay Id is not valid {0}".\
+            self.register_cbt("Logger", "LOG_WARNING", "Overlay Id is not valid {0}".
                               format(cbt.response.data))
 
     def req_handler_vis_data(self, cbt):
@@ -152,7 +151,7 @@ class Topology(ControllerModule, CFX):
         except KeyError:
             cbt.set_response(data=None, status=False)
             self.complete_cbt(cbt)
-            self.register_cbt("Logger", "LOG_WARNING", "Topology data not available {0}".\
+            self.register_cbt("Logger", "LOG_WARNING", "Topology data not available {0}".
                               format(cbt.response.data))
 
     def req_handler_broadcast_frame(self, cbt):
