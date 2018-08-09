@@ -246,10 +246,12 @@ def uid_b2a(bin_uid):
     return "%40x" % int.from_bytes(bin_uid, byteorder="big")
 
 def hexstr2b(hexstr):
-    return b"".join(int(hexstr[i:i + 2], 16).to_bytes(1, byteorder="big") for i in range(0, len(hexstr), 2))
+    return b"".join(int(hexstr[i:i + 2], 16).to_bytes(1, byteorder="big") \
+        for i in range(0, len(hexstr), 2))
 
 def b2hexstr(binary):
-    return "".join("%02x" % int.from_bytes(binary[i:i + 1], byteorder="big") for i in range(0, len(binary), 1))
+    return "".join("%02x" % int.from_bytes(binary[i:i + 1], byteorder="big") \
+        for i in range(0, len(binary), 1))
 
 def gen_ip4(uid, peer_map, ip4):
     try:

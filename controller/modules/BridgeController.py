@@ -128,23 +128,20 @@ class LinuxBridge(BridgeABC):
 
         super(LinuxBridge, self).__init__(name, ip_addr, prefix_len, mtu)
 
-        p = ipoplib.runshell_su([LinuxBridge.brctlexe, 'show'])
+        p = ipoplib.runshell_su([LinuxBridge.brctlexe, "show"])
         wlist = map(str.split, p.stdout.decode("utf-8").splitlines()[1:])
         brwlist = filter(lambda x: len(x) != 1, wlist)
         brlist = map(lambda x: x[0], brwlist)
         for br in brlist:
-            print(br)
             if br == name:
-                print("deleting {}".format(br))
+                print("deleting bridge {}".format(br))
                 self.del_br()
 
         p = ipoplib.runshell_su([LinuxBridge.brctlexe, "addbr", self.name])
-        p = ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "mtu", str(mtu)])
         net = "{0}/{1}".format(ip_addr, prefix_len)
         ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", name])
         self.stp(stp_enable)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", name, "up"])
-
     def __str__(self):
         """ Return a string of the bridge name. """
         return self.name
@@ -154,15 +151,31 @@ class LinuxBridge(BridgeABC):
         return "<Bridge: %s>" % self.name
 
     def del_br(self):
-        """ Set the device down and delete the bridge. """
+        p = ipoplib.runshell_su([LinuxBridge.brctlexe, "show", self.name])
+        wlist = map(str.split, p.stdout.decode("utf-8").splitlines()[1:])
+        port_lines = filter(lambda x: len(x) == 4 or len(x) == 1, wlist)
+        ports = map(lambda x: x[-1], port_lines)
+        for port in ports:
+            print("deleting port {}".format(port))
+            ipoplib.runshell_su([LinuxBridge.brctlexe, "delif", self.name, port])
+
+        # Set the device down and delete the bridge
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "down"])
         ipoplib.runshell_su([LinuxBridge.brctlexe, "delbr", self.name])
 
     def add_port(self, port_name):
         ipoplib.runshell_su([LinuxBridge.brctlexe, "addif", self.name, port_name])
+        ipoplib.runshell_su([IPEXE, "link", "set", port_name, "mtu", str(self.mtu)])
 
     def del_port(self, port_name):
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "delif", self.name, port_name])
+        p = ipoplib.runshell_su([LinuxBridge.brctlexe, "show", self.name])
+        wlist = map(str.split, p.stdout.decode("utf-8").splitlines()[1:])
+        port_lines = filter(lambda x: len(x) == 4, wlist)
+        ports = map(lambda x: x[-1], port_lines)
+        for port in ports:
+            if port == port_name:
+                print("deleting {}".format(port))
+                ipoplib.runshell_su([LinuxBridge.brctlexe, "delif", self.name, port_name])
 
     def stp(self, val=True):
         """ Turn STP protocol on/off. """
@@ -206,14 +219,14 @@ class BridgeController(ControllerModule):
                 self._overlays[olid] = LinuxBridge(br_cfg["BridgeName"],
                                                    br_cfg["IP4"],
                                                    br_cfg["PrefixLen"],
-                                                   br_cfg.get("MTU", 1500),
+                                                   br_cfg.get("MTU", 1410),
                                                    br_cfg.get("STP", True))
 
             elif self._cm_config["Overlays"][olid]["Type"] == "OVS":
                 self._overlays[olid] = OvsBridge(br_cfg["BridgeName"],
                                                  br_cfg["IP4"],
                                                  br_cfg["PrefixLen"],
-                                                 br_cfg.get("MTU", 1500),
+                                                 br_cfg.get("MTU", 1410),
                                                  br_cfg.get("STP", True),
                                                  sdn_ctrl_cfg=br_cfg.get("SDNController",
                                                                          dict()))
@@ -234,14 +247,15 @@ class BridgeController(ControllerModule):
     def req_handler_manage_bridge(self, cbt):
         try:
             olid = cbt.request.params["OverlayId"]
-            port_name = cbt.request.params["TapName"]
             br = self._overlays[olid]
-            if cbt.request.params["UpdateType"] == "ADDED":
+            if cbt.request.params["UpdateType"] == "CONNECTED":
+                port_name = cbt.request.params["TapName"]
                 br.add_port(port_name)
                 self.register_cbt(
                     "Logger", "LOG_INFO", "Port {0} added to bridge {1}"
                     .format(port_name, str(br)))
             elif cbt.request.params["UpdateType"] == "REMOVED":
+                port_name = cbt.request.params["TapName"]
                 br.del_port(port_name)
                 self.register_cbt(
                     "Logger", "LOG_INFO", "Port {0} removed from bridge {1}"

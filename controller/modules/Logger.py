@@ -99,55 +99,33 @@ class Logger(ControllerModule):
             self._logger.addHandler(file_handler)
 
         self._logger.info("Logger: Module loaded")
-        # PKTDUMP mode dumps packet information
-        logging.addLevelName(5, "PKTDUMP")
-        logging.PKTDUMP = 5
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
-            log_entry = "{0}: {1}".format(cbt.request.initiator, cbt.request.params)
             # Extracting the logging level information from the CBT action tag
             if cbt.request.action == "LOG_DEBUG" or cbt.request.action == "debug":
-                self._logger.debug(log_entry)
+                self._logger.debug("%s: %s", cbt.request.initiator, cbt.request.params)
                 cbt.set_response(None, True)
             elif cbt.request.action == "LOG_INFO" or cbt.request.action == "info":
-                self._logger.info(log_entry)
+                self._logger.info("%s: %s", cbt.request.initiator, cbt.request.params)
                 cbt.set_response(None, True)
             elif cbt.request.action == "LOG_WARNING" or cbt.request.action == "warning":
-                self._logger.warning(log_entry)
+                self._logger.warning("%s: %s", cbt.request.initiator, cbt.request.params)
                 cbt.set_response(None, True)
             elif cbt.request.action == "LOG_ERROR" or cbt.request.action == "error":
-                self._logger.error(log_entry)
-                cbt.set_response(None, True)
-            elif cbt.request.action == "pktdump":
-                self.pktdump(message=cbt.request.params.get("message"),
-                             dump=cbt.request.params.get("dump"))
+                self._logger.error("%s: %s", cbt.request.initiator, cbt.request.params)
                 cbt.set_response(None, True)
             elif cbt.request.action == "LOG_QUERY_CONFIG":
                 cbt.set_response(self._cm_config, True)
             else:
-                log = "Unsupported CBT action {0}".format(cbt)
-                self._logger.warning("{0}: {1}".format(self._module_name, log))
-                cbt.set_response(log, False)
+                self._logger.warning("%s: Unsupported CBT action %s", self._module_name, str(cbt))
+                cbt.set_response("Unsupported CBT action", False)
             self.complete_cbt(cbt)
         elif cbt.op_type == "Response":
             self.free_cbt(cbt)
 
     def timer_method(self):
         pass
-
-    def pktdump(self, message, dump=None, *args, **argv):
-        """ Packet Information dumping method"""
-        hext = ""
-        if dump:
-            for i in range(0, len(dump), 2):
-                hext += dump[i:i + 2].encode("hex")
-                hext += " "
-                if i % 16 == 14:
-                    hext += "\n"
-            logging.log(5, message + "\n" + hext)
-        else:
-            logging.log(5, message, *args, **argv)
 
     def terminate(self):
         logging.shutdown()
