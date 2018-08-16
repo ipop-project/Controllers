@@ -35,7 +35,10 @@
     <Compile Include="controller\framework\__init__.py" />
     <Compile Include="controller\modules\BridgeController.py" />
     <Compile Include="controller\modules\Broadcaster.py" />
+    <Compile Include="controller\modules\GraphBuilder.py" />
     <Compile Include="controller\modules\Icc.py" />
+    <Compile Include="controller\modules\NetworkBuilder.py" />
+    <Compile Include="controller\modules\NetworkGraph.py" />
     <Compile Include="controller\modules\Topology.py" />
     <Compile Include="controller\modules\LinkManager.py" />
     <Compile Include="controller\modules\Logger.py" />
@@ -52,7 +55,6 @@
     <Folder Include="controller\modules" />
   </ItemGroup>
   <ItemGroup>
-    <InterpreterReference Include="Global|PythonCore|2.7" />
     <InterpreterReference Include="Global|PythonCore|3.5" />
   </ItemGroup>
   <ItemGroup>
