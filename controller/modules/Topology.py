@@ -109,14 +109,21 @@ class Topology(ControllerModule, CFX):
         topo_data = {}
         try:
             with self._lock:
+                edges = []
                 for olid in self._overlays:
-                    ks = [peer_id for peer_id in self._overlays[olid]["KnownPeers"]]
-                    if ks:
-                        topo_data[olid] = ks
-
-                cbt.set_response({"Topology": topo_data},
-                                 True if topo_data else False)
-                self.complete_cbt(cbt)
+                    nb = self._overlays[olid]["NetBuilder"]
+                    if nb:
+                        adjl = nb.get_adj_list()
+                        for k in adjl.conn_edges:
+                            ce = adjl.conn_edges[k]
+                            ced = {"PeerId": ce.peer_id, "LinkId": ce.link_id,
+                                   "MarkedForDeleted": ce.marked_for_delete,
+                                   "CreatedTime": ce.created_time,
+                                   "State": ce.state, "Type": ce.type}
+                            edges.append(ced)
+                        topo_data[olid] = edges
+            cbt.set_response({"Topology": topo_data}, True if topo_data else False)
+            self.complete_cbt(cbt)
         except KeyError:
             cbt.set_response(data=None, status=False)
             self.complete_cbt(cbt)

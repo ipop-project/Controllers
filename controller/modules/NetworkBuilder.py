@@ -19,6 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 import threading
+from copy import deepcopy
 from controller.modules.NetworkGraph import ConnectionEdge
 from controller.modules.NetworkGraph import ConnEdgeAdjacenctList
 
@@ -34,6 +35,9 @@ class NetworkBuilder(object):
     def is_ready(self):
         with self._lock:
             return self._refresh_in_progress == 0
+
+    def get_adj_list(self):
+        return deepcopy(self._current_edges)
 
     def refresh(self, net_graph=None):
         """

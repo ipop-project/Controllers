@@ -39,7 +39,7 @@ class OverlayVisualizer(ControllerModule):
         self.node_id = str(self._cm_config["NodeId"])
 
         # The visualizer dataset which is forwarded to the collector service
-        self._vis_ds = dict(NodeId=self.node_id, Data=defaultdict(dict))
+        self._vis_ds = dict(NodeId=self.node_id, VizData=defaultdict(dict))
         # Its lock
         self._vis_ds_lock = threading.Lock()
 
@@ -52,8 +52,7 @@ class OverlayVisualizer(ControllerModule):
         self._vis_req_publisher = \
             self._cfx_handle.publish_subscription("VIS_DATA_REQ")
 
-        self.register_cbt("Logger", "LOG_INFO",
-                          "{0} Module loaded".format(self._module_name))
+        self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
@@ -63,11 +62,10 @@ class OverlayVisualizer(ControllerModule):
                 if msg:
                     # self._vis_ds belongs to the critical section as
                     # it may be updated in timer_method concurrently
-                    self._vis_ds_lock.acquire()
-                    for mod_name in msg:
-                        for ovrl_id in msg[mod_name]:
-                            self._vis_ds["Data"][ovrl_id][mod_name] = msg[mod_name][ovrl_id]
-                    self._vis_ds_lock.release()
+                    with self._vis_ds_lock:
+                        for mod_name in msg:
+                            for ovrl_id in msg[mod_name]:
+                                self._vis_ds["VizData"][ovrl_id][mod_name] = msg[mod_name][ovrl_id]
                 else:
                     warn_msg = "Got no data in CBT response from module" \
                         " {}".format(cbt.request.recipient)
@@ -81,25 +79,24 @@ class OverlayVisualizer(ControllerModule):
             vis_ds = self._vis_ds
             # flush old data, next itr provides new data
             self._vis_ds = dict(NodeId=self.node_id,
-                                Data=defaultdict(dict))
+                                VizData=defaultdict(dict))
 
-        collector_msg = dict(Data=dict())
+        collector_msg = dict(VizData=dict())
 
         # Filter out overlays for which we do not have LinkManager data
-        for overlay_id in vis_ds["Data"]:
-            overlay_data = vis_ds["Data"][overlay_id]
+        for overlay_id in vis_ds["VizData"]:
+            overlay_data = vis_ds["VizData"][overlay_id]
             if "LinkManager" in overlay_data and overlay_data["LinkManager"]:
-                collector_msg["Data"][overlay_id] = overlay_data
+                collector_msg["VizData"][overlay_id] = overlay_data
 
-        if collector_msg["Data"]:
+        if collector_msg["VizData"]:
 
             # Read the optional human-readable node name specified in the
             # configuration and pass it along to the collector
             if "NodeName" in self._cm_config:
                 collector_msg["NodeName"] = self._cm_config["NodeName"]
 
-            data_log = "Visualizer is going to send" \
-                " {}".format(collector_msg)
+            data_log = "Submitting VizData {}".format(collector_msg)
             self.register_cbt("Logger", "LOG_DEBUG", data_log)
 
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
