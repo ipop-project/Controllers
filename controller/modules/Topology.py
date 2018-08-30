@@ -109,7 +109,7 @@ class Topology(ControllerModule, CFX):
         topo_data = {}
         try:
             with self._lock:
-                edges = []
+                edges = {}
                 for olid in self._overlays:
                     nb = self._overlays[olid]["NetBuilder"]
                     if nb:
@@ -120,7 +120,7 @@ class Topology(ControllerModule, CFX):
                                    "MarkedForDeleted": ce.marked_for_delete,
                                    "CreatedTime": ce.created_time,
                                    "State": ce.state, "Type": ce.type}
-                            edges.append(ced)
+                            edges[ce.link_id] = ced
                         topo_data[olid] = edges
             cbt.set_response({"Topology": topo_data}, True if topo_data else False)
             self.complete_cbt(cbt)
