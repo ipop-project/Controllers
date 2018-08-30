@@ -75,11 +75,10 @@ class LinkManager(ControllerModule):
 
         # We need to ignore ALL the ipop tap devices (regardless of their overlay id/link id)
         for tnlid in self._tunnels:
-            ign_tap_names.add(
-                self._tunnels[tnlid]["Descriptor"]["TapName"])
-
-        # Please note that overlay_id is only used to selectively
-        # ignore physical interfaces and bridges
+            if self._tunnels[overlay_id].get("Descriptor"):
+                ign_tap_names.add(
+                    self._tunnels[tnlid]["Descriptor"]["TapName"])
+        # Overlay_id is only used to selectively ignore physical interfaces and bridges
         ign_tap_names \
             |= self._ignored_net_interfaces[overlay_id]
         return ign_tap_names
@@ -110,17 +109,17 @@ class LinkManager(ControllerModule):
                                  "TCI_REMOVE_LINK", params)
         self.submit_cbt(rl_cbt)
 
-    def _update_tunnel_descriptor(self, tnl_desc, link_id):
+    def _update_tunnel_descriptor(self, tnl_desc, tnl_id):
         """
         Update the tunnel desc with with lock owned
         """
-        if link_id not in self._tunnels:
-            self._tunnels[link_id] = dict(Descriptor=dict())
-        if "Descriptor" not in self._tunnels[link_id]:
-            self._tunnels[link_id]["Descriptor"] = dict()
-        self._tunnels[link_id]["Descriptor"]["MAC"] = tnl_desc["MAC"]
-        self._tunnels[link_id]["Descriptor"]["TapName"] = tnl_desc["TapName"]
-        self._tunnels[link_id]["Descriptor"]["FPR"] = tnl_desc["FPR"]
+        if tnl_id not in self._tunnels:
+            self._tunnels[tnl_id] = dict(Descriptor=dict())
+        if "Descriptor" not in self._tunnels[tnl_id]:
+            self._tunnels[tnl_id]["Descriptor"] = dict()
+        self._tunnels[tnl_id]["Descriptor"]["MAC"] = tnl_desc["MAC"]
+        self._tunnels[tnl_id]["Descriptor"]["TapName"] = tnl_desc["TapName"]
+        self._tunnels[tnl_id]["Descriptor"]["FPR"] = tnl_desc["FPR"]
         self.register_cbt("Logger", "LOG_DEBUG", "_tunnels:{}".format(self._tunnels))
 
     def _query_link_stats(self):
@@ -642,6 +641,7 @@ class LinkManager(ControllerModule):
                 self._complete_create_link_request(parent_cbt)
 
     def req_handler_tincan_msg(self, cbt):
+        lts = time.time()
         if cbt.request.params["Command"] == "LinkStateChange":
             if cbt.request.params["Data"] == "LINK_STATE_DOWN":
                 # issue a link state check
@@ -655,10 +655,10 @@ class LinkManager(ControllerModule):
                 lnk_status = self._links[lnkid]["Status"]
                 self._links[lnkid]["Status"] = "ONLINE"
                 if lnk_status != "QUERYING":
-                    # Do not the notification if the the connection state is stil being queried
+                    # Do not post a notification if the the connection state is being queried
                     param = {
                         "UpdateType": "CONNECTED", "OverlayId": olid, "PeerId": peer_id,
-                        "TunnelId": lnkid, "LinkId": lnkid,
+                        "TunnelId": lnkid, "LinkId": lnkid, "ConnectedTimestamp": lts,
                         "TapName": self._tunnels[lnkid]["Descriptor"]["TapName"]}
                     self._link_updates_publisher.post_update(param)
             cbt.set_response(data=None, status=True)

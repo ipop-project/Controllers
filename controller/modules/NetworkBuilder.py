@@ -102,6 +102,8 @@ class NetworkBuilder(object):
                 self._refresh_in_progress = self._refresh_in_progress - 1
             elif connection_event["UpdateType"] == "CONNECTED":
                 self._current_edges.conn_edges[peer_id].state = "CEStateConnected"
+                self._current_edges.conn_edges[peer_id].connected_time = \
+                    connection_event["ConnectedTimestamp"]
                 self._refresh_in_progress = self._refresh_in_progress - 1
             elif connection_event["UpdateType"] == "DISCONNECTED":
                 # this branch is taken when the local node did not explicitly remove the connection

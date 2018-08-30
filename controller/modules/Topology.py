@@ -119,6 +119,7 @@ class Topology(ControllerModule, CFX):
                             ced = {"PeerId": ce.peer_id, "LinkId": ce.link_id,
                                    "MarkedForDeleted": ce.marked_for_delete,
                                    "CreatedTime": ce.created_time,
+                                   "ConnectedTime": ce.connected_time,
                                    "State": ce.state, "Type": ce.type}
                             edges[ce.link_id] = ced
                         topo_data[olid] = edges

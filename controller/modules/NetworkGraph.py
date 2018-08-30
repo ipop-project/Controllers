@@ -26,6 +26,7 @@ class ConnectionEdge(object):
         self.link_id = None
         self.marked_for_delete = False
         self.created_time = time.time()
+        self.connected_time = None
         self.state = "CEStateUnknown"
         self.type = "CETypeUnknown"
 
