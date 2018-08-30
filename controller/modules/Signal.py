@@ -55,27 +55,26 @@ class JidCache:
     #    self.cm_mod._log(msg, severity)
 
     def add_entry(self, node_id, jid):
-        self.lck.acquire()
-        self.cache[node_id] = (jid, time.time())
-        self.lck.release()
+        ts = time.time()
+        with self.lck:
+            self.cache[node_id] = (jid, ts)
+        return ts
 
     def scavenge(self,):
-        self.lck.acquire()
-        curr_time = time.time()
-        keys_to_be_deleted = \
-            [key for key, value in self.cache.items() if curr_time - value[1] >= 120]
-        for key in keys_to_be_deleted:
-            del self.cache[key]
-            self.sig.sig_log("Deleted entry from JID cache {0}".format(key))
-        self.lck.release()
+        with self.lck:
+            curr_time = time.time()
+            keys_to_be_deleted = \
+                [key for key, value in self.cache.items() if curr_time - value[1] >= 120]
+            for key in keys_to_be_deleted:
+                del self.cache[key]
+                self.sig.sig_log("Deleted entry from JID cache {0}".format(key))
 
     def lookup(self, node_id):
         jid = None
-        self.lck.acquire()
-        ent = self.cache.get(node_id)
-        if ent:
-            jid = ent[0]
-        self.lck.release()
+        with self.lck:
+            ent = self.cache.get(node_id)
+            if ent:
+                jid = ent[0]
         return jid
 
 
@@ -190,12 +189,14 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
                     if pstatus == "ident":
+                        # a notification of a peers node id to jid mapping
+                        pts = self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                         self.presence_publisher.post_update(
-                            dict(PeerId=peer_id, OverlayId=self.overlay_id))
+                            dict(PeerId=peer_id, OverlayId=self.overlay_id, PresenceTimestamp=pts))
                         self._sig.sig_log("Presence has resolved Peer@Overlay {0}@{1} -> {2}"
                                           .format(peer_id[:7], self.overlay_id, presence_sender))
-                        self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                     elif pstatus == "uid?":
+                        # a request for our node id
                         if self.node_id == peer_id:
                             payload = self.boundjid.full + "#" + self.node_id
                             self.send_msg(presence_sender, "uid!", payload)
