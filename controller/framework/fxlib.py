@@ -20,8 +20,8 @@
 # THE SOFTWARE.
 
 IPOP_VER_MJR = "18"
-IPOP_VER_MNR = "04"
-IPOP_VER_REV = "0"
+IPOP_VER_MNR = "08"
+IPOP_VER_REV = "29"
 IPOP_VER_REL = "{0}.{1}.{2}".format(IPOP_VER_MJR, IPOP_VER_MNR, IPOP_VER_REV)
 
 # set default config values
