@@ -75,7 +75,7 @@ class LinkManager(ControllerModule):
 
         # We need to ignore ALL the ipop tap devices (regardless of their overlay id/link id)
         for tnlid in self._tunnels:
-            if self._tunnels[overlay_id].get("Descriptor"):
+            if self._tunnels[tnlid].get("Descriptor"):
                 ign_tap_names.add(
                     self._tunnels[tnlid]["Descriptor"]["TapName"])
         # Overlay_id is only used to selectively ignore physical interfaces and bridges
