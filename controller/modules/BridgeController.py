@@ -66,7 +66,17 @@ class OvsBridge(BridgeABC):
         ipoplib.runshell_su([OvsBridge.brctlexe,
                              "--may-exist", "add-br", self.name])
 
-        p = ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "mtu", str(mtu)])
+        try:
+            p = ipoplib.runshell_su([OvsBridge.brctlexe, "set", "int",
+                                     self.name,
+                                     "mtu_request=" + str(self.mtu)])
+        except RuntimeError as e:
+            pass
+        # self.register_cbt(
+        # "Logger", "LOG_WARN", "Following error occurred while"
+        # " setting MTU for OVS bridge: " + e.message
+        # + ". Proceeding with OVS-specified default"
+        # " value for the bridge...")
 
         net = "{0}/{1}".format(ip_addr, prefix_len)
 
@@ -102,6 +112,8 @@ class OvsBridge(BridgeABC):
                              "--if-exists", "del-br", self.name])
 
     def add_port(self, port_name):
+        ipoplib.runshell_su([IPEXE, "link", "set", "dev", port_name, "mtu",
+                             str(self.mtu)])
         ipoplib.runshell_su([OvsBridge.brctlexe,
                              "--may-exist", "add-port", self.name, port_name])
 
@@ -142,6 +154,7 @@ class LinuxBridge(BridgeABC):
         ipoplib.runshell_su([IPEXE, "addr", "add", net, "dev", name])
         self.stp(stp_enable)
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", name, "up"])
+
     def __str__(self):
         """ Return a string of the bridge name. """
         return self.name
@@ -164,8 +177,8 @@ class LinuxBridge(BridgeABC):
         ipoplib.runshell_su([LinuxBridge.brctlexe, "delbr", self.name])
 
     def add_port(self, port_name):
-        ipoplib.runshell_su([LinuxBridge.brctlexe, "addif", self.name, port_name])
         ipoplib.runshell_su([IPEXE, "link", "set", port_name, "mtu", str(self.mtu)])
+        ipoplib.runshell_su([LinuxBridge.brctlexe, "addif", self.name, port_name])
 
     def del_port(self, port_name):
         p = ipoplib.runshell_su([LinuxBridge.brctlexe, "show", self.name])
