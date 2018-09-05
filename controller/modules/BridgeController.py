@@ -146,8 +146,7 @@ class LinuxBridge(BridgeABC):
         brlist = map(lambda x: x[0], brwlist)
         for br in brlist:
             if br == name:
-                print("deleting bridge {}".format(br))
-                self.del_br()
+                return
 
         p = ipoplib.runshell_su([LinuxBridge.brctlexe, "addbr", self.name])
         net = "{0}/{1}".format(ip_addr, prefix_len)
@@ -164,14 +163,6 @@ class LinuxBridge(BridgeABC):
         return "<Bridge: %s>" % self.name
 
     def del_br(self):
-        p = ipoplib.runshell_su([LinuxBridge.brctlexe, "show", self.name])
-        wlist = map(str.split, p.stdout.decode("utf-8").splitlines()[1:])
-        port_lines = filter(lambda x: len(x) == 4 or len(x) == 1, wlist)
-        ports = map(lambda x: x[-1], port_lines)
-        for port in ports:
-            print("deleting port {}".format(port))
-            ipoplib.runshell_su([LinuxBridge.brctlexe, "delif", self.name, port])
-
         # Set the device down and delete the bridge
         ipoplib.runshell_su([IPEXE, "link", "set", "dev", self.name, "down"])
         ipoplib.runshell_su([LinuxBridge.brctlexe, "delbr", self.name])
@@ -187,12 +178,10 @@ class LinuxBridge(BridgeABC):
         ports = map(lambda x: x[-1], port_lines)
         for port in ports:
             if port == port_name:
-                print("deleting {}".format(port))
                 ipoplib.runshell_su([LinuxBridge.brctlexe, "delif", self.name, port_name])
 
     def stp(self, val=True):
         """ Turn STP protocol on/off. """
-
         if val:
             state = "on"
         else:
@@ -267,12 +256,6 @@ class BridgeController(ControllerModule):
                 self.register_cbt(
                     "Logger", "LOG_INFO", "Port {0} added to bridge {1}"
                     .format(port_name, str(br)))
-            elif cbt.request.params["UpdateType"] == "REMOVED":
-                port_name = cbt.request.params["TapName"]
-                br.del_port(port_name)
-                self.register_cbt(
-                    "Logger", "LOG_INFO", "Port {0} removed from bridge {1}"
-                    .format(port_name, str(br)))
         except RuntimeError as err:
             self.register_cbt("Logger", "LOG_WARNING", str(err))
         cbt.set_response(None, True)
@@ -292,21 +275,21 @@ class BridgeController(ControllerModule):
             else:
                 self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
-            if cbt.request.action == "TOP_QUERY_PEER_IDS":
-                pass
-                # self.resp_handler_query_peers(cbt)
-            else:
-                parent_cbt = self.get_parent_cbt(cbt)
-                cbt_data = cbt.response.data
-                cbt_status = cbt.response.status
-                self.free_cbt(cbt)
-                if (parent_cbt is not None and parent_cbt.child_count == 1):
-                    parent_cbt.set_response(cbt_data, cbt_status)
-                    self.complete_cbt(parent_cbt)
+            parent_cbt = self.get_parent_cbt(cbt)
+            cbt_data = cbt.response.data
+            cbt_status = cbt.response.status
+            self.free_cbt(cbt)
+            if (parent_cbt is not None and parent_cbt.child_count == 1):
+                parent_cbt.set_response(cbt_data, cbt_status)
+                self.complete_cbt(parent_cbt)
 
     def timer_method(self):
         pass
 
     def terminate(self):
-        for olid in self._overlays:
-            self._overlays[olid].del_br()
+        try:
+            for olid in self._overlays:
+                if self._cm_config["Overlays"][olid].get("AutoDelete", False):
+                    self._overlays[olid].del_br()
+        except RuntimeError as err:
+            self.register_cbt("Logger", "LOG_WARNING", str(err))
