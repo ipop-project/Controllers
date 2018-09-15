@@ -309,15 +309,15 @@ class LinkManager(ControllerModule):
             olid = lnk["OverlayId"]
             peer_id = lnk["PeerId"]
             link_removed = True
-            if (creation_state == 0xA2 or creation_state == 0xA3 or creation_state == 0xA4 or
-                    creation_state == 0xB2 or creation_state == 0xB3):
-                link_removed = True
+            #if (creation_state == 0xA2 or creation_state == 0xA3 or creation_state == 0xA4 or
+            #        creation_state == 0xB2 or creation_state == 0xB3):
+            #    link_removed = True
         if link_removed:
             params = {"OverlayId": olid, "TunnelId": link_id, "LinkId": link_id}
             self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
 
-            self.register_cbt("Logger", "LOG_INFO", "Removed incompleted link - LinkId:{0},"
-                              " State:{1}, Peer_id:{2}"
+            self.register_cbt("Logger", "LOG_INFO", "Initiated removal of incomplet link: "
+                              "LinkId:{0}, State:{1}, Peer_id:{2}"
                               .format(link_id, format(creation_state, "02X"), peer_id))
 
     def req_handler_create_link(self, cbt):
@@ -412,7 +412,6 @@ class LinkManager(ControllerModule):
         self._links[lnkid] = dict(Stats=dict(), OverlayId=overlay_id, PeerId=peer_id,
                                   CreationState=0xB1, CreationStartTime=time.time(),
                                   Status="CREATING")
-        self._links[lnkid]["CreationState"] = 0xB1
         # publish notification of link creation initiated Node B
         lnkupd_param = {
             "UpdateType": "CREATING", "OverlayId": overlay_id, "PeerId": peer_id,
