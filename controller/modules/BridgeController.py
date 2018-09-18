@@ -252,7 +252,7 @@ class BridgeController(ControllerModule):
             self.register_cbt("LinkManager",
                               "LNK_ADD_IGN_INF", ign_br_names)
 
-        self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
+        self._cfx_handle.start_subscription("LinkManager", "LNK_TUNNEL_EVENTS")
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
 
     def req_handler_add_port(self, cbt):
@@ -273,11 +273,12 @@ class BridgeController(ControllerModule):
                     .format(port_name, str(br)))
             elif cbt.request.params["UpdateType"] == "REMOVED":
                 if br.bridge_type == OvsBridge.bridge_type:
-                    port_name = cbt.request.params["TapName"]
-                    br.del_port(port_name)
-                    self.register_cbt(
-                        "Logger", "LOG_INFO", "Port {0} removed from bridge {1}"
-                        .format(port_name, str(br)))
+                    port_name = cbt.request.params.get("TapName")
+                    if port_name:
+                        br.del_port(port_name)
+                        self.register_cbt(
+                            "Logger", "LOG_INFO", "Port {0} removed from bridge {1}"
+                            .format(port_name, str(br)))
         except RuntimeError as err:
             self.register_cbt("Logger", "LOG_WARNING", str(err))
         cbt.set_response(None, True)
@@ -292,7 +293,7 @@ class BridgeController(ControllerModule):
                 self.req_handler_add_port(cbt)
             if cbt.request.action == "BRG_DEL_PORT":
                 self.req_handler_del_port(cbt)
-            if cbt.request.action == "LNK_DATA_UPDATES":
+            if cbt.request.action == "LNK_TUNNEL_EVENTS":
                 self.req_handler_manage_bridge(cbt)
             else:
                 self.req_handler_default(cbt)

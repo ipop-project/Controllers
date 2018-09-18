@@ -42,7 +42,7 @@ class LinkManager(ControllerModule):
 
     def initialize(self):
         self._link_updates_publisher = \
-            self._cfx_handle.publish_subscription("LNK_DATA_UPDATES")
+            self._cfx_handle.publish_subscription("LNK_TUNNEL_EVENTS")
         self._cfx_handle.start_subscription("TincanInterface",
                                             "TCI_TINCAN_MSG_NOTIFY")
         try:
@@ -152,14 +152,14 @@ class LinkManager(ControllerModule):
                         if retry < 3:
                             retry = retry + 1
                             self._tunnels[lnkid]["Link"]["StatusRetry"] = retry
-                        elif retry >= 3 and self._tunnels[lnkid]["TunnelState"] == "TNLCREATING":
+                        elif retry >= 3 and self._tunnels[lnkid]["TunnelState"] == "TNL_CREATING":
                             # link is stuck creating so destroy it
                             olid = self._tunnels[lnkid]["OverlayId"]
                             params = {"OverlayId": olid, "TunnelId": tnl_id, "LinkId": lnkid}
                             self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
-                        elif retry >= 3 and self._tunnels[lnkid]["TunnelState"] == "TNLQUERYING":
+                        elif retry >= 3 and self._tunnels[lnkid]["TunnelState"] == "TNL_QUERYING":
                             # link went offline so notify top
-                            self._tunnels[lnkid]["TunnelState"] = "TNLOFFLINE"
+                            self._tunnels[lnkid]["TunnelState"] = "TNL_OFFLINE"
                             olid = self._tunnels[lnkid]["OverlayId"]
                             peer_id = self._tunnels[lnkid]["PeerId"]
                             param = {
@@ -168,7 +168,7 @@ class LinkManager(ControllerModule):
                                 "TapName": self._tunnels[lnkid]["Descriptor"]["TapName"]}
                             self._link_updates_publisher.post_update(param)
                     elif data[tnl_id][lnkid]["Status"] == "ONLINE":
-                        self._tunnels[lnkid]["TunnelState"] = data[tnl_id][lnkid]["Status"]
+                        self._tunnels[lnkid]["TunnelState"] = "TNL_ONLINE"
                         self._tunnels[lnkid]["Link"]["IceRole"] = data[tnl_id][lnkid]["IceRole"]
                         self._tunnels[lnkid]["Link"]["Stats"] = data[tnl_id][lnkid]["Stats"]
                         self._tunnels[lnkid]["Link"]["StatusRetry"] = 0
@@ -185,11 +185,6 @@ class LinkManager(ControllerModule):
             lnk_entry["Link"]["Stats"] = None
             peerid = lnk_entry["PeerId"]
             olid = lnk_entry["OverlayId"]
-            # Notify subscribers of link removal
-            param = {
-                "UpdateType": "REMOVED", "OverlayId": olid, "TunnelId": lnkid, "LinkId": lnkid,
-                "PeerId": peerid, "TapName": self._tunnels[lnkid]["Descriptor"]["TapName"]}
-            self._link_updates_publisher.post_update(param)
 
     def resp_handler_remove_link(self, rmv_lnk_cbt):
         """Start removal the tunnel after the link is destroyed"""
@@ -221,6 +216,15 @@ class LinkManager(ControllerModule):
         tnlid = rmv_tnl_cbt.request.params["TunnelId"]
         peer_id = rmv_tnl_cbt.request.params["PeerId"]
         olid = rmv_tnl_cbt.request.params["OverlayId"]
+        # Notify subscribers of tunnel removal
+        param = {
+            "UpdateType": "REMOVED", "OverlayId": olid, "TunnelId": tnlid, "LinkId": tnlid,
+            "PeerId": peer_id}
+        if "TapName" in self._tunnels[tnlid]["Descriptor"]:
+            param["TapName"] = self._tunnels[tnlid]["Descriptor"]["TapName"]
+
+        self._link_updates_publisher.post_update(param)
+
         self._tunnels.pop(tnlid, None)
         self._peers[olid].pop(peer_id, None)
         self.free_cbt(rmv_tnl_cbt)
@@ -350,7 +354,7 @@ class LinkManager(ControllerModule):
         self._peers[overlay_id][peerid] = tnl_id
         self._tunnels[tnl_id] = dict(OverlayId=overlay_id,
                                      PeerId=peerid,
-                                     TunnelState="TNLCREATING",
+                                     TunnelState="TNL_CREATING",
                                      Descriptor=dict(),
                                      CreationStartTime=time.time(),
                                      Link=dict(CreationState=0xA1,
@@ -420,7 +424,7 @@ class LinkManager(ControllerModule):
         self._peers[overlay_id][peer_id] = lnkid
         self._tunnels[lnkid] = dict(OverlayId=overlay_id,
                                     PeerId=peer_id,
-                                    TunnelState="TNLCREATING",
+                                    TunnelState="TNL_CREATING",
                                     Descriptor=dict(),
                                     CreationStartTime=time.time(),
                                     Link=dict(CreationState=0xB1,
@@ -659,15 +663,15 @@ class LinkManager(ControllerModule):
             if cbt.request.params["Data"] == "LINK_STATE_DOWN":
                 # issue a link state check
                 lnkid = cbt.request.params["LinkId"]
-                self._tunnels[lnkid]["TunnelState"] = "TNLQUERYING"
+                self._tunnels[lnkid]["TunnelState"] = "TNL_QUERYING"
                 self.register_cbt("TincanInterface", "TCI_QUERY_LINK_STATS", [lnkid])
             if cbt.request.params["Data"] == "LINK_STATE_UP":
                 lnkid = cbt.request.params["LinkId"]
                 olid = self._tunnels[lnkid]["OverlayId"]
                 peer_id = self._tunnels[lnkid]["PeerId"]
                 lnk_status = self._tunnels[lnkid]["TunnelState"]
-                self._tunnels[lnkid]["TunnelState"] = "TNLONLINE"
-                if lnk_status != "TNLQUERYING":
+                self._tunnels[lnkid]["TunnelState"] = "TNL_ONLINE"
+                if lnk_status != "TNL_QUERYING":
                     # Do not post a notification if the the connection state was being queried
                     param = {
                         "UpdateType": "CONNECTED", "OverlayId": olid, "PeerId": peer_id,

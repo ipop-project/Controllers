@@ -33,7 +33,7 @@ class Topology(ControllerModule, CFX):
     def initialize(self):
         self._cfx_handle.start_subscription("Signal",
                                             "SIG_PEER_PRESENCE_NOTIFY")
-        self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
+        self._cfx_handle.start_subscription("LinkManager", "LNK_TUNNEL_EVENTS")
         nid = self._cm_config["NodeId"]
         for olid in self._cfx_handle.query_param("Overlays"):
             self._overlays[olid] = dict(NetBuilder=NetworkBuilder(self, olid, nid), KnownPeers=[],
@@ -151,7 +151,7 @@ class Topology(ControllerModule, CFX):
                 self.req_handler_vis_data(cbt)
             elif cbt.request.action == "TOP_QUERY_PEER_IDS":
                 self.req_handler_query_peer_ids(cbt)
-            elif cbt.request.action == "LNK_DATA_UPDATES":
+            elif cbt.request.action == "LNK_TUNNEL_EVENTS":
                 self.req_handler_link_data_update(cbt)
             else:
                 self.req_handler_default(cbt)
