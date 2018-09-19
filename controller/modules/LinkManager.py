@@ -678,6 +678,11 @@ class LinkManager(ControllerModule):
                         "TunnelId": lnkid, "LinkId": lnkid, "ConnectedTimestamp": lts,
                         "TapName": self._tunnels[lnkid]["Descriptor"]["TapName"]}
                     self._link_updates_publisher.post_update(param)
+                elif lnk_status == "TNL_QUERYING":
+                    self._tunnels[lnkid]["Link"]["StatusRetry"] = 0
+                # if the lnk_status is TNL_OFFLINE the recconect event came in too late and the 
+                # tear down has already been issued. This scenario is unlikely as the recheck time
+                # is long enough such that the webrtc reconnect attempts will have been abandoned.
             cbt.set_response(data=None, status=True)
         else:
             cbt.set_response(data=None, status=True)
