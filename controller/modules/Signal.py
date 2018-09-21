@@ -243,13 +243,22 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                     return
 
                 self._sig.sig_log("Rcvd remote action: {0}".format(msg_payload))
-                n_cbt = self._sig.create_cbt(self._sig._module_name, rem_act["RecipientCM"],
-                                             rem_act["Action"], rem_act["Params"])
-
-                # store the remote action for completion
-                self._sig._remote_acts[n_cbt.tag] = rem_act
-                self._sig.submit_cbt(n_cbt)
-                return
+                if not self.overlay_id == rem_act["OverlayId"]:
+                    rem_act["Data"] = "The specified Overlay Id conflicts. Either peer may be " \
+                                      "incorrectly configured."
+                    rem_act["Status"] = False
+                    payload = json.dumps(rem_act)
+                    self.send_msg(sender_jid, "cmpt", payload)
+                    self._sig.sig_log("The Overlay ID in the rcvd remote action conflicts with the "
+                                      "local configuration. It was returned to its sender: {}"
+                                      .format(payload))
+                else:
+                    n_cbt = self._sig.create_cbt(self._sig._module_name, rem_act["RecipientCM"],
+                                                 rem_act["Action"], rem_act["Params"])
+                    # store the remote action for completion
+                    self._sig._remote_acts[n_cbt.tag] = rem_act
+                    self._sig.submit_cbt(n_cbt)
+                    return
             elif msg_type == "cmpt":
                 rem_act = json.loads(msg_payload)
                 # Ensure that this node actually initated the remote action

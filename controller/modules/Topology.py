@@ -33,7 +33,7 @@ class Topology(ControllerModule, CFX):
     def initialize(self):
         self._cfx_handle.start_subscription("Signal",
                                             "SIG_PEER_PRESENCE_NOTIFY")
-        self._cfx_handle.start_subscription("LinkManager", "LNK_DATA_UPDATES")
+        self._cfx_handle.start_subscription("LinkManager", "LNK_TUNNEL_EVENTS")
         nid = self._cm_config["NodeId"]
         for olid in self._cfx_handle.query_param("Overlays"):
             self._overlays[olid] = dict(NetBuilder=NetworkBuilder(self, olid, nid), KnownPeers=[],
@@ -151,14 +151,14 @@ class Topology(ControllerModule, CFX):
                 self.req_handler_vis_data(cbt)
             elif cbt.request.action == "TOP_QUERY_PEER_IDS":
                 self.req_handler_query_peer_ids(cbt)
-            elif cbt.request.action == "LNK_DATA_UPDATES":
+            elif cbt.request.action == "LNK_TUNNEL_EVENTS":
                 self.req_handler_link_data_update(cbt)
             else:
                 self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
-            if cbt.request.action == "LNK_CREATE_LINK":
+            if cbt.request.action == "LNK_CREATE_TUNNEL":
                 self.resp_handler_create_link(cbt)
-            elif cbt.request.action == "LNK_REMOVE_LINK":
+            elif cbt.request.action == "LNK_REMOVE_TUNNEL":
                 self.resp_handler_remove_link(cbt)
 
     def manage_topology(self):
@@ -189,13 +189,13 @@ class Topology(ControllerModule, CFX):
         self.register_cbt("Logger", "LOG_INFO", "Adding peer edge {0}:{1}->{2}"
                           .format(overlay_id, self._cm_config["NodeId"][:7], peer_id[:7]))
         params = {"OverlayId": overlay_id, "PeerId": peer_id}
-        self.register_cbt("LinkManager", "LNK_CREATE_LINK", params)
+        self.register_cbt("LinkManager", "LNK_CREATE_TUNNEL", params)
 
     def top_remove_edge(self, overlay_id, peer_id):
         self.register_cbt("Logger", "LOG_INFO", "Removing peer edge {0}:{1}->{2}"
                           .format(overlay_id, self._cm_config["NodeId"][:7], peer_id[:7]))
         params = {"OverlayId": overlay_id, "PeerId": peer_id}
-        self.register_cbt("LinkManager", "LNK_REMOVE_LINK", params)
+        self.register_cbt("LinkManager", "LNK_REMOVE_TUNNEL", params)
 
     def top_log(self, msg, level="LOG_DEBUG"):
         self.register_cbt("Logger", level, msg)

@@ -36,7 +36,7 @@ class Icc(ControllerModule):
 
        # Subscribe for link updates from LinkManager
         self._cfx_handle.start_subscription("LinkManager",
-                                            "LNK_DATA_UPDATES")
+                                            "LNK_TUNNEL_EVENTS")
 
         # Subscribe for messages from TincanInterface
         self._cfx_handle.start_subscription("TincanInterface",
@@ -245,7 +245,7 @@ class Icc(ControllerModule):
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
-            if cbt.request.action == "LNK_DATA_UPDATES":
+            if cbt.request.action == "LNK_TUNNEL_EVENTS":
                 self.update_links(cbt)
 
             elif cbt.request.action == "ICC_SEND_DATA":

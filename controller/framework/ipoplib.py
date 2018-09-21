@@ -305,16 +305,16 @@ def getchecksum(hexstr):
 def runshell(cmd):
     """ Run a shell command. if fails, raise an exception. """
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if p.wait() != 0:
-        exception = "Failed to run {}".format(str(cmd))
+    if p.returncode != 0:
+        err = "Subprocess: \"{0}\" failed, std err = {1}".format(str(cmd), str(p.stderr))
         raise RuntimeError(exception)
     return p
 
 def runshell_su(cmd):
     sudoexe = spawn.find_executable("sudo")
     cmd = [sudoexe]+cmd
-    p = subprocess.run(cmd, stdout=subprocess.PIPE)
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if p.returncode != 0:
-        err = "Failed to run {}".format(str(cmd))
+        err = "Subprocess: \"{0}\" failed, std err = {1}".format(str(cmd), str(p.stderr))
         raise RuntimeError(err)
     return p
