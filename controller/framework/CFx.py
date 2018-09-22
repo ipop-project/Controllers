@@ -46,7 +46,7 @@ class CFX(object):
         self.model = self._config["CFx"]["Model"]
         self._event = None
         self._subscriptions = {}
-        self._node_id = self.set_node_id()
+        self._node_id = self._set_node_id()
         self._load_order = []
 
     def submit_cbt(self, cbt):
@@ -187,21 +187,31 @@ class CFX(object):
                 if self._config.get(key, None):
                     self._config[key].update(loaded_config[key])
 
-    def set_node_id(self,):
+        self._config["CFx"]["NidFileName"] = self._get_nid_file_name()
+
+    def _set_node_id(self,):
         config = self._config["CFx"]
         # if NodeId is not specified in Config file, generate NodeId
         nodeid = config.get("NodeId", None)
         if nodeid is None or not nodeid:
             try:
-                with open("nid", "r") as f:
+                with open(config["NidFileName"], "r") as f:
                     nodeid = f.read().strip()
             except IOError:
                 pass
         if nodeid is None or not nodeid:
             nodeid = str(uuid.uuid4().hex)
-            with open("nid", "w") as f:
+            with open(config["NidFileName"], "w") as f:
                 f.write(nodeid)
         return nodeid
+
+    def _get_nid_file_name(self):
+        NID_FILENAME = "nid"
+        if os.name == "posix":
+            DIRNAME_PREFIX = os.path.normpath("/var/opt/ipop-vpn")
+        else:
+            DIRNAME_PREFIX = ""
+        return os.path.join(DIRNAME_PREFIX, NID_FILENAME)
 
     def wait_for_shutdown_event(self):
         self._event = threading.Event()
