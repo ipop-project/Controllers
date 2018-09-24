@@ -153,6 +153,7 @@ class CFX(object):
     def parse_config(self):
         for k in fxlib.MODULE_ORDER:
             self._config[k] = fxlib.CONFIG.get(k)
+        self._config["CFx"]["NidFileName"] = self._get_nid_file_name()
         parser = argparse.ArgumentParser()
         parser.add_argument("-c", help="load configuration from a file",
                             dest="config_file", metavar="config_file")
@@ -187,8 +188,6 @@ class CFX(object):
                 if self._config.get(key, None):
                     self._config[key].update(loaded_config[key])
 
-        self._config["CFx"]["NidFileName"] = self._get_nid_file_name()
-
     def _set_node_id(self,):
         config = self._config["CFx"]
         # if NodeId is not specified in Config file, generate NodeId
@@ -201,6 +200,9 @@ class CFX(object):
                 pass
         if nodeid is None or not nodeid:
             nodeid = str(uuid.uuid4().hex)
+            path = os.path.dirname(config["NidFileName"])
+            if not os.path.exists(path):
+                os.makedirs(path, exist_ok=True)
             with open(config["NidFileName"], "w") as f:
                 f.write(nodeid)
         return nodeid
