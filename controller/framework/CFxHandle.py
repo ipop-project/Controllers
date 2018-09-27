@@ -84,7 +84,7 @@ class CFxHandle(object):
         self._cm_instance.initialize()
 
         # create the worker thread, which is started by CFx
-        thread_name = self._cm_instance.__class__.__name__ + "::__cbt"
+        thread_name = self._cm_instance.__class__.__name__ + "::__worker"
         self._cm_thread = threading.Thread(target=self.__worker, name=thread_name,
                                            daemon=False)
 

@@ -231,7 +231,7 @@ class CFX(object):
                     print("Controller shutdown event: {0}".format(str(e)))
                     break
         else:
-            for sig in [signal.SIGINT]:
+            for sig in [signal.SIGINT, signal.SIGTERM]:
                 signal.signal(sig, self.__handler)
 
             # signal.pause() sleeps until SIGINT is received
@@ -251,7 +251,6 @@ class CFX(object):
             if self._cfx_handle_dict[module_name]._timer_thread:
                 self._cfx_handle_dict[module_name]._timer_thread.join()
                 print("{0} exited".format(self._cfx_handle_dict[module_name]._timer_thread.name))
-        sys.exit(0)
 
     def query_param(self, param_name=""):
         try:
