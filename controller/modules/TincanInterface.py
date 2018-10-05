@@ -61,7 +61,6 @@ class TincanInterface(ControllerModule):
         self._tincan_listener_thread.start()
         self.create_control_link()
         self._tci_publisher = self._cfx_handle.publish_subscription("TCI_TINCAN_MSG_NOTIFY")
-        #self.configure_tincan_logging(None, True)
         self.register_cbt("Logger", "LOG_QUERY_CONFIG")
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
