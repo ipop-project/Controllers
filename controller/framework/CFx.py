@@ -212,7 +212,7 @@ class CFX(object):
         if os.name == "posix":
             DIRNAME_PREFIX = os.path.normpath("/var/opt/ipop-vpn")
         else:
-            DIRNAME_PREFIX = ""
+            DIRNAME_PREFIX = "."
         return os.path.join(DIRNAME_PREFIX, NID_FILENAME)
 
     def wait_for_shutdown_event(self):
