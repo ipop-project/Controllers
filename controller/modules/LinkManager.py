@@ -173,8 +173,8 @@ class LinkManager(ControllerModule):
                         self._tunnels[lnkid]["Link"]["Stats"] = data[tnl_id][lnkid]["Stats"]
                         self._tunnels[lnkid]["Link"]["StatusRetry"] = 0
                     else:
-                        self.register_cbt("Logger", "LOG_WARNING", "Unrecognized tunnel state {0}:{1}"
-                                          .format(lnkid, data[tnl_id][lnkid]["Status"]))
+                        self.register_cbt("Logger", "LOG_WARNING", "Unrecognized tunnel state "
+                                          "{0}:{1}".format(lnkid, data[tnl_id][lnkid]["Status"]))
 
         self.free_cbt(cbt)
 
@@ -183,8 +183,6 @@ class LinkManager(ControllerModule):
         if lnk_entry:
             lnk_entry["Link"]["CreationState"] = 0x0
             lnk_entry["Link"]["Stats"] = None
-            peerid = lnk_entry["PeerId"]
-            olid = lnk_entry["OverlayId"]
 
     def resp_handler_remove_link(self, rmv_lnk_cbt):
         """Start removal the tunnel after the link is destroyed"""
@@ -364,7 +362,7 @@ class LinkManager(ControllerModule):
                           .format(tnl_id[:7]))
         lnkupd_param = {
             "UpdateType": "CREATING", "OverlayId": overlay_id, "PeerId": peerid,
-            "TunnelId": tnl_id,"LinkId": tnl_id}
+            "TunnelId": tnl_id, "LinkId": tnl_id}
         self._link_updates_publisher.post_update(lnkupd_param)
 
         params = {"OverlayId": overlay_id, "TunnelId": tnl_id, "LinkId": tnl_id,
@@ -680,7 +678,7 @@ class LinkManager(ControllerModule):
                     self._link_updates_publisher.post_update(param)
                 elif lnk_status == "TNL_QUERYING":
                     self._tunnels[lnkid]["Link"]["StatusRetry"] = 0
-                # if the lnk_status is TNL_OFFLINE the recconect event came in too late and the 
+                # if the lnk_status is TNL_OFFLINE the recconect event came in too late and the
                 # tear down has already been issued. This scenario is unlikely as the recheck time
                 # is long enough such that the webrtc reconnect attempts will have been abandoned.
             cbt.set_response(data=None, status=True)
@@ -781,25 +779,29 @@ class LinkManager(ControllerModule):
 
     def req_handler_query_viz_data(self, cbt):
         node_id = str(self._cm_config["NodeId"])
-        vis_data = dict()
+        tnls = dict()
         for tnlid in self._tunnels:
-            link_data = {
+            tnl_data = {
                 "NodeId": node_id,
                 "PeerId": self._tunnels[tnlid]["PeerId"],
                 "TunnelState": self._tunnels[tnlid]["TunnelState"]
                 }
             descriptor = self._tunnels[tnlid]["Descriptor"]
             if "TapName" in descriptor:
-                link_data["TapName"] = descriptor["TapName"]
+                tnl_data["TapName"] = descriptor["TapName"]
             if "MAC" in descriptor:
-                link_data["MAC"] = descriptor["MAC"]
+                tnl_data["MAC"] = descriptor["MAC"]
             if "IceRole" in self._tunnels[tnlid]["Link"]:
-                link_data["IceRole"] = self._tunnels[tnlid]["Link"]["IceRole"]
+                tnl_data["IceRole"] = self._tunnels[tnlid]["Link"]["IceRole"]
             if "Stats" in self._tunnels[tnlid]["Link"]:
-                link_data["Stats"] = self._tunnels[tnlid]["Link"]["Stats"]
+                tnl_data["Stats"] = self._tunnels[tnlid]["Link"]["Stats"]
             overlay_id = self._tunnels[tnlid]["OverlayId"]
-            vis_data["LinkManager"] = {
-                overlay_id:{node_id:{tnlid: link_data}}}
 
-        cbt.set_response(vis_data, True if vis_data else False)
+            if overlay_id not in tnls:
+                tnls[overlay_id] = dict()
+            if node_id not in tnls[overlay_id]:
+                tnls[overlay_id][node_id] = dict()
+            tnls[overlay_id][node_id][tnlid] = tnl_data
+
+        cbt.set_response({"LinkManager": tnls}, True if tnls else False)
         self.complete_cbt(cbt)
