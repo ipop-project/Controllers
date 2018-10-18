@@ -67,7 +67,7 @@ CONFIG = {
     "Signal": {
         "Enabled": True,
         "TimerInterval": 30,
-        "CacheExpiry": 120,         # Min duration an entry remains in the JID cache in seconds
+        "CacheExpiry": 30,         # Min duration an entry remains in the JID cache in seconds
         "Dependencies": ["Logger"]
     },
     "LinkManager": {
@@ -81,7 +81,7 @@ CONFIG = {
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "Icc": {
-        "Enabled": True,
+        "Enabled": False,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "Broadcaster": {
