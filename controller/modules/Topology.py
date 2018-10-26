@@ -160,6 +160,14 @@ class Topology(ControllerModule, CFX):
                 self.resp_handler_create_link(cbt)
             elif cbt.request.action == "LNK_REMOVE_TUNNEL":
                 self.resp_handler_remove_link(cbt)
+            else:
+                parent_cbt = self.get_parent_cbt(cbt)
+                cbt_data = cbt.response.data
+                cbt_status = cbt.response.status
+                self.free_cbt(cbt)
+                if (parent_cbt is not None and parent_cbt.child_count == 1):
+                    parent_cbt.set_response(cbt_data, cbt_status)
+                    self.complete_cbt(parent_cbt)
 
     def manage_topology(self):
         # Periodically refresh the topology, making sure desired links exist and exipred ones are

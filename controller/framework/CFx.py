@@ -233,8 +233,7 @@ class CFX(object):
         else:
             for sig in [signal.SIGINT, signal.SIGTERM]:
                 signal.signal(sig, self.__handler)
-
-            # signal.pause() sleeps until SIGINT is received
+            # sleeps until signal is received
             signal.pause()
 
     def terminate(self):
@@ -262,6 +261,10 @@ class CFX(object):
                 return self._config["CFx"]["Overlays"]
             if param_name == "Model":
                 return self.model
+            if param_name == "DebugCBTs":
+                return self._config["CFx"]["DebugCBTs"]
+            if param_name == "RequestTimeout":
+                return self._config["CFx"]["RequestTimeout"]
         except Exception as error:
             print("Exception occurred while querying data." + str(error))
         return None
@@ -286,7 +289,8 @@ class CFX(object):
     def find_subscription(self, owner_name, subscription_name):
         sub = None
         if owner_name not in self._subscriptions:
-            raise NameError("The specified subscription provider {} was not found.".format(owner_name))
+            raise NameError("The specified subscription provider {} was not found."
+                            .format(owner_name))
         for sub in self._subscriptions[owner_name]:
             if sub._subscription_name == subscription_name:
                 return sub

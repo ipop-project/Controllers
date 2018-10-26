@@ -32,7 +32,8 @@ CONFIG = {
     "CFx": {
         "NodeId": "",  # Single unique node Id for all overlays
         "IpopVersion": IPOP_VER_REL,
-        "Model": "Default"
+        "Model": "Default",
+        "RequestTimeout": 29
     },
     "Logger": {
         "Enabled": True,
@@ -47,7 +48,7 @@ CONFIG = {
     },
     "OverlayVisualizer": {
         "Enabled": False,
-        "TimerInterval": 15,                # Timer thread interval
+        "TimerInterval": 30,                # Timer thread interval
         "WebServiceAddress": ":5000",       # Visualizer webservice URL
         "NodeName": "",                     # Node Name as seen from the UI
         "Dependencies": ["Logger"]
@@ -79,15 +80,6 @@ CONFIG = {
         "Enabled": True,
         "TimerInterval": 30,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
-    },
-    "Icc": {
-        "Enabled": False,
-        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
-    },
-    "Broadcaster": {
-        "Enabled": False,
-        "TimerInterval": 30,
-        "Dependencies": ["Logger", "Topology", "Icc"]
     },
     "UsageReport": {
         "Enabled": True,

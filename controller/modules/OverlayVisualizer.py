@@ -71,6 +71,15 @@ class OverlayVisualizer(ControllerModule):
                         " {}".format(cbt.request.recipient)
                     self.register_cbt("Logger", "LOG_WARNING", warn_msg)
                 self.free_cbt(cbt)
+            else:
+                parent_cbt = self.get_parent_cbt(cbt)
+                cbt_data = cbt.response.data
+                cbt_status = cbt.response.status
+                self.free_cbt(cbt)
+                if (parent_cbt is not None and parent_cbt.child_count == 1):
+                    parent_cbt.set_response(cbt_data, cbt_status)
+                    self.complete_cbt(parent_cbt)
+
         else:
             self.req_handler_default(cbt)
 

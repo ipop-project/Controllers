@@ -19,7 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import logging
+import copy
 import threading
 import traceback
 import queue as Queue
@@ -33,35 +33,37 @@ class CFxHandle(object):
         self._cm_thread = None  # CM worker thread
         self._cm_config = None
         self.__cfx_object = CFxObject  # CFx object reference
+        self._exit_event = threading.Event()
         self._timer_thread = None
-        self.interval = 1
+        self._timer_interval = 0
+        self._timer_loop_cnt = 1
         self._pending_cbts = {}
         self._owned_cbts = {}
 
     def submit_cbt(self, cbt):
         # submit CBT to the CFx
+        cbt.time_submit = time.time()
         self.__cfx_object.submit_cbt(cbt)
-        cbt.time_submit = time.perf_counter()
 
     def create_cbt(self, initiator=None, recipient=None, action=None, params=None):
         # create and return a CBT with optional parameters
         cbt = CBT(initiator, recipient, action, params)
         self._owned_cbts[cbt.tag] = cbt
-        cbt.time_create = time.perf_counter()
+        cbt.time_create = time.time()
         return cbt
 
     def create_linked_cbt(self, parent):
         cbt = self.create_cbt()
         cbt.parent = parent
         parent.child_count = parent.child_count + 1
-        cbt.time_create = time.perf_counter()
+        cbt.time_create = time.time()
         return cbt
 
     def get_parent_cbt(self, cbt):
         return cbt.parent
 
     def free_cbt(self, cbt):
-        cbt.time_free = time.perf_counter()
+        cbt.time_free = time.time()
         if not cbt.child_count == 0:
             raise RuntimeError("Invalid attempt to free a linked CBT")
         if not cbt.parent is None:
@@ -72,7 +74,7 @@ class CFxHandle(object):
         del cbt
 
     def complete_cbt(self, cbt):
-        cbt.time_complete = time.perf_counter()
+        cbt.time_complete = time.time()
         cbt.completed = True
         self._pending_cbts.pop(cbt.tag, None)
         if not cbt.child_count == 0:
@@ -80,7 +82,7 @@ class CFxHandle(object):
         self.__cfx_object.submit_cbt(cbt)
 
     def initialize(self):
-        # intialize the CM
+        # intialize the Controller Module and start it's threads
         self._cm_instance.initialize()
 
         # create the worker thread, which is started by CFx
@@ -88,24 +90,16 @@ class CFxHandle(object):
         self._cm_thread = threading.Thread(target=self.__worker, name=thread_name,
                                            daemon=False)
 
-        # check if the _cm_config has timer_interval specified
-        timer_enabled = False
-        try:
-            self.interval = int(self._cm_config.get("TimerInterval", 0))
-            if self.interval > 0:
-                timer_enabled = True
-        except Exception:
-            logging.warning("Invalid TimerInterval for {0}. Timer method has " \
-                "been disabled for this module".format(self._cm_instance.__class__.__name__))
-
-        if timer_enabled:
+        # enable the timer event if the timer_interval is specified
+        self._timer_interval = int(self._cm_config.get("TimerInterval", 0))
+        if self._timer_interval > 0:
             # create the timer worker thread, which is started by CFx
             thread_name = self._cm_instance.__class__.__name__ + "::__timer"
             self._timer_thread = threading.Thread(target=self.__timer_worker,
                                                   name=thread_name, daemon=False)
 
     def update_timer_interval(self, interval):
-        self.interval = interval
+        self._timer_interval = interval
 
     def __worker(self):
         # get CBT from the local queue and call process_cbt() of the
@@ -138,9 +132,9 @@ class CFxHandle(object):
 
     def __timer_worker(self):
         # call the timer_method of each CM every timer_interval seconds
-        self._exit_event = threading.Event()
-        while not self._exit_event.wait(self.interval):
+        while not self._exit_event.wait(self._timer_interval):
             try:
+                self._check_container_bounds()
                 self._cm_instance.timer_method()
             except Exception:
                 log_cbt = self.create_cbt(
@@ -156,7 +150,8 @@ class CFxHandle(object):
 
     # Caller is the subscription source
     def publish_subscription(self, subscription_name):
-        return self.__cfx_object.publish_subscription(self._cm_instance.__class__.__name__, subscription_name, self._cm_instance)
+        return self.__cfx_object.publish_subscription(self._cm_instance.__class__.__name__,
+                                                      subscription_name, self._cm_instance)
 
     def remove_subscription(self, sub):
         self.__cfx_object.RemoveSubscriptionPublisher(sub)
@@ -167,3 +162,44 @@ class CFxHandle(object):
 
     def end_subscription(self, owner_name, subscription_name):
         self.__cfx_object.end_subscription(owner_name, subscription_name, self._cm_instance)
+
+    def _check_container_bounds(self):
+        if self._timer_loop_cnt % 10 == 0:
+            plen = len(self._pending_cbts)
+            if plen >= 50:
+                log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
+                                          recipient="Logger", action="LOG_WARNING",
+                                          params="_pending_cbts length={0}".format(plen))
+                self.submit_cbt(log_cbt)
+            olen = len(self._owned_cbts)
+            if olen >= 50:
+                log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
+                                          recipient="Logger", action="LOG_WARNING",
+                                          params="_owned_cbts length={0}".format(olen))
+                self.submit_cbt(log_cbt)
+        self._timer_loop_cnt = self._timer_loop_cnt + 1
+        if not self.query_param("DebugCBTs"):
+            return
+
+        olen = len(self._owned_cbts)
+        plen = len(self._pending_cbts)
+        ownd = copy.deepcopy(self._owned_cbts)
+        pend = copy.deepcopy(self._pending_cbts)
+        for cbt in ownd.values():
+            log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
+                                      recipient="Logger", action="LOG_DEBUG",
+                                      params="Owned CBT={0}".format(cbt))
+            self.submit_cbt(log_cbt)
+        for cbt in pend.values():
+            log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
+                                      recipient="Logger", action="LOG_DEBUG",
+                                      params="Pending CBT={0}".format(cbt))
+            self.submit_cbt(log_cbt)
+        log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
+                                  recipient="Logger", action="LOG_DEBUG",
+                                  params="_pending_cbts length={0}".format(plen))
+        self.submit_cbt(log_cbt)
+        log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
+                                  recipient="Logger", action="LOG_DEBUG",
+                                  params="_owned_cbts length={0}".format(olen))
+        self.submit_cbt(log_cbt)

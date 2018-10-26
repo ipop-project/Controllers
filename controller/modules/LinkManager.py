@@ -83,9 +83,10 @@ class LinkManager(ControllerModule):
 
     def req_handler_add_ign_inf(self, cbt):
         ign_inf_details = cbt.request.params
-
         for olid in ign_inf_details:
             self._ignored_net_interfaces[olid].add(ign_inf_details[olid])
+        cbt.set_response(None, True)
+        self.complete_cbt(cbt)
 
     def req_handler_remove_tnl(self, cbt):
         """Remove the tunnel given either the overlay id and peer id, or the tunnel id"""
@@ -101,11 +102,10 @@ class LinkManager(ControllerModule):
             self.complete_cbt(cbt)
             return
 
-        self.create_linked_cbt(cbt)
+        rm_tnl_cbt = self.create_linked_cbt(cbt)
         params = {"OverlayId": olid, "TunnelId": tnl_id, "LinkId": tnl_id}
-        rl_cbt = self.create_cbt(self._module_name, "TincanInterface",
-                                 "TCI_REMOVE_LINK", params)
-        self.submit_cbt(rl_cbt)
+        rm_tnl_cbt.set_request(self._module_name, "TincanInterface", "TCI_REMOVE_LINK", params)
+        self.submit_cbt(rm_tnl_cbt)
 
     def _update_tunnel_descriptor(self, tnl_desc, tnl_id):
         """
@@ -144,7 +144,7 @@ class LinkManager(ControllerModule):
         for tnl_id in data:
             for lnkid in data[tnl_id]:
                 if data[tnl_id][lnkid]["Status"] == "UNKNOWN":
-                    self._link_removed_cleanup(lnkid)
+                    self._cleanup_removed_tunnel(lnkid)
                 elif lnkid in self._tunnels:
                     if data[tnl_id][lnkid]["Status"] == "OFFLINE":
                         # tincan indicates offline so recheck the link status
@@ -152,12 +152,12 @@ class LinkManager(ControllerModule):
                         if retry < 3:
                             retry = retry + 1
                             self._tunnels[lnkid]["Link"]["StatusRetry"] = retry
-                        elif retry >= 3 and self._tunnels[lnkid]["TunnelState"] == "TNL_CREATING":
+                        elif retry >= 2 and self._tunnels[lnkid]["TunnelState"] == "TNL_CREATING":
                             # link is stuck creating so destroy it
                             olid = self._tunnels[lnkid]["OverlayId"]
                             params = {"OverlayId": olid, "TunnelId": tnl_id, "LinkId": lnkid}
                             self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
-                        elif retry >= 3 and self._tunnels[lnkid]["TunnelState"] == "TNL_QUERYING":
+                        elif retry >= 2 and self._tunnels[lnkid]["TunnelState"] == "TNL_QUERYING":
                             # link went offline so notify top
                             self._tunnels[lnkid]["TunnelState"] = "TNL_OFFLINE"
                             olid = self._tunnels[lnkid]["OverlayId"]
@@ -175,14 +175,14 @@ class LinkManager(ControllerModule):
                     else:
                         self.register_cbt("Logger", "LOG_WARNING", "Unrecognized tunnel state "
                                           "{0}:{1}".format(lnkid, data[tnl_id][lnkid]["Status"]))
-
         self.free_cbt(cbt)
 
-    def _link_removed_cleanup(self, lnkid):
-        lnk_entry = self._tunnels[lnkid]
-        if lnk_entry:
-            lnk_entry["Link"]["CreationState"] = 0x0
-            lnk_entry["Link"]["Stats"] = None
+    def _cleanup_removed_tunnel(self, tnlid):
+        tnl = self._tunnels.pop(tnlid, None)
+        if tnl:
+            peer_id = tnl["PeerId"]
+            olid = tnl["OverlayId"]
+            self._peers[olid].pop(peer_id, None)
 
     def resp_handler_remove_link(self, rmv_lnk_cbt):
         """Start removal the tunnel after the link is destroyed"""
@@ -191,7 +191,6 @@ class LinkManager(ControllerModule):
         tnlid = rmv_lnk_cbt.request.params["TunnelId"]
         lnkid = rmv_lnk_cbt.request.params["LinkId"]
         peer_id = self._tunnels[lnkid]["PeerId"]
-        self._link_removed_cleanup(lnkid)
         self.free_cbt(rmv_lnk_cbt)
         self.register_cbt("Logger", "LOG_INFO", "Link removed {}".format(lnkid))
         self.register_cbt("Logger", "LOG_DEBUG", "State:\n" + str(self))
@@ -220,11 +219,8 @@ class LinkManager(ControllerModule):
             "PeerId": peer_id}
         if "TapName" in self._tunnels[tnlid]["Descriptor"]:
             param["TapName"] = self._tunnels[tnlid]["Descriptor"]["TapName"]
-
         self._link_updates_publisher.post_update(param)
-
-        self._tunnels.pop(tnlid, None)
-        self._peers[olid].pop(peer_id, None)
+        self._cleanup_removed_tunnel(tnlid)
         self.free_cbt(rmv_tnl_cbt)
         if parent_cbt is not None:
             parent_cbt.set_response("Tunnel removed", True)

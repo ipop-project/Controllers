@@ -107,6 +107,14 @@ class Broadcaster(ControllerModule):
                 self.resp_handler_query_peers(cbt)
             elif cbt.request.action == "ICC_REMOTE_ACTION":
                 self.resp_handler_remote_act(cbt)
+            else:
+                parent_cbt = self.get_parent_cbt(cbt)
+                cbt_data = cbt.response.data
+                cbt_status = cbt.response.status
+                self.free_cbt(cbt)
+                if (parent_cbt is not None and parent_cbt.child_count == 1):
+                    parent_cbt.set_response(cbt_data, cbt_status)
+                    self.complete_cbt(parent_cbt)
 
     def timer_method(self):
         self.register_cbt("Topology", "TOP_QUERY_PEER_IDS", "RefreshCache")
