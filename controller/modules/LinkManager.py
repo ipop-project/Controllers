@@ -317,7 +317,7 @@ class LinkManager(ControllerModule):
             params = {"OverlayId": olid, "TunnelId": link_id, "LinkId": link_id}
             self.register_cbt("TincanInterface", "TCI_REMOVE_LINK", params)
 
-            self.register_cbt("Logger", "LOG_INFO", "Initiated removal of incomplet link: "
+            self.register_cbt("Logger", "LOG_INFO", "Initiated removal of incomplete link: "
                               "LinkId:{0}, State:{1}, Peer_id:{2}"
                               .format(link_id, format(creation_state, "02X"), peer_id))
 
