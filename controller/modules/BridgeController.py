@@ -252,6 +252,14 @@ class BridgeController(ControllerModule):
 
             self.register_cbt("LinkManager",
                               "LNK_ADD_IGN_INF", ign_br_names)
+        try:
+            # Subscribe for data request notifications from OverlayVisualizer
+            self._cfx_handle.start_subscription("OverlayVisualizer", "VIS_DATA_REQ")
+        except NameError as err:
+            if "OverlayVisualizer" in str(err):
+                self.register_cbt("Logger", "LOG_WARNING",
+                                  "OverlayVisualizer module not loaded."
+                                  " Visualization data will not be sent.")
 
         self._cfx_handle.start_subscription("LinkManager", "LNK_TUNNEL_EVENTS")
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")
@@ -292,10 +300,12 @@ class BridgeController(ControllerModule):
         if cbt.op_type == "Request":
             if cbt.request.action == "BRG_ADD_PORT":
                 self.req_handler_add_port(cbt)
-            if cbt.request.action == "BRG_DEL_PORT":
+            elif cbt.request.action == "BRG_DEL_PORT":
                 self.req_handler_del_port(cbt)
-            if cbt.request.action == "LNK_TUNNEL_EVENTS":
+            elif cbt.request.action == "LNK_TUNNEL_EVENTS":
                 self.req_handler_manage_bridge(cbt)
+            elif cbt.request.action == "VIS_DATA_REQ":
+                self.req_handler_vis_data(cbt)
             else:
                 self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
@@ -323,3 +333,17 @@ class BridgeController(ControllerModule):
                             br.del_port(port)
         except RuntimeError as err:
             self.register_cbt("Logger", "LOG_WARNING", str(err))
+
+    def req_handler_vis_data(self, cbt):
+        br_data = {}
+        try:
+            for olid in self._cm_config["Overlays"]:
+                br_data[olid] = self._cm_config["Overlays"][olid]
+
+            cbt.set_response({"BridgeController": br_data}, True if br_data else False)
+            self.complete_cbt(cbt)
+        except KeyError:
+            cbt.set_response(data=None, status=False)
+            self.complete_cbt(cbt)
+            self.register_cbt("Logger", "LOG_WARNING", "Bridge visualization data unavailable {0}".
+                              format(cbt.response.data))
