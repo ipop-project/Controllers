@@ -21,37 +21,44 @@
 import time
 class ConnectionEdge(object):
     """ A discriptor of the edge/link between two peers."""
-    def __init__(self, peer_id=None):
+    def __init__(self, peer_id=None, edge_type="CETypeUnknown"):
         self.peer_id = peer_id
         self.link_id = None
         self.marked_for_delete = False
         self.created_time = time.time()
         self.connected_time = None
         self.state = "CEStateUnknown"
-        self.type = "CETypeUnknown"
+        self.edge_type = edge_type
+
+    def __key__(self):
+        return int(self.peer_id, 16)
 
     def __eq__(self, other):
-        return self.peer_id == other.peer_id
+        return self.__key__() == other.__key__()
 
     def __ne__(self, other):
-        return self.peer_id != other.peer_id
+        return self.__key__() != other.__key__()
 
     def __lt__(self, other):
-        return self.peer_id < other.peer_id
+        return self.__key__() < other.__key__()
 
     def __le__(self, other):
-        return self.peer_id <= other.peer_id
+        return self.__key__() <= other.__key__()
 
     def __gt__(self, other):
-        return self.peer_id > other.peer_id
+        return self.__key__() > other.__key__()
 
     def __ge__(self, other):
-        return self.peer_id >= other.peer_id
+        return self.__key__() >= other.__key__()
+
+    def __hash__(self):
+        return hash(self.__key__())
 
     def __repr__(self):
-        msg = "<peer_id = %s, link_id = %s, marked_for_delete = %s, created_time = %s, state = %s"\
-        ", type = %s>" % (self.peer_id, self.link_id, self.marked_for_delete,
-                          str(self.created_time), self.state, self.type)
+        #state = "<peer_id = %s, link_id = %s, marked_for_delete = %s, created_time = %s,"\
+        #        "state = %s, type = %s>" % (self.peer_id, self.link_id, self.marked_for_delete,
+        #                                    str(self.created_time), self.state, self.edge_type)
+        msg = "<peer_id = %s, type = %s>" % (self.peer_id, self.edge_type)
         return msg
 
 class ConnEdgeAdjacenctList(object):
@@ -61,14 +68,26 @@ class ConnEdgeAdjacenctList(object):
         self.node_id = node_id
         self.conn_edges = {}
 
+    def __len__(self):
+        return len(self.conn_edges)
+
+    def __repr__(self):
+        msg = "<overlay_id = %s, node_id = %s, conn_edges = %s>"%(self.overlay_id,
+                                                                  self.node_id, self.conn_edges)
+        return msg
+
+    def add_connection_edge(self, ce):
+        self.conn_edges[ce.peer_id] = ce
+
+    def get_edges(self):
+        return self.conn_edges.values()
 
 class NetworkGraph(object):
-    """Describes the structure of the Topology as a sequence of nodes and associated edges. WIP"""
+    """Describes the structure of the Topology as a dict of node IDs to ConnEdgeAdjacenctList"""
     def __init__(self, graph=None):
-        if graph is None:
-            self._graph = {0: [0]}
-        else:
-            self._graph = graph
+        self._graph = graph
+        if self._graph is None:
+            self._graph = {}
 
     def vertices(self):
         """ returns the vertices of a graph """
@@ -86,44 +105,39 @@ class NetworkGraph(object):
                 isolated += node
         return isolated
 
+    def add_adj_list(self, adj_list):
+        self._graph[adj_list.node_id] = adj_list
+
     def add_vertex(self, vertex):
-        """ Adds vertex "vertex" as a key with an empty list to self._graph. """
+        """ Adds vertex "vertex" as a key with an empty ConnEdgeAdjacenctList to self._graph. """
         if vertex not in self._graph:
-            self._graph[vertex] = []
+            self._graph[vertex] = ConnEdgeAdjacenctList()
 
     def add_edge(self, edge):
-        """
-        assumes that edge is of type set, tuple or list;
-        between two vertices can be multiple edges!
-        """
-        edge = set(edge)
-        (vertex1, vertex2) = tuple(edge)
-        if vertex1 in self._graph:
-            self._graph[vertex1].append(vertex2)
-        else:
-            self._graph[vertex1] = [vertex2]
+        pass
 
     def _generate_edges(self):
         """
         Generating the edges of the graph "graph". Edges are represented as sets
         with one (a loop back to the vertex) or two vertices
         """
-        edges = []
+        edges = set()
         for vertex in self._graph:
-            for neighbour in self._graph[vertex]:
-                if {neighbour, vertex} not in edges:
-                    edges.append({vertex, neighbour})
-        return edges
+            for neighbour in self._graph[vertex].get_edges():
+                edge = (vertex, neighbour)
+                edges.add(edge)
+        return sorted(edges)
 
     def __str__(self):
         res = "vertices: "
         for k in self._graph:
             res += str(k) + " "
-        res += "\nedges: "
+        res += "\nedges:\n"
         for edge in self._generate_edges():
-            res += str(edge) + " "
+            res += str(edge) + "\n"
         return res
 
+    """ todo: fix methods below"""
     def find_path(self, start_vertex, end_vertex, path=None):
         """
         Find a path from start_vertex to end_vertex in graph

@@ -81,10 +81,14 @@ class Topology(ControllerModule, CFX):
                 self._overlays[overlay_id]["NewPeer"] = True
                 self._overlays[overlay_id]["KnownPeers"].append(peer_id)
                 if nb.is_ready():
-                    gb = GraphBuilder(overlay_id, self._cm_config["NodeId"],
-                                      self._overlays[overlay_id]["KnownPeers"],
-                                      self._cm_config["Overlays"][overlay_id].get("EnforcedLinks"),
-                                      self._cm_config["Overlays"][overlay_id].get("ManualTopology"))
+                    params = {"OverlayId": overlay_id, "NodeId": self._cm_config["NodeId"],
+                              "Peers": self._overlays[overlay_id]["KnownPeers"],
+                              "EnforcedEdges": self._cm_config["Overlays"][overlay_id]
+                              .get("EnforcedLinks", {}), "MaxSuccessors": 1,
+                              "LongDistLinkCount": 4,
+                              "ManualTopology": self._cm_config["Overlays"][overlay_id]
+                              .get("ManualTopology", False)}
+                    gb = GraphBuilder(params)
                     adjl = gb.build_adj_list()
                     self._overlays[overlay_id]["NewPeer"] = False
                     nb.refresh(adjl)
@@ -120,7 +124,7 @@ class Topology(ControllerModule, CFX):
                                    "MarkedForDeleted": ce.marked_for_delete,
                                    "CreatedTime": ce.created_time,
                                    "ConnectedTime": ce.connected_time,
-                                   "State": ce.state, "Type": ce.type}
+                                   "State": ce.state, "Type": ce.edge_type}
                             edges[ce.link_id] = ced
                         topo_data[olid] = edges
             cbt.set_response({"Topology": topo_data}, True if topo_data else False)
@@ -176,10 +180,14 @@ class Topology(ControllerModule, CFX):
             for olid in self._overlays:
                 if (self._overlays[olid]["NewPeer"] and
                         self._overlays[olid]["NetBuilder"].is_ready()):
-                    gb = GraphBuilder(olid, self._cm_config["NodeId"],
-                                      self._overlays[olid]["KnownPeers"],
-                                      self._cm_config["Overlays"][olid].get("EnforcedLinks"),
-                                      self._cm_config["Overlays"][olid].get("ManualTopology"))
+                    params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
+                              "Peers": self._overlays[olid]["KnownPeers"],
+                              "EnforcedEdges": self._cm_config["Overlays"][olid]
+                              .get("EnforcedLinks", {}), "MaxSuccessors": 1,
+                              "LongDistLinkCount": 4,
+                              "ManualTopology": self._cm_config["Overlays"][olid]
+                              .get("ManualTopology", False)}
+                    gb = GraphBuilder(params)
                     adjl = gb.build_adj_list()
                     self._overlays[olid]["NewPeer"] = False
                     self._overlays[olid]["NetBuilder"].refresh(adjl)
