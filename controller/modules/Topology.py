@@ -74,23 +74,22 @@ class Topology(ControllerModule, CFX):
         """
         peer = cbt.request.params
         peer_id = peer["PeerId"]
-        overlay_id = peer["OverlayId"]
+        olid = peer["OverlayId"]
         with self._lock:
-            nb = self._overlays[overlay_id]["NetBuilder"]
-            if peer_id not in self._overlays[overlay_id]["KnownPeers"]:
-                self._overlays[overlay_id]["NewPeer"] = True
-                self._overlays[overlay_id]["KnownPeers"].append(peer_id)
+            if peer_id not in self._overlays[olid]["KnownPeers"]:
+                self._overlays[olid]["NewPeer"] = True
+                self._overlays[olid]["KnownPeers"].append(peer_id)
+                nb = self._overlays[olid]["NetBuilder"]
+                enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
                 if nb.is_ready():
-                    params = {"OverlayId": overlay_id, "NodeId": self._cm_config["NodeId"],
-                              "Peers": self._overlays[overlay_id]["KnownPeers"],
-                              "EnforcedEdges": self._cm_config["Overlays"][overlay_id]
-                              .get("EnforcedLinks", {}), "MaxSuccessors": 1,
-                              "LongDistLinkCount": 4,
-                              "ManualTopology": self._cm_config["Overlays"][overlay_id]
-                              .get("ManualTopology", False)}
+                    manual_topo = self._cm_config["Overlays"][olid].get("ManualTopology", False)
+                    params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
+                              "Peers": self._overlays[olid]["KnownPeers"],
+                              "EnforcedEdges": enf_lnks, "MaxSuccessors": 1, "MaxLongDistLinks": 4,
+                              "ManualTopology": manual_topo}
                     gb = GraphBuilder(params)
-                    adjl = gb.build_adj_list()
-                    self._overlays[overlay_id]["NewPeer"] = False
+                    adjl = gb.build_adj_list(nb.get_adj_list())
+                    self._overlays[olid]["NewPeer"] = False
                     nb.refresh(adjl)
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
@@ -178,22 +177,21 @@ class Topology(ControllerModule, CFX):
         # removed.
         with self._lock:
             for olid in self._overlays:
-                if (self._overlays[olid]["NewPeer"] and
-                        self._overlays[olid]["NetBuilder"].is_ready()):
+                nb = self._overlays[olid]["NetBuilder"]
+                if (self._overlays[olid]["NewPeer"] and nb.is_ready()):
+                    enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
+                    manual_topo = self._cm_config["Overlays"][olid].get("ManualTopology", False)
                     params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
                               "Peers": self._overlays[olid]["KnownPeers"],
-                              "EnforcedEdges": self._cm_config["Overlays"][olid]
-                              .get("EnforcedLinks", {}), "MaxSuccessors": 1,
-                              "LongDistLinkCount": 4,
-                              "ManualTopology": self._cm_config["Overlays"][olid]
-                              .get("ManualTopology", False)}
+                              "EnforcedEdges": enf_lnks, "MaxSuccessors": 1, "MaxLongDistLinks": 4,
+                              "ManualTopology": manual_topo}
                     gb = GraphBuilder(params)
-                    adjl = gb.build_adj_list()
+                    adjl = gb.build_adj_list(nb.get_adj_list())
                     self._overlays[olid]["NewPeer"] = False
-                    self._overlays[olid]["NetBuilder"].refresh(adjl)
+                    nb.refresh(adjl)
                 elif not self._overlays[olid]["NetBuilder"].is_ready():
                     self.register_cbt("Logger", "LOG_INFO", "A network refresh operation is "
-                                      " already in progress, skipping ...")
+                                      " already in progress, no topology changes were attempted.")
 
     def timer_method(self):
         self.manage_topology()

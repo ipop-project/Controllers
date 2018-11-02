@@ -82,6 +82,13 @@ class ConnEdgeAdjacenctList(object):
     def get_edges(self):
         return self.conn_edges.values()
 
+    def edge_type_count(self, edge_type):
+        cnt = 0
+        for peer_id in self.conn_edges:
+            if self.conn_edges[peer_id].edge_type == edge_type:
+                cnt = cnt + 1
+        return cnt
+
 class NetworkGraph(object):
     """Describes the structure of the Topology as a dict of node IDs to ConnEdgeAdjacenctList"""
     def __init__(self, graph=None):
@@ -137,7 +144,7 @@ class NetworkGraph(object):
             res += str(edge) + "\n"
         return res
 
-    """ todo: fix methods below"""
+    # todo: fix methods below
     def find_path(self, start_vertex, end_vertex, path=None):
         """
         Find a path from start_vertex to end_vertex in graph
