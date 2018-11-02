@@ -19,6 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+import os
 import threading
 import uuid
 import time
@@ -242,6 +243,8 @@ class LinkManager(ControllerModule):
         ol_type = self._cm_config["Overlays"][overlay_id]["Type"]
         lnkid = params["LinkId"]
         tap_name = self._cm_config["Overlays"][overlay_id]["TapName"][:8] + str(lnkid[:7])
+        if os.name == "nt":
+            tap_name = self._cm_config["Overlays"][overlay_id]["TapName"]
         create_tnl_params = {
             "OverlayId": overlay_id,
             "NodeId": self._cm_config["NodeId"],
