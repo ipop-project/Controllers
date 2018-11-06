@@ -26,8 +26,7 @@ IPOP_VER_REL = "{0}.{1}.{2}".format(IPOP_VER_MJR, IPOP_VER_MNR, IPOP_VER_REV)
 
 # set default config values
 MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
-                "Signal", "LinkManager", "Topology", "Icc", "Broadcaster",
-                "UsageReport"]
+                "Signal", "LinkManager", "Topology", "UsageReport"]
 CONFIG = {
     "CFx": {
         "NodeId": "",  # Single unique node Id for all overlays
