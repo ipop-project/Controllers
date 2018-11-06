@@ -303,7 +303,7 @@ class Signal(ControllerModule):
         rpt = {}
         for overlay_id in self._cm_config["Overlays"]:
             rpt[overlay_id] = {
-                "xmpp_host": self._circles[overlay_id]["Transport"].host,
+                "xmpp_host": self._circles[overlay_id]["Transport"]._host,
                 "xmpp_username": self._circles[overlay_id]["Transport"].boundjid.full
             }
         cbt.set_response(rpt, True)
