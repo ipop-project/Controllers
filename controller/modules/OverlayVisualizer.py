@@ -37,6 +37,7 @@ class OverlayVisualizer(ControllerModule):
         self.vis_address = "http://" + self._cm_config["WebServiceAddress"]
         self._vis_req_publisher = None
         self.node_id = str(self._cm_config["NodeId"])
+        self._ipop_version = self._cfx_handle.query_param("IpopVersion")
 
         # The visualizer dataset which is forwarded to the collector service
         self._vis_ds = dict(NodeId=self.node_id, VizData=defaultdict(dict))
@@ -105,6 +106,7 @@ class OverlayVisualizer(ControllerModule):
             if "NodeName" in self._cm_config:
                 collector_msg["NodeName"] = self._cm_config["NodeName"]
 
+            collector_msg["IpopVersion"] = self._ipop_version
             data_log = "Submitting VizData {}".format(collector_msg)
             self.register_cbt("Logger", "LOG_DEBUG", data_log)
 
