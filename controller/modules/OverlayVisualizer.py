@@ -124,7 +124,7 @@ class OverlayVisualizer(ControllerModule):
                 err_msg = "Failed to send data to the IPOP Visualizer" \
                     " webservice({0}). Exception: {1}" \
                     .format(self.vis_address, str(err))
-                self.register_cbt("Logger", "LOG_ERROR", err_msg)
+                self.register_cbt("Logger", "LOG_WARNING", err_msg)
         else:
             warn_msg = "Don't have enough data to send. Not forwarding" \
                     " anything to the collector service. Data:" \
