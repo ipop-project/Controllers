@@ -262,7 +262,7 @@ class CFX(object):
             if param_name == "Model":
                 return self.model
             if param_name == "DebugCBTs":
-                return self._config["CFx"]["DebugCBTs"]
+                return self._config["CFx"].get("DebugCBTs", False)
             if param_name == "RequestTimeout":
                 return self._config["CFx"]["RequestTimeout"]
         except Exception as error:
