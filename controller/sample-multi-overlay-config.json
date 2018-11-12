@@ -104,5 +104,10 @@
     "Enabled": false,
     "WebServiceAddress": "***:5000",
     "NodeName": "Node1"
+  },
+  "SDNInterface": {
+      "Enabled": true,
+      "IP4": 10.0.0.1,
+      "SDNCommPort": 9898
   }
 }
