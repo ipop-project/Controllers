@@ -46,7 +46,7 @@ class CFX(object):
         self.model = self._config["CFx"]["Model"]
         self._event = None
         self._subscriptions = {}
-        self._node_id = self.set_node_id()
+        self._node_id = self._set_node_id()
         self._load_order = []
 
     def submit_cbt(self, cbt):
@@ -153,6 +153,7 @@ class CFX(object):
     def parse_config(self):
         for k in fxlib.MODULE_ORDER:
             self._config[k] = fxlib.CONFIG.get(k)
+        self._config["CFx"]["NidFileName"] = self._get_nid_file_name()
         parser = argparse.ArgumentParser()
         parser.add_argument("-c", help="load configuration from a file",
                             dest="config_file", metavar="config_file")
@@ -187,21 +188,32 @@ class CFX(object):
                 if self._config.get(key, None):
                     self._config[key].update(loaded_config[key])
 
-    def set_node_id(self,):
+    def _set_node_id(self,):
         config = self._config["CFx"]
         # if NodeId is not specified in Config file, generate NodeId
         nodeid = config.get("NodeId", None)
         if nodeid is None or not nodeid:
             try:
-                with open("nid", "r") as f:
+                with open(config["NidFileName"], "r") as f:
                     nodeid = f.read().strip()
             except IOError:
                 pass
         if nodeid is None or not nodeid:
             nodeid = str(uuid.uuid4().hex)
-            with open("nid", "w") as f:
+            path = os.path.dirname(config["NidFileName"])
+            if not os.path.exists(path):
+                os.makedirs(path, exist_ok=True)
+            with open(config["NidFileName"], "w") as f:
                 f.write(nodeid)
         return nodeid
+
+    def _get_nid_file_name(self):
+        NID_FILENAME = "nid"
+        if os.name == "posix":
+            DIRNAME_PREFIX = os.path.normpath("/var/opt/ipop-vpn")
+        else:
+            DIRNAME_PREFIX = "."
+        return os.path.join(DIRNAME_PREFIX, NID_FILENAME)
 
     def wait_for_shutdown_event(self):
         self._event = threading.Event()
@@ -219,10 +231,9 @@ class CFX(object):
                     print("Controller shutdown event: {0}".format(str(e)))
                     break
         else:
-            for sig in [signal.SIGINT]:
+            for sig in [signal.SIGINT, signal.SIGTERM]:
                 signal.signal(sig, self.__handler)
-
-            # signal.pause() sleeps until SIGINT is received
+            # sleeps until signal is received
             signal.pause()
 
     def terminate(self):
@@ -239,7 +250,6 @@ class CFX(object):
             if self._cfx_handle_dict[module_name]._timer_thread:
                 self._cfx_handle_dict[module_name]._timer_thread.join()
                 print("{0} exited".format(self._cfx_handle_dict[module_name]._timer_thread.name))
-        sys.exit(0)
 
     def query_param(self, param_name=""):
         try:
@@ -251,6 +261,10 @@ class CFX(object):
                 return self._config["CFx"]["Overlays"]
             if param_name == "Model":
                 return self.model
+            if param_name == "DebugCBTs":
+                return self._config["CFx"].get("DebugCBTs", False)
+            if param_name == "RequestTimeout":
+                return self._config["CFx"]["RequestTimeout"]
         except Exception as error:
             print("Exception occurred while querying data." + str(error))
         return None
@@ -275,7 +289,8 @@ class CFX(object):
     def find_subscription(self, owner_name, subscription_name):
         sub = None
         if owner_name not in self._subscriptions:
-            raise NameError("The specified subscription provider {} was not found.".format(owner_name))
+            raise NameError("The specified subscription provider {} was not found."
+                            .format(owner_name))
         for sub in self._subscriptions[owner_name]:
             if sub._subscription_name == subscription_name:
                 return sub

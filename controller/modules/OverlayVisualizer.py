@@ -37,6 +37,7 @@ class OverlayVisualizer(ControllerModule):
         self.vis_address = "http://" + self._cm_config["WebServiceAddress"]
         self._vis_req_publisher = None
         self.node_id = str(self._cm_config["NodeId"])
+        self._ipop_version = self._cfx_handle.query_param("IpopVersion")
 
         # The visualizer dataset which is forwarded to the collector service
         self._vis_ds = dict(NodeId=self.node_id, VizData=defaultdict(dict))
@@ -71,6 +72,15 @@ class OverlayVisualizer(ControllerModule):
                         " {}".format(cbt.request.recipient)
                     self.register_cbt("Logger", "LOG_WARNING", warn_msg)
                 self.free_cbt(cbt)
+            else:
+                parent_cbt = self.get_parent_cbt(cbt)
+                cbt_data = cbt.response.data
+                cbt_status = cbt.response.status
+                self.free_cbt(cbt)
+                if (parent_cbt is not None and parent_cbt.child_count == 1):
+                    parent_cbt.set_response(cbt_data, cbt_status)
+                    self.complete_cbt(parent_cbt)
+
         else:
             self.req_handler_default(cbt)
 
@@ -96,6 +106,7 @@ class OverlayVisualizer(ControllerModule):
             if "NodeName" in self._cm_config:
                 collector_msg["NodeName"] = self._cm_config["NodeName"]
 
+            collector_msg["IpopVersion"] = self._ipop_version
             data_log = "Submitting VizData {}".format(collector_msg)
             self.register_cbt("Logger", "LOG_DEBUG", data_log)
 
@@ -113,7 +124,7 @@ class OverlayVisualizer(ControllerModule):
                 err_msg = "Failed to send data to the IPOP Visualizer" \
                     " webservice({0}). Exception: {1}" \
                     .format(self.vis_address, str(err))
-                self.register_cbt("Logger", "LOG_ERROR", err_msg)
+                self.register_cbt("Logger", "LOG_WARNING", err_msg)
         else:
             warn_msg = "Don't have enough data to send. Not forwarding" \
                     " anything to the collector service. Data:" \

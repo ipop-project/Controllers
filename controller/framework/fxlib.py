@@ -26,13 +26,13 @@ IPOP_VER_REL = "{0}.{1}.{2}".format(IPOP_VER_MJR, IPOP_VER_MNR, IPOP_VER_REV)
 
 # set default config values
 MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
-                "Signal", "LinkManager", "Topology", "Icc", "Broadcaster",
-                "UsageReport"]
+                "Signal", "LinkManager", "Topology", "UsageReport"]
 CONFIG = {
     "CFx": {
         "NodeId": "",  # Single unique node Id for all overlays
         "IpopVersion": IPOP_VER_REL,
-        "Model": "Default"
+        "Model": "Default",
+        "RequestTimeout": 29
     },
     "Logger": {
         "Enabled": True,
@@ -47,7 +47,7 @@ CONFIG = {
     },
     "OverlayVisualizer": {
         "Enabled": False,
-        "TimerInterval": 15,                # Timer thread interval
+        "TimerInterval": 30,                # Timer thread interval
         "WebServiceAddress": ":5000",       # Visualizer webservice URL
         "NodeName": "",                     # Node Name as seen from the UI
         "Dependencies": ["Logger"]
@@ -67,7 +67,7 @@ CONFIG = {
     "Signal": {
         "Enabled": True,
         "TimerInterval": 30,
-        "CacheExpiry": 120,         # Min duration an entry remains in the JID cache in seconds
+        "CacheExpiry": 30,         # Min duration an entry remains in the JID cache in seconds
         "Dependencies": ["Logger"]
     },
     "LinkManager": {
@@ -79,15 +79,6 @@ CONFIG = {
         "Enabled": True,
         "TimerInterval": 30,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
-    },
-    "Icc": {
-        "Enabled": True,
-        "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
-    },
-    "Broadcaster": {
-        "Enabled": False,
-        "TimerInterval": 30,
-        "Dependencies": ["Logger", "Topology", "Icc"]
     },
     "UsageReport": {
         "Enabled": True,

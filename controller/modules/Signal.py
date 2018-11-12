@@ -46,54 +46,51 @@ class IpopSignal(ElementBase):
 
 class JidCache:
     def __init__(self, cmod, expiry):
-        self.lck = threading.Lock()
-        self.cache = {}
-        self.sig = cmod
-        self.expiry = expiry
-
-    #def _log(self, msg, severity="LOG_INFO"):
-    #    self.cm_mod._log(msg, severity)
+        self._lck = threading.Lock()
+        self._cache = {}
+        self._sig = cmod
+        self._expiry = expiry
 
     def add_entry(self, node_id, jid):
         ts = time.time()
-        with self.lck:
-            self.cache[node_id] = (jid, ts)
+        with self._lck:
+            self._cache[node_id] = (jid, ts)
         return ts
 
     def scavenge(self,):
-        with self.lck:
+        with self._lck:
             curr_time = time.time()
             keys_to_be_deleted = \
-                [key for key, value in self.cache.items() if curr_time - value[1] >= 120]
+                [key for key, value in self._cache.items() if curr_time - value[1] >= self._expiry]
             for key in keys_to_be_deleted:
-                del self.cache[key]
-                self.sig.sig_log("Deleted entry from JID cache {0}".format(key))
+                del self._cache[key]
 
     def lookup(self, node_id):
         jid = None
-        with self.lck:
-            ent = self.cache.get(node_id)
-            if ent:
-                jid = ent[0]
+        with self._lck:
+            entry = self._cache.get(node_id)
+            if entry:
+                jid = entry[0]
         return jid
 
 
 class XmppTransport(sleekxmpp.ClientXMPP):
     def __init__(self, jid, password, sasl_mech):
         sleekxmpp.ClientXMPP.__init__(self, jid, password, sasl_mech=sasl_mech)
-        self.overlay_id = None
-        self.overlay_descr = None
+        self._overlay_id = None
+        # self.overlay_descr = None
         self._sig = None
-        self.node_id = None
-        self.presence_publisher = None
-        self.jid_cache = None
-        self.cbts = None
+        self._node_id = None
+        self._presence_publisher = None
+        self._jid_cache = None
+        self._outgoing_rem_acts = None
         self._cbt_to_action_tag = {}  # maps remote action tags to cbt tags
-        self.host = None
-        self.port = None
+        self._host = None
+        self._port = None
 
     @staticmethod
-    def factory(overlay_id, overlay_descr, cm_mod, presence_publisher, jid_cache, cbts):
+    def factory(overlay_id, overlay_descr, cm_mod, presence_publisher, jid_cache,
+                outgoing_rem_acts):
         try:
             keyring_installed = False
             import keyring
@@ -131,18 +128,19 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                         cm_mod.sig_log("Failed to store password in keyring. {0}".format(str(err)),
                                        "LOG_ERROR")
             transport = XmppTransport(user, pswd, sasl_mech="PLAIN")
+            transport.use_tls = True
             del pswd
         else:
             raise RuntimeError("Invalid authentication method specified in configuration: {0}"
                                .format(auth_method))
-        transport.host = host
-        transport.port = port
-        transport.overlay_id = overlay_id
+        transport._host = host
+        transport._port = port
+        transport._overlay_id = overlay_id
         transport._sig = cm_mod
-        transport.node_id = cm_mod._cm_config["NodeId"]
-        transport.presence_publisher = presence_publisher
-        transport.jid_cache = jid_cache
-        transport.cbts = cbts
+        transport._node_id = cm_mod._cm_config["NodeId"]
+        transport._presence_publisher = presence_publisher
+        transport._jid_cache = jid_cache
+        transport._outgoing_rem_acts = outgoing_rem_acts
         # Server SSL Authenication required by default
         if overlay_descr.get("AcceptUntrustedServer", False) is True:
             transport.register_plugin("feature_mechanisms", pconfig={"unencrypted_plain": True})
@@ -153,12 +151,9 @@ class XmppTransport(sleekxmpp.ClientXMPP):
         transport.add_event_handler("session_start", transport.start_event_handler)
         return transport
 
-    #def _log(self, msg, severity="LOG_INFO"):
-    #    self.cm_mod.sig_log(msg, severity)
-
     def start_event_handler(self, event):
         """Registers custom event handlers at the start of XMPP session"""
-        self._sig.sig_log("XMPP Signalling started for overlay: {0}".format(self.overlay_id))
+        self._sig.sig_log("XMPP Signalling started for overlay: {0}".format(self._overlay_id))
         try:
             # Notification of peer signon
             self.add_event_handler("presence_available",
@@ -170,7 +165,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             # Get the friends list for the user
             self.get_roster()
             # Send sign-on presence
-            self.send_presence(pstatus="ident#" + self.node_id)
+            self.send_presence(pstatus="ident#" + self._node_id)
         except Exception as err:
             self._sig.sig_log("XmppTransport: Exception:{0} Event:{1}"
                               .format(err, event), "LOG_ERROR")
@@ -185,20 +180,27 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             presence_receiver = str(presence_receiver_jid.user) + "@" \
                 + str(presence_receiver_jid.domain)
             status = presence["status"]
+
+            self._sig.sig_log("Presence:{0} BOUND_JID:{1}"
+                              .format(presence, self.boundjid))
+
+
             if(presence_receiver == self.boundjid.bare and presence_sender != self.boundjid.full):
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
                     if pstatus == "ident":
+                        if peer_id == self._sig._cm_config["NodeId"]:
+                            return
                         # a notification of a peers node id to jid mapping
-                        pts = self.jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
-                        self.presence_publisher.post_update(
-                            dict(PeerId=peer_id, OverlayId=self.overlay_id, PresenceTimestamp=pts))
+                        pts = self._jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
+                        self._presence_publisher.post_update(
+                            dict(PeerId=peer_id, OverlayId=self._overlay_id, PresenceTimestamp=pts))
                         self._sig.sig_log("Presence has resolved Peer@Overlay {0}@{1} -> {2}"
-                                          .format(peer_id[:7], self.overlay_id, presence_sender))
+                                          .format(peer_id[:7], self._overlay_id, presence_sender))
                     elif pstatus == "uid?":
                         # a request for our node id
-                        if self.node_id == peer_id:
-                            payload = self.boundjid.full + "#" + self.node_id
+                        if self._node_id == peer_id:
+                            payload = self.boundjid.full + "#" + self._node_id
                             self.send_msg(presence_sender, "uid!", payload)
                     else:
                         self._sig.sig_log("Unrecognized PSTATUS: {0}".format(pstatus),
@@ -214,6 +216,8 @@ class XmppTransport(sleekxmpp.ClientXMPP):
         """
         try:
             sender_jid = msg["from"]
+            self._sig.sig_log("sender_jid:{0} self.boundjid.full:{1}"
+                              .format(sender_jid, self.boundjid.full))
             # discard the message if it was initiated by this node
             if sender_jid == self.boundjid.full:
                 return
@@ -223,55 +227,18 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             if msg_type == "uid!":
                 match_jid, matched_uid = msg_payload.split("#")
                 # put the learned JID in cache
-                self.jid_cache.add_entry(matched_uid, match_jid)
+                self._jid_cache.add_entry(matched_uid, match_jid)
                 # send the remote actions that are waiting on JID refresh
-                cbtq = self.cbts[matched_uid]
-                while not cbtq.empty():
-                    slot_load = cbtq.get()
-                    msg_type, msg_data = slot_load[0], slot_load[1]
+                rm_que = self._outgoing_rem_acts.get(matched_uid, Queue())
+                while not rm_que.empty():
+                    entry = rm_que.get()
+                    msg_type, msg_data = entry[0], entry[1]
                     self.send_msg(match_jid, msg_type, json.dumps(msg_data))
                     self._sig.sig_log("Sent remote action: {0}".format(msg_payload))
                 return
-            elif msg_type == "invk":
-                # invoke the rcvd remote action locally using a CBT
+            elif msg_type == "invk" or msg_type == "cmpt":
                 rem_act = json.loads(msg_payload)
-                # if the intended recipient is offline the XMPP server broadcasts the msg to all
-                # matching ejabber ids. Verify recipient using Node ID and discard if mismatch
-                if rem_act["RecipientId"] != self.node_id:
-                    self._sig.sig_log("A mis-delivered remote action was discarded: {0}"
-                                      .format(msg_payload))
-                    return
-
-                self._sig.sig_log("Rcvd remote action: {0}".format(msg_payload))
-                if not self.overlay_id == rem_act["OverlayId"]:
-                    rem_act["Data"] = "The specified Overlay Id conflicts. Either peer may be " \
-                                      "incorrectly configured."
-                    rem_act["Status"] = False
-                    payload = json.dumps(rem_act)
-                    self.send_msg(sender_jid, "cmpt", payload)
-                    self._sig.sig_log("The Overlay ID in the rcvd remote action conflicts with the "
-                                      "local configuration. It was returned to its sender: {}"
-                                      .format(payload))
-                else:
-                    n_cbt = self._sig.create_cbt(self._sig._module_name, rem_act["RecipientCM"],
-                                                 rem_act["Action"], rem_act["Params"])
-                    # store the remote action for completion
-                    self._sig._remote_acts[n_cbt.tag] = rem_act
-                    self._sig.submit_cbt(n_cbt)
-                    return
-            elif msg_type == "cmpt":
-                rem_act = json.loads(msg_payload)
-                # Ensure that this node actually initated the remote action
-                if rem_act["InitiatorId"] != self.node_id:
-                    self._sig.sig_log("A mis-delivered completed remote action was discarded: {0}"
-                                      .format(msg_payload), "LOG_WARNING")
-                    return
-                self._sig.sig_log("Rcvd completed remote act: {0}".format(msg_payload))
-                tag = rem_act["ActionTag"]
-                cbt_status = rem_act["Status"]
-                pending_cbt = self._sig._cfx_handle._pending_cbts[tag]
-                pending_cbt.set_response(data=rem_act, status=cbt_status)
-                self._sig.complete_cbt(pending_cbt)
+                self._sig.handle_remote_action(self._overlay_id, rem_act, msg_type)
             else:
                 self._sig.sig_log("Invalid message type received {0}".format(str(msg)),
                                   "LOG_WARNING")
@@ -291,10 +258,10 @@ class XmppTransport(sleekxmpp.ClientXMPP):
 
     def connect_to_server(self,):
         try:
-            if self.connect(address=(self.host, self.port)):
+            if self.connect(address=(self._host, self._port)):
                 self.process(block=False)
                 self._sig.sig_log("Starting connection to XMPP server {0}:{1}"
-                                  .format(self.host, self.port))
+                                  .format(self._host, self._port))
         except Exception as err:
             self._sig.sig_log("Failed to initialize XMPP transport instanace {}".format(str(err)),
                               "LOG_ERROR")
@@ -309,42 +276,83 @@ class Signal(ControllerModule):
         self._presence_publisher = None
         self._circles = {}
         self._remote_acts = {}
+        self._lock = threading.Lock()
+        self.request_timeout = self._cm_config["TimerInterval"] - 1
+        self._timer_loop_cnt = 1
 
-    #def _log(self, msg, severity="LOG_INFO"):
-    #    self.register_cbt("Logger", severity, msg)
-
-    def create_transport_instance(self, overlay_id, overlay_descr, jid_cache, jid_refresh_q):
-        xport = XmppTransport.factory(overlay_id, overlay_descr, self,
-                                      self._presence_publisher, jid_cache, jid_refresh_q)
+    def _create_transport_instance(self, overlay_id, overlay_descr, jid_cache, outgoing_rem_acts):
+        xport = XmppTransport.factory(overlay_id, overlay_descr, self, self._presence_publisher,
+                                      jid_cache, outgoing_rem_acts)
         xport.connect_to_server()
         return xport
 
     def initialize(self):
-
         self._presence_publisher = self._cfx_handle.publish_subscription("SIG_PEER_PRESENCE_NOTIFY")
         for overlay_id in self._cm_config["Overlays"]:
             overlay_descr = self._cm_config["Overlays"][overlay_id]
             self._circles[overlay_id] = {}
             self._circles[overlay_id]["JidCache"] = JidCache(self, self._cm_config["CacheExpiry"])
-            self._circles[overlay_id]["JidRefreshQ"] = {}
+            self._circles[overlay_id]["OutgoingRemoteActs"] = {}
             self._circles[overlay_id]["Transport"] = \
-                self.create_transport_instance(overlay_id, overlay_descr,
-                                               self._circles[overlay_id]["JidCache"],
-                                               self._circles[overlay_id]["JidRefreshQ"])
+                self._create_transport_instance(overlay_id, overlay_descr,
+                                                self._circles[overlay_id]["JidCache"],
+                                                self._circles[overlay_id]["OutgoingRemoteActs"])
         self.sig_log("Module loaded", "LOG_INFO")
 
-    def query_reporting_data(self, cbt):
+    def req_handler_query_reporting_data(self, cbt):
         rpt = {}
         for overlay_id in self._cm_config["Overlays"]:
             rpt[overlay_id] = {
-                "xmpp_host": self._circles[overlay_id]["Transport"].host,
+                "xmpp_host": self._circles[overlay_id]["Transport"]._host,
                 "xmpp_username": self._circles[overlay_id]["Transport"].boundjid.full
             }
         cbt.set_response(rpt, True)
         self.complete_cbt(cbt)
 
-    def initiate_remote_action(self, cbt):
+    def handle_remote_action(self, overlay_id, rem_act, act_type):
+        if not overlay_id == rem_act["OverlayId"]:
+            self.sig_log("The Overlay ID in the rcvd remote action conflicts with the local "
+                         "configuration. It was discarded: {}".format(rem_act), "LOG_WARNING")
+            return
+        # self.sig_log("Rcvd completed remote act: {0}".format(msg_payload))
+        if act_type == "invk":
+            self.invoke_remote_action_on_target(rem_act)
+        elif act_type == "cmpt":
+            self.complete_remote_action_on_initiator(rem_act)
+
+    def invoke_remote_action_on_target(self, rem_act):
+        """ Convert the received remote action into a CBT and invoke it locally """
+        # if the intended recipient is offline the XMPP server broadcasts the msg to all
+        # matching ejabber ids. Verify recipient using Node ID and discard if mismatch
+        if rem_act["RecipientId"] != self._cm_config["NodeId"]:
+            self.sig_log("A mis-delivered remote action was discarded: {0}"
+                         .format(rem_act), "LOG_WARNING")
+            return
+        n_cbt = self.create_cbt(self._module_name, rem_act["RecipientCM"],
+                                rem_act["Action"], rem_act["Params"])
+        # store the remote action for completion
+        self._remote_acts[n_cbt.tag] = rem_act
+        self.submit_cbt(n_cbt)
+        return
+
+    def complete_remote_action_on_initiator(self, rem_act):
+        """ Convert the received remote action into a CBT and complete it locally """
+        # if the intended recipient is offline the XMPP server broadcasts the msg to all
+        # matching ejabber ids. Verify recipient using Node ID and discard if mismatch
+        if rem_act["InitiatorId"] != self._cm_config["NodeId"]:
+            self.sig_log("A mis-delivered remote action was discarded: {0}"
+                         .format(rem_act), "LOG_WARNING")
+            return
+        tag = rem_act["ActionTag"]
+        cbt_status = rem_act["Status"]
+        pending_cbt = self._cfx_handle._pending_cbts.get(tag, None)
+        if pending_cbt:
+            pending_cbt.set_response(data=rem_act, status=cbt_status)
+            self.complete_cbt(pending_cbt)
+
+    def req_handler_initiate_remote_action(self, cbt):
         """
+        Create a new remote action from the received CBT and transmit it to the recepient
         remote_act = dict(OverlayId="",
                           RecipientId="",
                           RecipientCM="",
@@ -367,68 +375,68 @@ class Signal(ControllerModule):
         rem_act["InitiatorId"] = self._cm_config["NodeId"]
         rem_act["InitiatorCM"] = cbt.request.initiator
         rem_act["ActionTag"] = cbt.tag
-        xmppobj = self._circles[overlay_id]["Transport"]
-        jid_cache = self._circles[overlay_id]["JidCache"]
-        peer_jid = jid_cache.lookup(peer_id)
-        if peer_jid is not None:
-            msg_type = "invk"
-            payload = json.dumps(rem_act)
-            xmppobj.send_msg(str(peer_jid), msg_type, payload)
-            self.sig_log("Sent remote act to peer ID: {0}\n Payload: {1}"
-                         .format(peer_id, payload))
-        else:
-            CBTQ = self._circles[overlay_id]["JidRefreshQ"]
-            if peer_id not in CBTQ.keys():
-                CBTQ[peer_id] = Queue(maxsize=0)
-            CBTQ[peer_id].put(("invk", rem_act))
-            xmppobj.send_presence(pstatus="uid?#" + peer_id)
+        self.transmit_remote_act(rem_act, peer_id, "invk")
 
-    def complete_remote_action(self, cbt):
-        rem_act = self._remote_acts[cbt.tag]
-        olid = rem_act["OverlayId"]
+    def resp_handler_remote_action(self, cbt):
+        """ Convert the response CBT to a remote action and return to the initiator """
+        rem_act = self._remote_acts.pop(cbt.tag)
         peer_id = rem_act["InitiatorId"]
         rem_act["Data"] = cbt.response.data
         rem_act["Status"] = cbt.response.status
-        target_jid = self._circles[olid]["JidCache"].lookup(peer_id)
-        xmppobj = self._circles[olid]["Transport"]
-        if target_jid is None:
-            cbt_q = self._circles[olid]["JidRefreshQ"]
-            if peer_id not in cbt_q.keys():
-                cbt_q[peer_id] = Queue(maxsize=0)
-            cbt_q[peer_id].put(("cmpt", rem_act))
-            xmppobj.send_presence(pstatus="uid?#" + peer_id)
-        else:
-            payload = json.dumps(rem_act)
-            xmppobj.send_msg(str(target_jid), "cmpt", payload)
-            self.sig_log("Sent completed remote action: {}".format(payload))
-
+        self.transmit_remote_act(rem_act, peer_id, "cmpt")
         self.free_cbt(cbt)
 
+    def transmit_remote_act(self, rem_act, peer_id, act_type):
+        """
+        Transmit rem act to peer, if Peer JID is not cached queue the rem act and attempt to
+        resolve the peer's JID
+        """
+        olid = rem_act["OverlayId"]
+        target_jid = self._circles[olid]["JidCache"].lookup(peer_id)
+        transport = self._circles[olid]["Transport"]
+        if target_jid is None:
+            out_rem_acts = self._circles[olid]["OutgoingRemoteActs"]
+            if peer_id not in out_rem_acts.keys():
+                out_rem_acts[peer_id] = Queue(maxsize=0)
+            out_rem_acts[peer_id].put((act_type, rem_act, time.time()))
+            transport.send_presence(pstatus="uid?#" + peer_id)
+        else:
+            payload = json.dumps(rem_act)
+            transport.send_msg(str(target_jid), act_type, payload)
+            self.sig_log("Sent remote act to peer ID: {0}\n Payload: {1}"
+                         .format(peer_id, payload))
+
     def process_cbt(self, cbt):
-        if cbt.op_type == "Request":
-            if cbt.request.action == "SIG_REMOTE_ACTION":
-                self.initiate_remote_action(cbt)
-            elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
-                self.query_reporting_data(cbt)
-            else:
-                self.req_handler_default(cbt)
-        elif cbt.op_type == "Response":
-            if cbt.tag in self._remote_acts:
-                self.complete_remote_action(cbt)
-            else:
-                parent_cbt = self.get_parent_cbt(cbt)
-                cbt_data = cbt.response.data
-                cbt_status = cbt.response.status
-                self.free_cbt(cbt)
-                if (parent_cbt is not None and parent_cbt.child_count == 1):
-                    parent_cbt.set_response(cbt_data, cbt_status)
-                    self.complete_cbt(parent_cbt)
+        with self._lock:
+            if cbt.op_type == "Request":
+                if cbt.request.action == "SIG_REMOTE_ACTION":
+                    self.req_handler_initiate_remote_action(cbt)
+                elif cbt.request.action == "SIG_QUERY_REPORTING_DATA":
+                    self.req_handler_query_reporting_data(cbt)
+                else:
+                    self.req_handler_default(cbt)
+            elif cbt.op_type == "Response":
+                if cbt.tag in self._remote_acts:
+                    self.resp_handler_remote_action(cbt)
+                else:
+                    parent_cbt = self.get_parent_cbt(cbt)
+                    cbt_data = cbt.response.data
+                    cbt_status = cbt.response.status
+                    self.free_cbt(cbt)
+                    if (parent_cbt is not None and parent_cbt.child_count == 1):
+                        parent_cbt.set_response(cbt_data, cbt_status)
+                        self.complete_cbt(parent_cbt)
 
     def timer_method(self):
-        for overlay_id in self._circles:
-            self._circles[overlay_id]["JidCache"].scavenge()
-            self._circles[overlay_id]["Transport"].send_presence(pstatus="ident#" +
-                                                                 self._cm_config["NodeId"])
+        with self._lock:
+            for overlay_id in self._circles:
+                self._circles[overlay_id]["Transport"].send_presence(pstatus="ident#" +
+                                                                     self._cm_config["NodeId"])
+                if self._timer_loop_cnt % 10 == 0:
+                    self._circles[overlay_id]["JidCache"].scavenge()
+                    self.scavenge_jid_resolution_queue(self._circles[overlay_id]
+                                                       ["OutgoingRemoteActs"])
+            self.scavenge_pending_cbts()
 
     def terminate(self):
         for overlay_id in self._circles:
@@ -436,3 +444,36 @@ class Signal(ControllerModule):
 
     def sig_log(self, msg, level="LOG_DEBUG"):
         self.register_cbt("Logger", level, msg)
+
+    def scavenge_pending_cbts(self):
+        scavenge_list = []
+        for item in self._cfx_handle._pending_cbts.items():
+            if time.time() - item[1].time_submit >= self.request_timeout:
+                scavenge_list.append(item[0])
+        for tag in scavenge_list:
+            pending_cbt = self._cfx_handle._pending_cbts.pop(tag, None)
+            if pending_cbt:
+                pending_cbt.set_response("The request has expired", False)
+                self.complete_cbt(pending_cbt)
+
+    def scavenge_jid_resolution_queue(self, outgoing_rem_acts):
+        # clear out the JID Refresh queue for a peer if the oldest entry age exceeds the limit
+        peer_ids = []
+        for peer_id in outgoing_rem_acts:
+            peer_qlen = outgoing_rem_acts[peer_id].qsize()
+            self.sig_log("SCAVENGE - Peer {0} queue len {1}".format(peer_id, peer_qlen))
+            remact_descr = outgoing_rem_acts[peer_id].queue[0] # peek at the first/oldest entry
+            if time.time() - remact_descr[2] < self.request_timeout:
+                peer_ids.append(peer_id)
+                self.sig_log("Scavenge remote acts selected  for removal peer id {0} qlength {1}"
+                             .format(peer_id, peer_qlen))
+        for peer_id in peer_ids:
+            rem_act_que = outgoing_rem_acts.pop(peer_id, Queue())
+            while not rem_act_que.empty():
+                entry = rem_act_que.get()
+                if entry[0] == "invk":
+                    tag = entry[1]["ActionTag"]
+                    pending_cbt = self._cfx_handle._pending_cbts.get(tag, None)
+                    if pending_cbt:
+                        pending_cbt.set_response("The specified recipient was not found", False)
+                        self.complete_cbt(pending_cbt)

@@ -52,8 +52,8 @@ class Logger(ControllerModule):
             filepath = self._cm_config.get("Directory", "./")
             fqname = filepath + \
                 self._cm_config.get("CtrlLogFileName", "ctrl.log")
-            if not os.path.isdir(filepath):
-                os.mkdir(filepath)
+            if not os.path.exists(filepath):
+                os.makedirs(filepath, exist_ok=True)
             if os.path.isfile(fqname):
                 os.remove(fqname)
             self._logger = logging.getLogger("IPOP Rotating Log")
@@ -85,8 +85,8 @@ class Logger(ControllerModule):
             filepath = self._cm_config.get("Directory", "./")
             fqname = filepath + \
                 self._cm_config.get("CtrlLogFileName", "ctrl.log")
-            if not os.path.isdir(filepath):
-                os.mkdir(filepath)
+            if not os.path.exists(filepath):
+                os.makedirs(filepath, exist_ok=True)
             if os.path.isfile(fqname):
                 os.remove(fqname)
 
