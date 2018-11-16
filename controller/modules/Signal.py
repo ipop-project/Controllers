@@ -141,12 +141,6 @@ class XmppTransport(sleekxmpp.ClientXMPP):
         transport._presence_publisher = presence_publisher
         transport._jid_cache = jid_cache
         transport._outgoing_rem_acts = outgoing_rem_acts
-        # Server SSL Authenication required by default
-        if overlay_descr.get("AcceptUntrustedServer", False) is True:
-            transport.register_plugin("feature_mechanisms", pconfig={"unencrypted_plain": True})
-            transport.use_tls = False
-        else:
-            transport.ca_certs = overlay_descr["TrustStore"]
         # event handler for session start and roster update
         transport.add_event_handler("session_start", transport.start_event_handler)
         return transport
