@@ -304,10 +304,10 @@ def getchecksum(hexstr):
 
 def runshell(cmd):
     """ Run a shell command. if fails, raise an exception. """
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if p.returncode != 0:
         err = "Subprocess: \"{0}\" failed, std err = {1}".format(str(cmd), str(p.stderr))
-        raise RuntimeError(exception)
+        raise RuntimeError(err)
     return p
 
 def runshell_su(cmd):
