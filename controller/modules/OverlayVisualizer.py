@@ -60,9 +60,7 @@ class OverlayVisualizer(ControllerModule):
             if cbt.request.action == "VIS_DATA_REQ":
                 msg = cbt.response.data
 
-                if msg:
-                    # self._vis_ds belongs to the critical section as
-                    # it may be updated in timer_method concurrently
+                if cbt.response.status and msg:
                     with self._vis_ds_lock:
                         for mod_name in msg:
                             for ovrl_id in msg[mod_name]:

@@ -78,7 +78,7 @@ class OvsBridge(BridgeABC):
             raise RuntimeError("openvswitch-switch was not found" if not OvsBridge.brctl else
                                "iproute2 was not found")
         ipoplib.runshell([OvsBridge.brctl,
-                             "--may-exist", "add-br", self.name])
+                          "--may-exist", "add-br", self.name])
 
         # try:
         #    p = ipoplib.runshell([OvsBridge.brctl, "set", "int",
@@ -112,9 +112,9 @@ class OvsBridge(BridgeABC):
                                       sdn_ctrl_cfg["Port"]])
 
             ipoplib.runshell([OvsBridge.brctl,
-                                 "set-controller",
-                                 self.name,
-                                 ctrl_conn_str])
+                              "set-controller",
+                              self.name,
+                              ctrl_conn_str])
 
     def del_sdn_ctrl(self):
         ipoplib.runshell([OvsBridge.brctl, "del-controller", self.name])
@@ -123,30 +123,30 @@ class OvsBridge(BridgeABC):
         self.del_sdn_ctrl()
 
         ipoplib.runshell([OvsBridge.brctl,
-                             "--if-exists", "del-br", self.name])
+                          "--if-exists", "del-br", self.name])
 
     def add_port(self, port_name):
         ipoplib.runshell([OvsBridge.iptool, "link", "set", "dev", port_name, "mtu",
-                             str(self.mtu)])
+                          str(self.mtu)])
         ipoplib.runshell([OvsBridge.brctl,
-                             "--may-exist", "add-port", self.name, port_name])
+                          "--may-exist", "add-port", self.name, port_name])
         self.ports.add(port_name)
 
     def del_port(self, port_name):
         ipoplib.runshell([OvsBridge.brctl,
-                             "--if-exists", "del-port", self.name, port_name])
+                          "--if-exists", "del-port", self.name, port_name])
         if port_name in self.ports:
             self.ports.remove(port_name)
 
     def stp(self, enable):
         if enable:
             ipoplib.runshell([OvsBridge.brctl,
-                                 "set", "bridge", self.name,
-                                 "stp_enable=true"])
+                              "set", "bridge", self.name,
+                              "stp_enable=true"])
         else:
             ipoplib.runshell([OvsBridge.brctl,
-                                 "set", "bridge", self.name,
-                                 "stp_enable=false"])
+                              "set", "bridge", self.name,
+                              "stp_enable=false"])
 
 
 class LinuxBridge(BridgeABC):
@@ -205,17 +205,17 @@ class LinuxBridge(BridgeABC):
     def set_bridge_prio(self, prio):
         """ Set bridge priority value. """
         ipoplib.runshell([LinuxBridge.brctl,
-                             "setbridgeprio", self.name, str(prio)])
+                          "setbridgeprio", self.name, str(prio)])
 
     def set_path_cost(self, port, cost):
         """ Set port path cost value for STP protocol. """
         ipoplib.runshell([LinuxBridge.brctl,
-                             "setpathcost", self.name, port, str(cost)])
+                          "setpathcost", self.name, port, str(cost)])
 
     def set_port_prio(self, port, prio):
         """ Set port priority value. """
         ipoplib.runshell([LinuxBridge.brctl,
-                             "setportprio", self.name, port, str(prio)])
+                          "setportprio", self.name, port, str(prio)])
 
 
 class BridgeController(ControllerModule):
@@ -335,15 +335,20 @@ class BridgeController(ControllerModule):
             self.register_cbt("Logger", "LOG_WARNING", str(err))
 
     def req_handler_vis_data(self, cbt):
-        br_data = {}
-        try:
-            for olid in self._cm_config["Overlays"]:
-                br_data[olid] = self._cm_config["Overlays"][olid]
-
-            cbt.set_response({"BridgeController": br_data}, True if br_data else False)
-            self.complete_cbt(cbt)
-        except KeyError:
-            cbt.set_response(data=None, status=False)
-            self.complete_cbt(cbt)
-            self.register_cbt("Logger", "LOG_WARNING", "Bridge visualization data unavailable {0}".
-                              format(cbt.response.data))
+        br_data = dict()
+        is_data_available = False
+        for olid in self._cm_config["Overlays"]:
+            is_data_available = True
+            br_data[olid] = {}
+            br_data[olid]["Type"] = self._cm_config["Overlays"][olid]["Type"]
+            br_data[olid]["BridgeName"] = self._cm_config["Overlays"][olid]["BridgeName"]
+            if "IP4" in self._cm_config["Overlays"][olid]:
+                br_data[olid]["IP4"] = self._cm_config["Overlays"][olid]["IP4"]
+            if "PrefixLen" in self._cm_config["Overlays"][olid]:
+                br_data[olid]["PrefixLen"] = self._cm_config["Overlays"][olid]["PrefixLen"]
+            if "MTU" in self._cm_config["Overlays"][olid]:
+                br_data[olid]["MTU"] = self._cm_config["Overlays"][olid]["MTU"]
+            br_data[olid]["AutoDelete"] = self._cm_config["Overlays"][olid].get("AutoDelete",
+                                                                                False)
+        cbt.set_response({"BridgeController": br_data}, is_data_available)
+        self.complete_cbt(cbt)
