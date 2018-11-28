@@ -20,6 +20,7 @@
 # THE SOFTWARE.
 
 
+import json
 import socket
 import threading
 
@@ -30,6 +31,8 @@ class SDNInterface(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(SDNInterface, self).__init__(cfx_handle, module_config,
                                            module_name)
+        self.nid = self._cm_config["NodeId"]
+
         self.ip4 = self._cm_config["IP4"]
         self._sdn_comm_port = self._cm_config["SDNCommPort"]
 
@@ -72,20 +75,24 @@ class SDNInterface(ControllerModule):
 
         keep_serving_client = True
         while self._keep_running_server.is_set() and keep_serving_client:
-            # We don't care what the SDN server sends us. It can make only one
-            # request to us: "send me a list of your neighbours".
-            _data = cs.recv()
+            req = cs.recv()
+            print("Received request {} from SDN controller".format(req))
 
             # Triggered when client breaks the TCP connection
-            if not _data:
+            if not req:
                 keep_serving_client = False
-
-            # TODO Code to request updated neighbours from TOP via a CBT
-            # Note that because the CBT's response is received asynchronously,
-            # we must maintain an association between the request and the
-            # address of the host on whose behalf we are making this request
-            # The response to the client is sent directly from the response
-            # handler of this CBT
+            else:
+                req_data = json.loads(req)
+                if req_data["RequestType"] == "NID":
+                    cs.sendall(self.nid)
+                elif req_data["RequestType"] == "Neighbours":
+                    # TODO Code to request updated neighbours from TOP via a CBT
+                    # Note that because the CBT's response is received asynchronously,
+                    # we must maintain an association between the request and the
+                    # address of the host on whose behalf we are making this request
+                    # The response to the client is sent directly from the response
+                    # handler of this CBT
+                    pass
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
@@ -94,7 +101,8 @@ class SDNInterface(ControllerModule):
             client_addr = cbt_data["ClientAddress"]
             cs = self._client_sockets[client_addr]
             with cs:
-                cs.sendall(cbt_data["NeighboursList"])
+                neighbours = cbt_data["NeighboursList"]
+                cs.sendall(json.dumps({"Neighbours": neighbours}))
 
             self.free_cbt(cbt)
 
