@@ -84,7 +84,7 @@ class SDNInterface(ControllerModule):
             else:
                 req_data = json.loads(req)
                 if req_data["RequestType"] == "NID":
-                    cs.sendall(self.nid)
+                    cs.sendall(json.dumps({"NID": self.nid}))
                 elif req_data["RequestType"] == "Neighbours":
                     # TODO Code to request updated neighbours from TOP via a CBT
                     # Note that because the CBT's response is received asynchronously,
@@ -92,7 +92,7 @@ class SDNInterface(ControllerModule):
                     # address of the host on whose behalf we are making this request
                     # The response to the client is sent directly from the response
                     # handler of this CBT
-                    pass
+                    cs.sendall(json.dumps({"Neighbours": ["a", "b", "c"]}))
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
