@@ -22,6 +22,7 @@
 
 import json
 import socket
+import select
 import threading
 
 from controller.framework.ControllerModule import ControllerModule
@@ -46,11 +47,16 @@ class SDNInterface(ControllerModule):
     def initialize(self):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.ip4, self._sdn_comm_port))
+        server_socket.setblocking(0)
         server_socket.listen()
         self._server_socket = server_socket
+        self._rsocks = [self._server_socket]
+
         self._server_thread = threading.Thread(
             target=self._adj_list_server_loop)
+        self._server_thread.setDaemon(True)
         self._server_thread.start()
+        self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
     def _adj_list_server_loop(self):
         """
@@ -58,16 +64,46 @@ class SDNInterface(ControllerModule):
         """
 
         while self._keep_running_server:
-            cs, addr = self._server_socket.accept()
-            cs.setblocking(False)
-            self._client_sockets[addr] = cs
+            rsocks, _, _ = select.select(self._rsocks, [], [], 2)
+            for s in rsocks:
+                if s == self._server_socket:
+                    cs, addr = self._server_socket.accept()
+                    cs.setblocking(0)
+                    self._rsocks.append(cs)
+                    self._client_sockets[addr] = cs
 
-            ct = threading.Thread(
-                target=self._client_req_loop, args=(addr,))
-            self._client_threads[addr] = ct
-            ct.start()
+                    # ct = threading.Thread(
+                    # target=self._client_req_loop, args=(addr,))
+                    # ct.setDaemon(True)
+                    # ct.setblocking(0)
+                    # self._client_threads[addr] = ct
+                    # ct.start()
+                else:
+                    self._handle_client_req(cs)
 
-    def _client_req_loop(self, client_addr):
+    def _handle_client_req(self, cs):
+        req = cs.recv(4096)
+        print("Received request {} from SDN controller".format(req))
+
+        # Triggered when client breaks the TCP connection
+        if not req:
+            self._rsocks.remove(cs)
+            cs.close()
+        else:
+            req_data = json.loads(req.decode("utf-8"))
+            if req_data["RequestType"] == "NID":
+                cs.sendall(json.dumps({"NID": self.nid}).encode("utf-8"))
+            elif req_data["RequestType"] == "Neighbours":
+                # TODO Code to request updated neighbours from TOP via a CBT
+                # Note that because the CBT's response is received asynchronously,
+                # we must maintain an association between the request and the
+                # address of the host on whose behalf we are making this request
+                # The response to the client is sent directly from the response
+                # handler of this CBT
+                cs.sendall(json.dumps(
+                    {"Neighbours": ["a", "b", "c"]}).encode("utf-8"))
+
+    def _handle_client_req__(self, client_addr):
         """
         The SDN controller is our client.
 
@@ -105,7 +141,8 @@ class SDNInterface(ControllerModule):
             cs = self._client_sockets[client_addr]
             with cs:
                 neighbours = cbt_data["NeighboursList"]
-                cs.sendall(json.dumps({"Neighbours": neighbours}))
+                cs.sendall(
+                    json.dumps({"Neighbours": neighbours}).encode("utf-8"))
 
             self.free_cbt(cbt)
 
