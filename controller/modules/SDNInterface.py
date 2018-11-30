@@ -71,13 +71,6 @@ class SDNInterface(ControllerModule):
                     cs.setblocking(0)
                     self._rsocks.append(cs)
                     self._client_sockets[addr] = cs
-
-                    # ct = threading.Thread(
-                    # target=self._client_req_loop, args=(addr,))
-                    # ct.setDaemon(True)
-                    # ct.setblocking(0)
-                    # self._client_threads[addr] = ct
-                    # ct.start()
                 else:
                     self._handle_client_req(cs)
 
@@ -93,6 +86,7 @@ class SDNInterface(ControllerModule):
             req_data = json.loads(req.decode("utf-8"))
             if req_data["RequestType"] == "NID":
                 cs.sendall(json.dumps({"NID": self.nid}).encode("utf-8"))
+                print("Sent NID {} to SDN controller".format(self.nid))
             elif req_data["RequestType"] == "Neighbours":
                 # TODO Code to request updated neighbours from TOP via a CBT
                 # Note that because the CBT's response is received asynchronously,
@@ -103,48 +97,24 @@ class SDNInterface(ControllerModule):
                 cs.sendall(json.dumps(
                     {"Neighbours": ["a", "b", "c"]}).encode("utf-8"))
 
-    def _handle_client_req__(self, client_addr):
-        """
-        The SDN controller is our client.
-
-        This is a blocking call. Must be run in a separate thread.
-        """
-
-        cs = self._client_sockets[client_addr]
-
-        keep_serving_client = True
-        while self._keep_running_server.is_set() and keep_serving_client:
-            req = cs.recv(4096)
-            print("Received request {} from SDN controller".format(req))
-
-            # Triggered when client breaks the TCP connection
-            if not req:
-                keep_serving_client = False
-            else:
-                req_data = json.loads(req.decode("utf-8"))
-                if req_data["RequestType"] == "NID":
-                    cs.sendall(json.dumps({"NID": self.nid}))
-                elif req_data["RequestType"] == "Neighbours":
-                    # TODO Code to request updated neighbours from TOP via a CBT
-                    # Note that because the CBT's response is received asynchronously,
-                    # we must maintain an association between the request and the
-                    # address of the host on whose behalf we are making this request
-                    # The response to the client is sent directly from the response
-                    # handler of this CBT
-                    cs.sendall(json.dumps({"Neighbours": ["a", "b", "c"]}))
-
     def process_cbt(self, cbt):
         if cbt.op_type == "Response":
-            cbt_data = cbt.response.data
+            if cbt.request.action == "SDN_NEIGHBOURS_LIST":
+                cbt_data = cbt.response.data
 
-            client_addr = cbt_data["ClientAddress"]
-            cs = self._client_sockets[client_addr]
-            with cs:
-                neighbours = cbt_data["NeighboursList"]
-                cs.sendall(
-                    json.dumps({"Neighbours": neighbours}).encode("utf-8"))
+                # Note that because the CBT's response is received asynchronously,
+                # we must maintain an association between the request and the
+                # address of the host on whose behalf we are making this request
+                # The response to the client is sent directly from the response
+                # handler of this CBT
+                client_addr = cbt_data["ClientAddress"]
+                cs = self._client_sockets[client_addr]
+                with cs:
+                    neighbours = cbt_data["NeighboursList"]
+                    cs.sendall(
+                        json.dumps({"Neighbours": neighbours}).encode("utf-8"))
 
-            self.free_cbt(cbt)
+                self.free_cbt(cbt)
 
     def timer_method(self):
         pass
