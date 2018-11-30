@@ -62,7 +62,8 @@ class SDNInterface(ControllerModule):
             cs.setblocking(False)
             self._client_sockets[addr] = cs
 
-            ct = threading.Thread(self._client_req_loop, addr)
+            ct = threading.Thread(
+                target=self._client_req_loop, args=(addr,))
             self._client_threads[addr] = ct
             ct.start()
 
