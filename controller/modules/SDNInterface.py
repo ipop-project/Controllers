@@ -78,7 +78,7 @@ class SDNInterface(ControllerModule):
 
         keep_serving_client = True
         while self._keep_running_server.is_set() and keep_serving_client:
-            req = cs.recv()
+            req = cs.recv(4096)
             print("Received request {} from SDN controller".format(req))
 
             # Triggered when client breaks the TCP connection
