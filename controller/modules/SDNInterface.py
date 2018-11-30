@@ -85,7 +85,7 @@ class SDNInterface(ControllerModule):
             if not req:
                 keep_serving_client = False
             else:
-                req_data = json.loads(req)
+                req_data = json.loads(req.decode("utf-8"))
                 if req_data["RequestType"] == "NID":
                     cs.sendall(json.dumps({"NID": self.nid}))
                 elif req_data["RequestType"] == "Neighbours":
