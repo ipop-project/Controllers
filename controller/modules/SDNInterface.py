@@ -47,7 +47,8 @@ class SDNInterface(ControllerModule):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.ip4, self._sdn_comm_port))
         self._server_socket = server_socket
-        self._server_thread = threading.Thread(self._adj_list_server_loop)
+        self._server_thread = threading.Thread(
+            target=self._adj_list_server_loop)
         self._server_thread.start()
 
     def _adj_list_server_loop(self):

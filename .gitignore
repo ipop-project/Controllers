@@ -65,3 +65,6 @@ error.log
 .vs/
 config.json
 nid
+
+*.swp
+*.swo
