@@ -37,7 +37,8 @@ class NetworkBuilder(object):
             return self._refresh_in_progress == 0
 
     def get_adj_list(self):
-        return deepcopy(self._current_edges)
+        with self._lock:
+            return deepcopy(self._current_edges)
 
     def refresh(self, net_graph=None):
         """
