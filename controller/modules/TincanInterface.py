@@ -72,8 +72,8 @@ class TincanInterface(ControllerModule):
                 # Iterate across all socket list to obtain Tincan messages
                 for sock in socks:
                     if sock == self._sock_svr:
-                        data, addr = sock.recvfrom(self._cm_config["MaxReadSize"])
-                        ctl = json.loads(data.decode("utf-8"))
+                        data = sock.recvfrom(self._cm_config["MaxReadSize"])
+                        ctl = json.loads(data[0].decode("utf-8"))
                         if ctl["IPOP"]["ProtocolVersion"] != 5:
                             raise ValueError("Invalid control version detected")
                         # Get the original CBT if this is the response
@@ -84,10 +84,10 @@ class TincanInterface(ControllerModule):
                             self.complete_cbt(cbt)
                         else:
                             self._tci_publisher.post_update(ctl["IPOP"]["Request"])
-        except:
+        except Exception as err:
             log_cbt = self.register_cbt(
-                "Logger", "LOG_WARNING", "Tincan Listener exception:\n"
-                "{0}".format(traceback.format_exc()))
+                "Logger", "LOG_WARNING", "Tincan Listener exception:{0}\n"
+                "{1}".format(err, traceback.format_exc()))
             self.submit_cbt(log_cbt)
 
     def create_control_link(self,):

@@ -71,7 +71,7 @@ class OverlayVisualizer(ControllerModule):
                     self.register_cbt("Logger", "LOG_WARNING", warn_msg)
                 self.free_cbt(cbt)
             else:
-                parent_cbt = self.get_parent_cbt(cbt)
+                parent_cbt = cbt.parent
                 cbt_data = cbt.response.data
                 cbt_status = cbt.response.status
                 self.free_cbt(cbt)

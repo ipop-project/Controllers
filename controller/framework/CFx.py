@@ -20,11 +20,11 @@
 # THE SOFTWARE.
 
 import os
-import sys
 import json
 import signal
 import argparse
 import threading
+import time
 import importlib
 import uuid
 from collections import OrderedDict
@@ -32,7 +32,7 @@ import controller.framework.fxlib as fxlib
 from controller.framework.CFxHandle import CFxHandle
 from controller.framework.CFxSubscription import CFxSubscription
 
-
+# pylint: disable=protected-access
 class CFX(object):
 
     def __init__(self):
@@ -60,14 +60,12 @@ class CFX(object):
         dependency_graph = {}
         for key in self._config:
             if key != "CFx":
-                try:
+                if "Dependencies" in self._config[key]:
                     dependency_graph[key] = self._config[key]["Dependencies"]
-                except Exception as error:
-                    pass
 
         if CFX.detect_cyclic_dependency(dependency_graph):
-            print("Circular dependency detected in config.json. Exiting")
-            sys.exit()
+            print("Circular dependency detected in config.json. Fix and restart IPOP")
+            raise RuntimeError("Circular dependency detected in config.json. Fix and restart IPOP")
 
         self.build_load_order()
         # iterate and load the modules specified in the configuration file
@@ -133,10 +131,10 @@ class CFX(object):
         except KeyError:
             pass
 
+    @staticmethod
     def detect_cyclic_dependency(graph):
         # test if the directed graph g has a cycle
         path = set()
-
         def visit(vertex):
             path.add(vertex)
             for neighbour in graph.get(vertex, ()):
@@ -147,30 +145,28 @@ class CFX(object):
 
         return any(visit(v) for v in graph)
 
-    def __handler(self, signum=None, frame=None):
+    @staticmethod
+    def __handler(signum=None, frame=None):
+        # pylint: disable=unused-argument
         print("Signal handler called with signal ", signum)
 
     def parse_config(self):
         for k in fxlib.MODULE_ORDER:
             self._config[k] = fxlib.CONFIG.get(k)
-        self._config["CFx"]["NidFileName"] = self._get_nid_file_name()
-        parser = argparse.ArgumentParser()
+        self._set_nid_file_name()
+        parser = argparse.ArgumentParser(description="Starts the IPOP Controller")
         parser.add_argument("-c", help="load configuration from a file",
                             dest="config_file", metavar="config_file")
-        parser.add_argument("-u", help="update configuration file if needed",
-                            dest="update_config", action="store_true")
-        parser.add_argument("-p", help="load remote ip configuration file",
-                            dest="ip_config", metavar="ip_config")
         parser.add_argument("-s", help="configuration as json string"
                             " (overrides configuration from file)",
                             dest="config_string", metavar="config_string")
-        parser.add_argument("--pwdstdout", help="use stdout as "
-                            "password stream",
-                            dest="pwdstdout", action="store_true")
-
+        # parser.add_argument("-p", help="load remote ip configuration file",
+        #                     dest="ip_config", metavar="ip_config")
         args = parser.parse_args()
-
         if args.config_file:
+            while not os.path.isfile(args.config_file):
+                print("Waiting on config file {}".format(args.config_file))
+                time.sleep(10)
             # load the configuration file
             with open(args.config_file) as f:
                 # load the configuration file into an OrderedDict with the
@@ -181,8 +177,7 @@ class CFX(object):
                         self._config[key].update(json_data[key])
                     else:
                         self._config[key] = json_data[key]
-
-        if args.config_string:
+        elif args.config_string:
             loaded_config = json.loads(args.config_string)
             for key in loaded_config:
                 if self._config.get(key, None):
@@ -207,13 +202,13 @@ class CFX(object):
                 f.write(nodeid)
         return nodeid
 
-    def _get_nid_file_name(self):
+    def _set_nid_file_name(self):
         NID_FILENAME = "nid"
         if os.name == "posix":
             DIRNAME_PREFIX = os.path.normpath("/var/opt/ipop-vpn")
         else:
             DIRNAME_PREFIX = "."
-        return os.path.join(DIRNAME_PREFIX, NID_FILENAME)
+        self._config["CFx"]["NidFileName"] = os.path.join(DIRNAME_PREFIX, NID_FILENAME)
 
     def wait_for_shutdown_event(self):
         self._event = threading.Event()
@@ -232,8 +227,9 @@ class CFX(object):
                     break
         else:
             for sig in [signal.SIGINT, signal.SIGTERM]:
-                signal.signal(sig, self.__handler)
+                signal.signal(sig, CFX.__handler)
             # sleeps until signal is received
+            # pylint: disable=no-member
             signal.pause()
 
     def terminate(self):
@@ -252,22 +248,24 @@ class CFX(object):
                 print("{0} exited".format(self._cfx_handle_dict[module_name]._timer_thread.name))
 
     def query_param(self, param_name=""):
+        val = None
         try:
             if param_name == "IpopVersion":
-                return self._config["CFx"]["IpopVersion"]
-            if param_name == "NodeId":
-                return self._node_id
-            if param_name == "Overlays":
-                return self._config["CFx"]["Overlays"]
-            if param_name == "Model":
-                return self.model
-            if param_name == "DebugCBTs":
-                return self._config["CFx"].get("DebugCBTs", False)
-            if param_name == "RequestTimeout":
-                return self._config["CFx"]["RequestTimeout"]
-        except Exception as error:
-            print("Exception occurred while querying data." + str(error))
-        return None
+                val = self._config["CFx"]["IpopVersion"]
+            elif param_name == "NodeId":
+                val = self._node_id
+            elif param_name == "Overlays":
+                val = self._config["CFx"]["Overlays"]
+            elif param_name == "Model":
+                val = self.model
+            elif param_name == "DebugCBTs":
+                val = self._config["CFx"].get("DebugCBTs", False)
+            elif param_name == "RequestTimeout":
+                val = self._config["CFx"]["RequestTimeout"]
+        except KeyError as err:
+            print("Exception occurred while querying paramater:{0}, key:{1}"
+                  .format(param_name, str(err)))
+        return val
 
     # Caller is the subscription source
     def publish_subscription(self, owner_name, subscription_name, owner):

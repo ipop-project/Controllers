@@ -51,7 +51,7 @@ class UsageReport(ControllerModule):
                 else:
                     self.create_report(cbt)
             else:
-                parent_cbt = self.get_parent_cbt(cbt)
+                parent_cbt = cbt.parent
                 cbt_data = cbt.response.data
                 cbt_status = cbt.response.status
                 self.free_cbt(cbt)
@@ -126,7 +126,7 @@ class UsageReport(ControllerModule):
                 self.register_cbt("Logger", "LOG_WARNING",
                                   "Usage report server indicated error "
                                   "code: {0}".format(res.getcode()))
-        except Exception as error:
+        except (urllib2.HTTPError, urllib2.URLError) as error:
             log = "Usage report submission failed to server {0}. " \
                   "Error: {1}".format(url, error)
             self.register_cbt("Logger", "LOG_WARNING", log)

@@ -309,7 +309,7 @@ class BridgeController(ControllerModule):
             else:
                 self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
-            parent_cbt = self.get_parent_cbt(cbt)
+            parent_cbt = cbt.parent
             cbt_data = cbt.response.data
             cbt_status = cbt.response.status
             self.free_cbt(cbt)

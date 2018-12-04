@@ -124,7 +124,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                 if keyring_installed is True:
                     try:
                         keyring.set_password("ipop", user, pswd)
-                    except Exception as err:
+                    except keyring.errors.PasswordSetError as err:
                         cm_mod.sig_log("Failed to store password in keyring. {0}".format(str(err)),
                                        "LOG_ERROR")
             transport = XmppTransport(user, pswd, sasl_mech="PLAIN")
@@ -133,6 +133,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
         else:
             raise RuntimeError("Invalid authentication method specified in configuration: {0}"
                                .format(auth_method))
+        # pylint: disable=protected-access
         transport._host = host
         transport._port = port
         transport._overlay_id = overlay_id
@@ -148,6 +149,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
     def start_event_handler(self, event):
         """Registers custom event handlers at the start of XMPP session"""
         self._sig.sig_log("XMPP Signalling started for overlay: {0}".format(self._overlay_id))
+        # pylint: disable=broad-except
         try:
             # Notification of peer signon
             self.add_event_handler("presence_available",
@@ -166,7 +168,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
 
     def presence_event_handler(self, presence):
         """
-        Handles peer presence event messages
+        Handle peer presence event messages
         """
         try:
             presence_sender = presence["from"]
@@ -174,11 +176,8 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             presence_receiver = str(presence_receiver_jid.user) + "@" \
                 + str(presence_receiver_jid.domain)
             status = presence["status"]
-
-            self._sig.sig_log("Presence:{0} BOUND_JID:{1}"
-                              .format(presence, self.boundjid))
-
-
+            self._sig.sig_log("Presence Overlay:{0} Local JID:{1} Msg:{2}".
+                              format(self._overlay_id, self.boundjid, presence))
             if(presence_receiver == self.boundjid.bare and presence_sender != self.boundjid.full):
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
@@ -188,7 +187,8 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                         # a notification of a peers node id to jid mapping
                         pts = self._jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
                         self._presence_publisher.post_update(
-                            dict(PeerId=peer_id, OverlayId=self._overlay_id, PresenceTimestamp=pts))
+                            dict(PeerId=peer_id, OverlayId=self._overlay_id,
+                                 PresenceTimestamp=pts))
                         self._sig.sig_log("Presence has resolved Peer@Overlay {0}@{1} -> {2}"
                                           .format(peer_id[:7], self._overlay_id, presence_sender))
                     elif pstatus == "uid?":
@@ -197,11 +197,11 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                             payload = self.boundjid.full + "#" + self._node_id
                             self.send_msg(presence_sender, "uid!", payload)
                     else:
-                        self._sig.sig_log("Unrecognized PSTATUS: {0}".format(pstatus),
-                                          "LOG_WARNING")
+                        self._sig.sig_log("Unrecognized PSTATUS:{0} on overlay:{1}"
+                                          .format(pstatus, self._overlay_id), "LOG_WARNING")
         except Exception as err:
-            self._sig.sig_log("XmppTransport:Exception:{0} presence:{1}".format(err, presence),
-                              "LOG_ERROR")
+            self._sig.sig_log("XmppTransport:Exception:{0} overlay:{1} presence:{2}"
+                              .format(err, self._overlay_id, presence), "LOG_ERROR")
 
     def message_listener(self, msg):
         """
@@ -210,8 +210,6 @@ class XmppTransport(sleekxmpp.ClientXMPP):
         """
         try:
             sender_jid = msg["from"]
-            self._sig.sig_log("sender_jid:{0} self.boundjid.full:{1}"
-                              .format(sender_jid, self.boundjid.full))
             # discard the message if it was initiated by this node
             if sender_jid == self.boundjid.full:
                 return
@@ -254,8 +252,8 @@ class XmppTransport(sleekxmpp.ClientXMPP):
         try:
             if self.connect(address=(self._host, self._port)):
                 self.process(block=False)
-                self._sig.sig_log("Starting connection to XMPP server {0}:{1}"
-                                  .format(self._host, self._port))
+                self._sig.sig_log("Starting overlay {0} connection to XMPP server {1}:{2}"
+                                  .format(self._overlay_id, self._host, self._port))
         except Exception as err:
             self._sig.sig_log("Failed to initialize XMPP transport instanace {}".format(str(err)),
                               "LOG_ERROR")
@@ -308,7 +306,6 @@ class Signal(ControllerModule):
             self.sig_log("The Overlay ID in the rcvd remote action conflicts with the local "
                          "configuration. It was discarded: {}".format(rem_act), "LOG_WARNING")
             return
-        # self.sig_log("Rcvd completed remote act: {0}".format(msg_payload))
         if act_type == "invk":
             self.invoke_remote_action_on_target(rem_act)
         elif act_type == "cmpt":
@@ -413,7 +410,7 @@ class Signal(ControllerModule):
                 if cbt.tag in self._remote_acts:
                     self.resp_handler_remote_action(cbt)
                 else:
-                    parent_cbt = self.get_parent_cbt(cbt)
+                    parent_cbt = cbt.parent
                     cbt_data = cbt.response.data
                     cbt_status = cbt.response.status
                     self.free_cbt(cbt)
@@ -455,7 +452,6 @@ class Signal(ControllerModule):
         peer_ids = []
         for peer_id in outgoing_rem_acts:
             peer_qlen = outgoing_rem_acts[peer_id].qsize()
-            self.sig_log("SCAVENGE - Peer {0} queue len {1}".format(peer_id, peer_qlen))
             remact_descr = outgoing_rem_acts[peer_id].queue[0] # peek at the first/oldest entry
             if time.time() - remact_descr[2] < self.request_timeout:
                 peer_ids.append(peer_id)

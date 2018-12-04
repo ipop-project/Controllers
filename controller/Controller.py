@@ -34,12 +34,10 @@ def is_tincan_proc():
 
 
 def main():
-    stime = time.time()
     # Wait for ipop-tincan process to start
     while is_tincan_proc() is False:
-        if time.time() - stime > 10:
-            print("Waiting on IPOP Tincan to start...")
-            stime = time.time()
+        print("Waiting on IPOP Tincan to start...")
+        time.sleep(10)
     # Create CFX object that initializes internal data structure of all the controller modules
     cfx = CFX()
     cfx.initialize()

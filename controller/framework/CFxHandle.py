@@ -59,8 +59,8 @@ class CFxHandle(object):
         cbt.time_create = time.time()
         return cbt
 
-    def get_parent_cbt(self, cbt):
-        return cbt.parent
+    #def get_parent_cbt(self, cbt):
+    #    return cbt.parent
 
     def free_cbt(self, cbt):
         cbt.time_free = time.time()
@@ -115,12 +115,12 @@ class CFxHandle(object):
                     if not cbt.completed:
                         self._pending_cbts[cbt.tag] = cbt
                     self._cm_instance.process_cbt(cbt)
-                except Exception:
+                except Exception as err:
                     log_cbt = self.create_cbt(
                         initiator=self._cm_instance.__class__.__name__,
                         recipient="Logger", action="LOG_WARNING",
-                        params="Process CBT exception:\n{0}\n{1}"
-                        .format(cbt, traceback.format_exc()))
+                        params="Process CBT exception:{0}\n{1}\n{2}"
+                        .format(err, cbt, traceback.format_exc()))
                     self.submit_cbt(log_cbt)
                     if cbt.request.initiator == self._cm_instance.__class__.__name__:
                         self.free_cbt(cbt)
@@ -136,12 +136,12 @@ class CFxHandle(object):
             try:
                 self._check_container_bounds()
                 self._cm_instance.timer_method()
-            except Exception:
+            except Exception as err:
                 log_cbt = self.create_cbt(
                     initiator=self._cm_instance.__class__.__name__,
                     recipient="Logger", action="LOG_WARNING",
-                    params="Timer Method exception:\n{0}"
-                    .format(traceback.format_exc()))
+                    params="Timer Method exception:{0}\n{1}"
+                    .format(err, traceback.format_exc()))
                 self.submit_cbt(log_cbt)
 
     def query_param(self, param_name=""):

@@ -46,8 +46,10 @@ class NetworkBuilder(object):
         the provide graph for refresh.
         """
         with self._lock:
-            self._top.top_log("Current connection edges:{0}, _refresh_in_progress:{1}".format(
-                self._current_edges.conn_edges, self._refresh_in_progress))
+            self._top.top_log("Current connection edges:{0}, Overlay ID:{1}" \
+            "_refresh_in_progress:{2}".format(self._current_edges.conn_edges,
+                                              self._current_edges.overlay_id,
+                                              self._refresh_in_progress))
             if self._pending_edges:
                 self._top.top_log("Pending connection edges:{}".format(
                     self._pending_edges.conn_edges))

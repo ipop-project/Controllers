@@ -73,7 +73,7 @@ class Broadcaster(ControllerModule):
         if not cbt.response.status:
             self._overlay_peers = None
             self.register_cbt("Topology", "TOP_QUERY_PEER_IDS", "RefreshCache")
-        parent_cbt = self.get_parent_cbt(cbt)
+        parent_cbt = cbt.parent
         self.free_cbt(cbt)
         if parent_cbt:
             parent_cbt.set_response(None, cbt.response.status)
@@ -88,9 +88,9 @@ class Broadcaster(ControllerModule):
             with self._overlay_peers_lock:
                 self._overlay_peers = cbt.response.data
 
-            bcast_data = self.get_parent_cbt(cbt).request.params
+            bcast_data = cbt.parent.request.params
             self._bcast_on_icc(bcast_data)
-            parent_cbt = self.get_parent_cbt(cbt)
+            parent_cbt = cbt.parent
             # free child first
             self.free_cbt(cbt)
             # then complete parent
@@ -108,7 +108,7 @@ class Broadcaster(ControllerModule):
             elif cbt.request.action == "ICC_REMOTE_ACTION":
                 self.resp_handler_remote_act(cbt)
             else:
-                parent_cbt = self.get_parent_cbt(cbt)
+                parent_cbt = cbt.parent
                 cbt_data = cbt.response.data
                 cbt_status = cbt.response.status
                 self.free_cbt(cbt)

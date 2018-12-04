@@ -187,7 +187,7 @@ class LinkManager(ControllerModule):
 
     def resp_handler_remove_link(self, rmv_lnk_cbt):
         """Start removal the tunnel after the link is destroyed"""
-        parent_cbt = self.get_parent_cbt(rmv_lnk_cbt)
+        parent_cbt = rmv_lnk_cbt.parent
         olid = rmv_lnk_cbt.request.params["OverlayId"]
         tnlid = rmv_lnk_cbt.request.params["TunnelId"]
         lnkid = rmv_lnk_cbt.request.params["LinkId"]
@@ -210,7 +210,7 @@ class LinkManager(ControllerModule):
         Clean up the tunnel meta data. Even of the CBT fails it is safe to discard
         as this is because Tincan has no record of it.
         """
-        parent_cbt = self.get_parent_cbt(rmv_tnl_cbt)
+        parent_cbt = rmv_tnl_cbt.parent
         tnlid = rmv_tnl_cbt.request.params["TunnelId"]
         peer_id = rmv_tnl_cbt.request.params["PeerId"]
         olid = rmv_tnl_cbt.request.params["OverlayId"]
@@ -370,7 +370,7 @@ class LinkManager(ControllerModule):
 
     def resp_handler_create_tunnel(self, cbt):
         # Create Link: Phase 2 Node A
-        parent_cbt = self.get_parent_cbt(cbt)
+        parent_cbt = cbt.parent
         lnkid = cbt.request.params["LinkId"]  # config overlay id
         resp_data = cbt.response.data
         if not cbt.response.status:
@@ -463,7 +463,7 @@ class LinkManager(ControllerModule):
 
     def _complete_link_endpt_request(self, cbt):
         # Create Link: Phase 4 Node B
-        parent_cbt = self.get_parent_cbt(cbt)
+        parent_cbt = cbt.parent
         resp_data = cbt.response.data
         if not cbt.response.status:
             self.free_cbt(cbt)
@@ -556,7 +556,7 @@ class LinkManager(ControllerModule):
         self._tunnels[lnkid]["Link"]["CreationState"] = 0xA4
         self.register_cbt("Logger", "LOG_INFO", "Create Link:{} Phase 4/5 Node A".format(lnkid[:7]))
         local_cas = cbt.response.data["CAS"]
-        parent_cbt = self.get_parent_cbt(cbt)
+        parent_cbt = cbt.parent
         olid = cbt.request.params["OverlayId"]
         peerid = parent_cbt.request.params["PeerId"]
         params = {
@@ -587,7 +587,7 @@ class LinkManager(ControllerModule):
         self.submit_cbt(lcbt)
 
     def resp_handler_create_link_endpt(self, cbt):
-        parent_cbt = self.get_parent_cbt(cbt)
+        parent_cbt = cbt.parent
         resp_data = cbt.response.data
         if not cbt.response.status:
             link_id = cbt.request.params["LinkId"]
@@ -635,7 +635,7 @@ class LinkManager(ControllerModule):
                           .format(olid[:7], self._cm_config["NodeId"][:7], peerid[:7]))
 
     def resp_handler_remote_action(self, cbt):
-        parent_cbt = self.get_parent_cbt(cbt)
+        parent_cbt = cbt.parent
         resp_data = cbt.response.data
         if not cbt.response.status:
             self.register_cbt("Logger", "LOG_INFO", "Remote Action failed :{}"
@@ -750,7 +750,7 @@ class LinkManager(ControllerModule):
                     self.resp_handler_remove_tunnel(cbt)
 
                 else:
-                    parent_cbt = self.get_parent_cbt(cbt)
+                    parent_cbt = cbt.parent
                     cbt_data = cbt.response.data
                     cbt_status = cbt.response.status
                     self.free_cbt(cbt)

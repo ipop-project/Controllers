@@ -161,7 +161,7 @@ class Topology(ControllerModule, CFX):
             elif cbt.request.action == "LNK_REMOVE_TUNNEL":
                 self.resp_handler_remove_link(cbt)
             else:
-                parent_cbt = self.get_parent_cbt(cbt)
+                parent_cbt = cbt.parent
                 cbt_data = cbt.response.data
                 cbt_status = cbt.response.status
                 self.free_cbt(cbt)
