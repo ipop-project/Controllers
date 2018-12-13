@@ -20,7 +20,7 @@
 # THE SOFTWARE.
 
 import math
-import numpy.random
+import random
 from controller.modules.NetworkGraph import ConnectionEdge
 from controller.modules.NetworkGraph import ConnEdgeAdjacenctList
 
@@ -32,7 +32,7 @@ class GraphBuilder(object):
     def __init__(self, cfg, current_adj_list=None):
         self.overlay_id = cfg["OverlayId"]
         self._node_id = cfg["NodeId"]
-        self._peers = cfg.get("Peers", [])
+        self._peers = sorted(cfg.get("Peers", []))
         # enforced is a list of peer ids that should always have a direct edge
         self._enforced = cfg.get("EnforcedEdges", {})
         # only create edges from the enforced list
@@ -88,17 +88,18 @@ class GraphBuilder(object):
             adj_list.add_connection_edge(ce)
 
     def _get_successors(self):
-        if len(self._peers) == 1 and self._node_id > self._peers[0]:
+        if len(self._peers) <= 1 and self._node_id > self._peers[0]:
             return []
         node_set = set(self._peers)
         node_set.add(self._node_id)
         node_set = sorted(node_set)
-        bgn = node_set.index(self._node_id) + 1
-        if bgn == len(node_set):
-            bgn = 0
-        end = bgn + self._max_successors
-        self._successors = node_set[bgn:end]
-        return node_set[bgn:end]
+        num_nodes = len(node_set)
+        successor_index = node_set.index(self._node_id) + 1
+        for i in range(self._max_successors):
+            successor_index %= num_nodes
+            self._successors.append(node_set[successor_index])
+            successor_index += 1
+        return self._successors
 
     def _get_long_dist_links(self):
         # Calculates long distance link candidates.
@@ -122,13 +123,13 @@ class GraphBuilder(object):
         self._build_enforced(adj_list)
         if not self._manual_topo:
             self._build_successors(adj_list)
-            self._build_long_dist_links(adj_list, transition_adj_list)
+            # self._build_long_dist_links(adj_list, transition_adj_list)
         return adj_list
 
     def symphony_prob_distribution(self, network_sz, samples):
         """exp (log(n) * (rand() - 1.0))"""
         results = [None]*(samples)
-        dist = numpy.random.uniform(size=samples)
         for i in range(0, samples):
-            results[i] = math.exp(math.log10(network_sz) * (dist[i] - 1.0))
+            rnd_val = random.uniform(0, 1)
+            results[i] = math.exp(math.log10(network_sz) * (rnd_val - 1.0))
         return results

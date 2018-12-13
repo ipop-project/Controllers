@@ -140,6 +140,7 @@ class Topology(ControllerModule, CFX):
         peer_id = params["PeerId"]
         with self._lock:
             if params["UpdateType"] == "REMOVED":
+                self.top_log("Removing peer id from peer list {0}".format(peer_id))
                 i = self._overlays[olid]["KnownPeers"].index(peer_id)
                 self._overlays[olid]["KnownPeers"].pop(i)
             self._overlays[olid]["NetBuilder"].on_connection_update(params)
@@ -200,7 +201,7 @@ class Topology(ControllerModule, CFX):
         """
         Start the connection process to a peer if a direct edge is desirable
         """
-        self.register_cbt("Logger", "LOG_INFO", "Adding peer edge {0}:{1}->{2}"
+        self.register_cbt("Logger", "LOG_INFO", "Creating peer edge {0}:{1}->{2}"
                           .format(overlay_id, self._cm_config["NodeId"][:7], peer_id[:7]))
         params = {"OverlayId": overlay_id, "PeerId": peer_id}
         self.register_cbt("LinkManager", "LNK_CREATE_TUNNEL", params)

@@ -140,7 +140,7 @@ class LinkManager(ControllerModule):
             self.free_cbt(cbt)
             return
         data = cbt.response.data
-        self.register_cbt("Logger", "LOG_INFO", "Tunnel stats: {0}".format(data))
+        #self.register_cbt("Logger", "LOG_INFO", "Tunnel stats: {0}".format(data))
         # Handle any connection failures and update tracking data
         for tnl_id in data:
             for lnkid in data[tnl_id]:
