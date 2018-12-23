@@ -19,14 +19,14 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-IPOP_VER_MJR = "18"
-IPOP_VER_MNR = "08"
-IPOP_VER_REV = "29"
+IPOP_VER_MJR = "19"
+IPOP_VER_MNR = "02"
+IPOP_VER_REV = "01"
 IPOP_VER_REL = "{0}.{1}.{2}".format(IPOP_VER_MJR, IPOP_VER_MNR, IPOP_VER_REV)
 
 # set default config values
 MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
-                "Signal", "LinkManager", "Topology", "UsageReport"]
+                "Signal", "LinkManager", "Topology", "BridgeController", "UsageReport"]
 CONFIG = {
     "CFx": {
         "NodeId": "",  # Single unique node Id for all overlays
@@ -66,22 +66,22 @@ CONFIG = {
     },
     "Signal": {
         "Enabled": True,
-        "TimerInterval": 30,
+        "TimerInterval": 60,
         "CacheExpiry": 30,         # Min duration an entry remains in the JID cache in seconds
         "Dependencies": ["Logger"]
     },
     "LinkManager": {
         "Enabled": True,
-        "TimerInterval": 30,        # Timer thread interval in sec
+        "TimerInterval": 60,        # Timer thread interval in sec
         "Dependencies": ["Logger", "TincanInterface", "Signal"]
     },
     "Topology": {
         "Enabled": True,
-        "TimerInterval": 30,
+        "TimerInterval": 60,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "UsageReport": {
-        "Enabled": True,
+        "Enabled": False,
         "TimerInterval": 200,
         "ServerAddress": "metrics.ipop-project.org",
         "ServerPort": 8081,

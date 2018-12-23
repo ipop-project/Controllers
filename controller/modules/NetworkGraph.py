@@ -55,10 +55,10 @@ class ConnectionEdge(object):
         return hash(self.__key__())
 
     def __repr__(self):
-        #state = "<peer_id = %s, link_id = %s, marked_for_delete = %s, created_time = %s,"\
-        #        "state = %s, type = %s>" % (self.peer_id, self.link_id, self.marked_for_delete,
-        #                                    str(self.created_time), self.state, self.edge_type)
-        msg = "<peer_id = %s, edge_type = %s>" % (self.peer_id, self.edge_type)
+        msg = "<peer_id = %s, link_id = %s, marked_for_delete = %s, created_time = %s,"\
+                "state = %s, type = %s>" % (self.peer_id, self.link_id, self.marked_for_delete,
+                                            str(self.created_time), self.state, self.edge_type)
+        #msg = "<peer_id = %s, edge_type = %s>" % (self.peer_id, self.edge_type)
         return msg
 
 class ConnEdgeAdjacenctList(object):
@@ -79,8 +79,12 @@ class ConnEdgeAdjacenctList(object):
     def add_connection_edge(self, ce):
         self.conn_edges[ce.peer_id] = ce
 
-    def get_edges(self):
-        return self.conn_edges.values()
+    def get_edges(self, edge_type):
+        conn_edges = {}
+        for peer_id in self.conn_edges:
+            if self.conn_edges[peer_id].edge_type == edge_type:
+                conn_edges[peer_id] = self.conn_edges[peer_id]
+        return conn_edges
 
     def edge_type_count(self, edge_type):
         cnt = 0

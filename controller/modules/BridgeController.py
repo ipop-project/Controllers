@@ -220,8 +220,7 @@ class LinuxBridge(BridgeABC):
 
 class BridgeController(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
-        super(BridgeController, self).__init__(cfx_handle, module_config,
-                                               module_name)
+        super(BridgeController, self).__init__(cfx_handle, module_config, module_name)
         self._overlays = dict()
         self._lock = threading.Lock()
 
@@ -231,17 +230,15 @@ class BridgeController(ControllerModule):
         for olid in self._cm_config["Overlays"]:
             br_cfg = self._cm_config["Overlays"][olid]
 
-            if self._cm_config["Overlays"][olid]["Type"] == \
-                    LinuxBridge.bridge_type:
-                self._overlays[olid] = LinuxBridge(br_cfg["BridgeName"],
+            if self._cm_config["Overlays"][olid]["Type"] == LinuxBridge.bridge_type:
+                self._overlays[olid] = LinuxBridge(br_cfg["BridgeName"][:8] + olid[:7],
                                                    br_cfg["IP4"],
                                                    br_cfg["PrefixLen"],
                                                    br_cfg.get("MTU", 1410),
                                                    br_cfg.get("STP", True))
 
-            elif self._cm_config["Overlays"][olid]["Type"] == \
-                    OvsBridge.bridge_type:
-                self._overlays[olid] = OvsBridge(br_cfg["BridgeName"],
+            elif self._cm_config["Overlays"][olid]["Type"] == OvsBridge.bridge_type:
+                self._overlays[olid] = OvsBridge(br_cfg["BridgeName"][:8] + olid[:7],
                                                  br_cfg["IP4"],
                                                  br_cfg["PrefixLen"],
                                                  br_cfg.get("MTU", 1410),

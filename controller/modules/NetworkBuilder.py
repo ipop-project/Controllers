@@ -106,12 +106,21 @@ class NetworkBuilder(object):
                     connection_event["ConnectedTimestamp"]
                 self._refresh_in_progress = self._refresh_in_progress - 1
             elif connection_event["UpdateType"] == "DISCONNECTED":
-                # this branch is taken when the local node did not explicitly remove the connection
+                # the local topology did not request removal of the connection
                 self._top.top_log("CEStateDisconnected event recvd peer_id: {0}, link_id: {1}".
                                   format(peer_id, link_id))
                 self._current_adj_list.conn_edges[peer_id].state = "CEStateDisconnected"
                 self._refresh_in_progress = self._refresh_in_progress + 1
                 self._top.top_remove_edge(overlay_id, peer_id)
+            elif connection_event["UpdateType"] == "AddEdgeFailed":
+                self._current_adj_list.conn_edges.pop(peer_id, None)
+                self._refresh_in_progress -= 1
+            elif connection_event["UpdateType"] == "RemoveEdgeFailed":
+                # leave the node in the adj list and marked for removal to be retried.
+                self._refresh_in_progress -= 1
+            else:
+                self._top.top_log("Logger", "LOG_WARNING",
+                                  "Invalid UpdateType specified for connection update")
 
     def _update_net_connections(self):
         """
@@ -144,6 +153,6 @@ class NetworkBuilder(object):
         # Minimize churn by removing a single connection per refresh
         for peer_id in self._current_adj_list.conn_edges:
             if self._current_adj_list.conn_edges[peer_id].marked_for_delete:
-                self._refresh_in_progress = self._refresh_in_progress + 1
+                self._refresh_in_progress += 1
                 self._top.top_remove_edge(overlay_id, peer_id)
                 return

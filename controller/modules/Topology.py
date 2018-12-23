@@ -18,7 +18,9 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+import random
 import threading
+import time
 from controller.framework.CFx import CFX
 from controller.framework.ControllerModule import ControllerModule
 from controller.modules.NetworkBuilder import NetworkBuilder
@@ -37,7 +39,7 @@ class Topology(ControllerModule, CFX):
         nid = self._cm_config["NodeId"]
         for olid in self._cfx_handle.query_param("Overlays"):
             self._overlays[olid] = dict(NetBuilder=NetworkBuilder(self, olid, nid), KnownPeers=[],
-                                        NewPeer=False)
+                                        Blacklist=dict())
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
@@ -56,15 +58,27 @@ class Topology(ControllerModule, CFX):
         pass
 
     def resp_handler_create_link(self, cbt):
+        params = cbt.request.params
+        olid = params["OverlayId"]
+        peer_id = params["PeerId"]
         if not cbt.response.status:
-            self.register_cbt("Logger", "LOG_WARNING",
-                              "Failed to create topology edge {0}".format(cbt.response.data))
+            self.register_cbt("Logger", "LOG_WARNING", "Failed to create topology edge to {0}. {1}"
+                              .format(cbt.request.params["PeerId"], cbt.response.data))
+            params["UpdateType"] = "AddEdgeFailed"
+            params["LinkId"] = None
+            self._overlays[olid]["Blacklist"][peer_id] = {"StartTime": time.time()}
+            self._overlays[olid]["NetBuilder"].on_connection_update(params)
         self.free_cbt(cbt)
 
-    def resp_handler_remove_link(self, cbt):
+    def resp_handler_remove_tnl(self, cbt):
         if not cbt.response.status:
             self.register_cbt("Logger", "LOG_WARNING",
                               "Failed to remove topology edge {0}".format(cbt.response.data))
+            params = cbt.request.params
+            params["UpdateType"] = "RemoveEdgeFailed"
+            params["LinkId"] = None
+            olid = params["OverlayId"]
+            self._overlays[olid]["NetBuilder"].on_connection_update(params)
         self.free_cbt(cbt)
 
     def req_handler_peer_presence(self, cbt):
@@ -77,19 +91,20 @@ class Topology(ControllerModule, CFX):
         olid = peer["OverlayId"]
         with self._lock:
             if peer_id not in self._overlays[olid]["KnownPeers"]:
-                self._overlays[olid]["NewPeer"] = True
+                # self._overlays[olid]["NewPeer"] = True
                 self._overlays[olid]["KnownPeers"].append(peer_id)
                 nb = self._overlays[olid]["NetBuilder"]
                 enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
                 if nb.is_ready():
+                    peer_list = [item for item in self._overlays[olid]["Blacklist"] \
+                        if item not in self._overlays[olid]["KnownPeers"]]
                     manual_topo = self._cm_config["Overlays"][olid].get("ManualTopology", False)
                     params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
-                              "Peers": self._overlays[olid]["KnownPeers"],
+                              "Peers": peer_list,
                               "EnforcedEdges": enf_lnks, "MaxSuccessors": 1, "MaxLongDistLinks": 4,
                               "ManualTopology": manual_topo}
                     gb = GraphBuilder(params)
                     adjl = gb.build_adj_list(nb.get_adj_list())
-                    self._overlays[olid]["NewPeer"] = False
                     nb.refresh(adjl)
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
@@ -163,7 +178,7 @@ class Topology(ControllerModule, CFX):
             if cbt.request.action == "LNK_CREATE_TUNNEL":
                 self.resp_handler_create_link(cbt)
             elif cbt.request.action == "LNK_REMOVE_TUNNEL":
-                self.resp_handler_remove_link(cbt)
+                self.resp_handler_remove_tnl(cbt)
             else:
                 parent_cbt = cbt.parent
                 cbt_data = cbt.response.data
@@ -173,13 +188,28 @@ class Topology(ControllerModule, CFX):
                     parent_cbt.set_response(cbt_data, cbt_status)
                     self.complete_cbt(parent_cbt)
 
+    def _cleanup_blacklist(self):
+        # Remove peers from the duration based blacklist. Higher successive connection failures
+        # resuts in potentially longer duration in the blacklist.
+        tmp = []
+        for olid in self._overlays:
+            for peer_id in self._overlays[olid]["Blacklist"]:
+                st = self._overlays[olid]["Blacklist"][peer_id]["StartTime"]
+                interval = self._cm_config["TimerInterval"]
+                if ((random.randint(0, 5) * interval) + st) <= time.time():
+                    tmp.append(peer_id)
+            for peer_id in tmp:
+                self._overlays[olid]["Blacklist"].pop(peer_id, None)
+
     def manage_topology(self):
         # Periodically refresh the topology, making sure desired links exist and exipred ones are
         # removed.
         with self._lock:
+            self._cleanup_blacklist()
             for olid in self._overlays:
                 nb = self._overlays[olid]["NetBuilder"]
-                if (self._overlays[olid]["NewPeer"] and nb.is_ready()):
+                if nb.is_ready():
+                    self.register_cbt("Logger", "LOG_DEBUG", "Refreshing topology...")
                     enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
                     manual_topo = self._cm_config["Overlays"][olid].get("ManualTopology", False)
                     params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
@@ -188,11 +218,9 @@ class Topology(ControllerModule, CFX):
                               "ManualTopology": manual_topo}
                     gb = GraphBuilder(params)
                     adjl = gb.build_adj_list(nb.get_adj_list())
-                    self._overlays[olid]["NewPeer"] = False
                     nb.refresh(adjl)
-                elif not self._overlays[olid]["NetBuilder"].is_ready():
-                    self.register_cbt("Logger", "LOG_INFO", "A network refresh operation is "
-                                      " already in progress, no topology changes were attempted.")
+                else:
+                    self.register_cbt("Logger", "LOG_DEBUG", "Net builder busy, skipping...")
 
     def timer_method(self):
         self.manage_topology()
@@ -214,25 +242,3 @@ class Topology(ControllerModule, CFX):
 
     def top_log(self, msg, level="LOG_DEBUG"):
         self.register_cbt("Logger", level, msg)
-
-
-
-
-
-    #def req_handler_broadcast_frame(self, cbt):
-    #    if cbt.request.params["Command"] == "ReqRouteUpdate":
-    #        eth_frame = cbt.request.params["Data"]
-    #        tgt_mac_id = eth_frame[:12]
-    #        if tgt_mac_id == "FFFFFFFFFFFF":
-    #            arp_broadcast_req = {
-    #                "overlay_id": cbt.request.params["OverlayId"],
-    #                "tgt_module": "TincanInterface",
-    #                "action": "TCI_INJECT_FRAME",
-    #                "payload": eth_frame
-    #            }
-    #            self.register_cbt("Broadcaster", "BDC_BROADCAST",
-    #                              arp_broadcast_req)
-    #        cbt.set_response(data=None, status=True)
-    #    else:
-    #        cbt.set_response(data=None, status=False)
-    #    self.complete_cbt(cbt)

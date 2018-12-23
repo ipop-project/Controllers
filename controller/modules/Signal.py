@@ -176,8 +176,8 @@ class XmppTransport(sleekxmpp.ClientXMPP):
             presence_receiver = str(presence_receiver_jid.user) + "@" \
                 + str(presence_receiver_jid.domain)
             status = presence["status"]
-            self._sig.sig_log("Presence Overlay:{0} Local JID:{1} Msg:{2}".
-                              format(self._overlay_id, self.boundjid, presence))
+            # self._sig.sig_log("Presence Overlay:{0} Local JID:{1} Msg:{2}".
+            #                   format(self._overlay_id, self.boundjid, presence))
             if(presence_receiver == self.boundjid.bare and presence_sender != self.boundjid.full):
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
@@ -189,7 +189,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                         self._presence_publisher.post_update(
                             dict(PeerId=peer_id, OverlayId=self._overlay_id,
                                  PresenceTimestamp=pts))
-                        self._sig.sig_log("Presence has resolved Peer@Overlay {0}@{1} -> {2}"
+                        self._sig.sig_log("Resolved {0}@{1}->{2}"
                                           .format(peer_id[:7], self._overlay_id, presence_sender))
                     elif pstatus == "uid?":
                         # a request for our node id
@@ -455,7 +455,7 @@ class Signal(ControllerModule):
             remact_descr = outgoing_rem_acts[peer_id].queue[0] # peek at the first/oldest entry
             if time.time() - remact_descr[2] < self.request_timeout:
                 peer_ids.append(peer_id)
-                self.sig_log("Scavenge remote acts selected  for removal peer id {0} qlength {1}"
+                self.sig_log("Remote acts scavenged for removal peer id {0} qlength {1}"
                              .format(peer_id, peer_qlen))
         for peer_id in peer_ids:
             rem_act_que = outgoing_rem_acts.pop(peer_id, Queue())
