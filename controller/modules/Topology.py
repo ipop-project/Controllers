@@ -57,7 +57,7 @@ class Topology(ControllerModule, CFX):
         """
         pass
 
-    def resp_handler_create_link(self, cbt):
+    def resp_handler_create_tnl(self, cbt):
         params = cbt.request.params
         olid = params["OverlayId"]
         peer_id = params["PeerId"]
@@ -94,10 +94,10 @@ class Topology(ControllerModule, CFX):
                 # self._overlays[olid]["NewPeer"] = True
                 self._overlays[olid]["KnownPeers"].append(peer_id)
                 nb = self._overlays[olid]["NetBuilder"]
-                enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
                 if nb.is_ready():
-                    peer_list = [item for item in self._overlays[olid]["Blacklist"] \
-                        if item not in self._overlays[olid]["KnownPeers"]]
+                    enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
+                    peer_list = [item for item in self._overlays[olid]["KnownPeers"] \
+                        if item not in self._overlays[olid]["Blacklist"]]
                     manual_topo = self._cm_config["Overlays"][olid].get("ManualTopology", False)
                     params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
                               "Peers": peer_list,
@@ -162,6 +162,10 @@ class Topology(ControllerModule, CFX):
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
 
+    def request_handler_tunnel_req(self, cbt):
+        cbt.set_response("Accept", True)
+        self.complete_cbt(cbt)
+
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
             if cbt.request.action == "SIG_PEER_PRESENCE_NOTIFY":
@@ -172,11 +176,13 @@ class Topology(ControllerModule, CFX):
                 self.req_handler_query_peer_ids(cbt)
             elif cbt.request.action == "LNK_TUNNEL_EVENTS":
                 self.req_handler_link_data_update(cbt)
+            elif cbt.request.action == "TOP_INCOMING_TUNNEL_REQ":
+                self.request_handler_tunnel_req(cbt)
             else:
                 self.req_handler_default(cbt)
         elif cbt.op_type == "Response":
             if cbt.request.action == "LNK_CREATE_TUNNEL":
-                self.resp_handler_create_link(cbt)
+                self.resp_handler_create_tnl(cbt)
             elif cbt.request.action == "LNK_REMOVE_TUNNEL":
                 self.resp_handler_remove_tnl(cbt)
             else:

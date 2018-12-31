@@ -56,7 +56,7 @@ class ConnectionEdge(object):
 
     def __repr__(self):
         msg = "<peer_id = %s, link_id = %s, marked_for_delete = %s, created_time = %s,"\
-                "state = %s, type = %s>" % (self.peer_id, self.link_id, self.marked_for_delete,
+               "state = %s, edge_type = %s>" % (self.peer_id, self.link_id, self.marked_for_delete,
                                             str(self.created_time), self.state, self.edge_type)
         #msg = "<peer_id = %s, edge_type = %s>" % (self.peer_id, self.edge_type)
         return msg

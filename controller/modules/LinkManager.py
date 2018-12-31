@@ -210,7 +210,7 @@ class LinkManager(ControllerModule):
         if parent_cbt is not None:
             parent_cbt.set_response("Tunnel removed", True)
             self.complete_cbt(parent_cbt)
-        self.register_cbt("Logger", "LOG_INFO", "Tunnel {0} removed: {1}:{2}->{3}"
+        self.register_cbt("Logger", "LOG_INFO", "Tunnel {0} removed: {1}:{2}<->{3}"
                           .format(tnlid[:7], olid[:7], self._cm_config["NodeId"][:7], peer_id[:7]))
         self.register_cbt("Logger", "LOG_DEBUG", "State:\n" + str(self))
 
@@ -399,8 +399,8 @@ class LinkManager(ControllerModule):
         if peer_id in self._peers[overlay_id]:
             cbt.set_response("A tunnel already exists with this peer", False)
             self.complete_cbt(cbt)
-            self.register_cbt("Logger", "LOG_INFO", "A duplicate create link "
-                              "endpoint request was discarded {0}". format(cbt))
+            self.register_cbt("Logger", "LOG_INFO", "A create link endpoint request from a " \
+                              "paired peer was rejected {0}". format(cbt))
             return
         #if len(self._tunnels) > 10: # parameterize this
         #    cbt.set_response("No tunnels currently available", False)

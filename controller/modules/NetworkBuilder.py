@@ -92,25 +92,25 @@ class NetworkBuilder(object):
                 conn_edge = self._current_adj_list.conn_edges.get(peer_id, None)
                 if not conn_edge:
                     # this happens when the neighboring peer initiates the connection bootstrap
-                    self._refresh_in_progress = self._refresh_in_progress + 1
+                    self._refresh_in_progress += 1
                     conn_edge = ConnectionEdge(peer_id, "CETypePredecessor")
                     self._current_adj_list.conn_edges[peer_id] = conn_edge
                 conn_edge.state = "CEStateCreated"
                 conn_edge.link_id = link_id
             elif connection_event["UpdateType"] == "REMOVED":
                 self._current_adj_list.conn_edges.pop(peer_id, None)
-                self._refresh_in_progress = self._refresh_in_progress - 1
+                self._refresh_in_progress -= 1
             elif connection_event["UpdateType"] == "CONNECTED":
                 self._current_adj_list.conn_edges[peer_id].state = "CEStateConnected"
                 self._current_adj_list.conn_edges[peer_id].connected_time = \
                     connection_event["ConnectedTimestamp"]
-                self._refresh_in_progress = self._refresh_in_progress - 1
+                self._refresh_in_progress -= 1
             elif connection_event["UpdateType"] == "DISCONNECTED":
                 # the local topology did not request removal of the connection
                 self._top.top_log("CEStateDisconnected event recvd peer_id: {0}, link_id: {1}".
                                   format(peer_id, link_id))
                 self._current_adj_list.conn_edges[peer_id].state = "CEStateDisconnected"
-                self._refresh_in_progress = self._refresh_in_progress + 1
+                self._refresh_in_progress += 1
                 self._top.top_remove_edge(overlay_id, peer_id)
             elif connection_event["UpdateType"] == "AddEdgeFailed":
                 self._current_adj_list.conn_edges.pop(peer_id, None)
@@ -143,7 +143,7 @@ class NetworkBuilder(object):
                 self._current_adj_list.conn_edges[peer_id] = \
                     self._pending_adj_list.conn_edges[peer_id]
                 if self._current_adj_list.conn_edges[peer_id].state == "CEStateUnknown":
-                    self._refresh_in_progress = self._refresh_in_progress + 1
+                    self._refresh_in_progress += 1
                     self._top.top_add_edge(overlay_id, peer_id)
             else:
                 # Existing edges in both Active and Pending are updated in place
