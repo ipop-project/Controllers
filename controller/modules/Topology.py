@@ -64,10 +64,9 @@ class Topology(ControllerModule, CFX):
         if not cbt.response.status:
             self.register_cbt("Logger", "LOG_WARNING", "Failed to create topology edge to {0}. {1}"
                               .format(cbt.request.params["PeerId"], cbt.response.data))
-            params["UpdateType"] = "AddEdgeFailed"
-            params["LinkId"] = None
-            self._overlays[olid]["Blacklist"][peer_id] = {"StartTime": time.time()}
-            self._overlays[olid]["NetBuilder"].on_connection_update(params)
+            interval = self._cm_config["TimerInterval"]
+            self._overlays[olid]["Blacklist"][peer_id] = \
+                {"RemovalTime": (random.randint(0, 5) * interval) + time.time()}
         self.free_cbt(cbt)
 
     def resp_handler_remove_tnl(self, cbt):
@@ -200,12 +199,13 @@ class Topology(ControllerModule, CFX):
         tmp = []
         for olid in self._overlays:
             for peer_id in self._overlays[olid]["Blacklist"]:
-                st = self._overlays[olid]["Blacklist"][peer_id]["StartTime"]
-                interval = self._cm_config["TimerInterval"]
-                if ((random.randint(0, 5) * interval) + st) <= time.time():
+                rt = self._overlays[olid]["Blacklist"][peer_id]["RemovalTime"]
+                if rt >= time.time():
                     tmp.append(peer_id)
             for peer_id in tmp:
                 self._overlays[olid]["Blacklist"].pop(peer_id, None)
+                self.register_cbt("Logger", "LOG_INFO",
+                                  "Node {0} removed from blacklist".format(peer_id))
 
     def manage_topology(self):
         # Periodically refresh the topology, making sure desired links exist and exipred ones are

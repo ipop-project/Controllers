@@ -112,9 +112,6 @@ class NetworkBuilder(object):
                 self._current_adj_list.conn_edges[peer_id].state = "CEStateDisconnected"
                 self._refresh_in_progress += 1
                 self._top.top_remove_edge(overlay_id, peer_id)
-            elif connection_event["UpdateType"] == "AddEdgeFailed":
-                self._current_adj_list.conn_edges.pop(peer_id, None)
-                self._refresh_in_progress -= 1
             elif connection_event["UpdateType"] == "RemoveEdgeFailed":
                 # leave the node in the adj list and marked for removal to be retried.
                 self._refresh_in_progress -= 1
