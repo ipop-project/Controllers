@@ -19,6 +19,11 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 import time
+
+EdgeTypes = ["CETypeUnknown", "CETypeEnforced", "CETypeSuccessor", "CETypeLongDistance",
+             "CETypePredecessor", "CETypeIncoming"]
+EdgeStates = ["CEStateUnknown", "CEStateCreated", "CEStateConnected", "CEStateDisconnected"]
+
 class ConnectionEdge():
     """ A discriptor of the edge/link between two peers."""
     def __init__(self, peer_id=None, edge_type="CETypeUnknown"):
@@ -27,7 +32,7 @@ class ConnectionEdge():
         self.marked_for_delete = False
         self.created_time = time.time()
         self.connected_time = None
-        self.state = "CEStateUnknown"
+        self.edge_state = "CEStateUnknown"
         self.edge_type = edge_type
 
     def __key__(self):
@@ -57,7 +62,8 @@ class ConnectionEdge():
     def __repr__(self):
         msg = "<peer_id = %s, link_id = %s, marked_for_delete = %s, created_time = %s,"\
                "state = %s, edge_type = %s>" % (self.peer_id, self.link_id, self.marked_for_delete,
-                                                str(self.created_time), self.state, self.edge_type)
+                                                str(self.created_time), self.edge_state,
+                                                self.edge_type)
         #msg = "<peer_id = %s, edge_type = %s>" % (self.peer_id, self.edge_type)
         return msg
 
@@ -70,8 +76,8 @@ class ConnEdgeAdjacenctList():
         self.max_successors = 1
         self.max_ldl = 4
         if cfg:
-            self.max_successors = cfg.get("MaxSuccessors", 1)
-            self.max_ldl = cfg.get("MaxLongDistLinks", 4)
+            self.max_successors = int(cfg["MaxSuccessors"])
+            self.max_ldl = int(cfg["MaxLongDistEdges"])
 
     def __len__(self):
         return len(self.conn_edges)
@@ -102,7 +108,7 @@ class ConnEdgeAdjacenctList():
         conn_edges = {}
         for peer_id in self.conn_edges:
             if (self.conn_edges[peer_id].edge_type == edge_type and
-                    self.conn_edges[peer_id].state == edge_state):
+                    self.conn_edges[peer_id].edge_state == edge_state):
                 conn_edges[peer_id] = self.conn_edges[peer_id]
         return conn_edges
 

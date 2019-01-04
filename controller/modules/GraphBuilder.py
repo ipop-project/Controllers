@@ -37,9 +37,9 @@ class GraphBuilder():
         self._enforced = cfg.get("EnforcedEdges", {})
         # only create edges from the enforced list
         self._manual_topo = cfg.get("ManualTopology", False)
-        self._max_successors = int(cfg.get("MaxSuccessors", 1))
+        self._max_successors = int(cfg["MaxSuccessors"])
         # the number of chord edges that shoulb be maintained
-        self._max_ldl_cnt = int(cfg.get("MaxLongDistLinks", 4))
+        self._max_ldl_cnt = int(cfg["MaxLongDistEdges"])
         # Currently active adjacency list, needed to minimize changes in chord selection
         self._curr_adj_lst = current_adj_list
         self._successors = []
@@ -119,7 +119,7 @@ class GraphBuilder():
     def build_adj_list(self, transition_adj_list):
         adj_list = ConnEdgeAdjacenctList(self.overlay_id, self._node_id,
                                          dict(MaxSuccessors=self._max_successors,
-                                              MaxLongDistLinks=self._max_ldl_cnt))
+                                              MaxLongDistEdges=self._max_ldl_cnt))
         self._build_enforced(adj_list)
         if not self._manual_topo:
             self._build_successors(adj_list)

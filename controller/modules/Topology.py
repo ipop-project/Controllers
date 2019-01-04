@@ -39,7 +39,7 @@ class Topology(ControllerModule, CFX):
         nid = self._cm_config["NodeId"]
         for olid in self._cfx_handle.query_param("Overlays"):
             self._overlays[olid] = dict(NetBuilder=NetworkBuilder(self, olid, nid), KnownPeers=[],
-                                        NewPeerCount=0, Blacklist=dict())
+                                        NewPeerCount=0, Banlist=dict())
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
@@ -62,7 +62,7 @@ class Topology(ControllerModule, CFX):
             self.register_cbt("Logger", "LOG_WARNING", "Failed to create topology edge to {0}. {1}"
                               .format(cbt.request.params["PeerId"], cbt.response.data))
             interval = self._cm_config["TimerInterval"]
-            self._overlays[olid]["Blacklist"][peer_id] = \
+            self._overlays[olid]["Banlist"][peer_id] = \
                 {"RemovalTime": (random.randint(0, 5) * interval) + time.time()}
         self.free_cbt(cbt)
 
@@ -97,11 +97,13 @@ class Topology(ControllerModule, CFX):
                                       .format(self._overlays[olid]["NewPeerCount"]))
                     enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
                     peer_list = [item for item in self._overlays[olid]["KnownPeers"] \
-                        if item not in self._overlays[olid]["Blacklist"]]
+                        if item not in self._overlays[olid]["Banlist"]]
                     manual_topo = self._cm_config["Overlays"][olid].get("ManualTopology", False)
                     params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
                               "Peers": peer_list,
-                              "EnforcedEdges": enf_lnks, "MaxSuccessors": 1, "MaxLongDistLinks": 4,
+                              "EnforcedEdges": enf_lnks,
+                              "MaxSuccessors": self._cm_config.get("MaxSuccessors", 1),
+                              "MaxLongDistEdges": self._cm_config.get("MaxLongDistEdges", 4),
                               "ManualTopology": manual_topo}
                     gb = GraphBuilder(params)
                     adjl = gb.build_adj_list(nb.get_adj_list())
@@ -142,7 +144,7 @@ class Topology(ControllerModule, CFX):
                                    "MarkedForDeleted": ce.marked_for_delete,
                                    "CreatedTime": ce.created_time,
                                    "ConnectedTime": ce.connected_time,
-                                   "State": ce.state, "Type": ce.edge_type}
+                                   "State": ce.edge_state, "Type": ce.edge_type}
                             edges[ce.link_id] = ced
                         topo_data[olid] = edges
             cbt.set_response({"Topology": topo_data}, bool(topo_data))
@@ -199,18 +201,18 @@ class Topology(ControllerModule, CFX):
                     self.complete_cbt(parent_cbt)
 
     def _cleanup_blacklist(self):
-        # Remove peers from the duration based blacklist. Higher successive connection failures
-        # resuts in potentially longer duration in the blacklist.
+        # Remove peers from the duration based banlist. Higher successive connection failures
+        # results in potentially longer duration in the banlist.
         tmp = []
         for olid in self._overlays:
-            for peer_id in self._overlays[olid]["Blacklist"]:
-                rt = self._overlays[olid]["Blacklist"][peer_id]["RemovalTime"]
+            for peer_id in self._overlays[olid]["Banlist"]:
+                rt = self._overlays[olid]["Banlist"][peer_id]["RemovalTime"]
                 if rt >= time.time():
                     tmp.append(peer_id)
             for peer_id in tmp:
-                self._overlays[olid]["Blacklist"].pop(peer_id, None)
+                self._overlays[olid]["Banlist"].pop(peer_id, None)
                 self.register_cbt("Logger", "LOG_INFO",
-                                  "Node {0} removed from blacklist".format(peer_id[:7]))
+                                  "Node {0} removed from banlist".format(peer_id[:7]))
 
     def manage_topology(self):
         # Periodically refresh the topology, making sure desired links exist and exipred ones are
@@ -225,7 +227,9 @@ class Topology(ControllerModule, CFX):
                     manual_topo = self._cm_config["Overlays"][olid].get("ManualTopology", False)
                     params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
                               "Peers": self._overlays[olid]["KnownPeers"],
-                              "EnforcedEdges": enf_lnks, "MaxSuccessors": 1, "MaxLongDistLinks": 4,
+                              "EnforcedEdges": enf_lnks,
+                              "MaxSuccessors": self._cm_config.get("MaxSuccessors", 1),
+                              "MaxLongDistEdges": self._cm_config.get("MaxLongDistEdges", 4),
                               "ManualTopology": manual_topo}
                     gb = GraphBuilder(params)
                     adjl = gb.build_adj_list(nb.get_adj_list())

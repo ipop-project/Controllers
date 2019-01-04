@@ -95,13 +95,13 @@ class NetworkBuilder():
                     self._refresh_in_progress += 1
                     conn_edge = ConnectionEdge(peer_id, "CETypePredecessor")
                     self._current_adj_list.conn_edges[peer_id] = conn_edge
-                conn_edge.state = "CEStateCreated"
+                conn_edge.edge_state = "CEStateCreated"
                 conn_edge.link_id = link_id
             elif connection_event["UpdateType"] == "REMOVED":
                 self._current_adj_list.conn_edges.pop(peer_id, None)
                 self._refresh_in_progress -= 1
             elif connection_event["UpdateType"] == "CONNECTED":
-                self._current_adj_list.conn_edges[peer_id].state = "CEStateConnected"
+                self._current_adj_list.conn_edges[peer_id].edge_state = "CEStateConnected"
                 self._current_adj_list.conn_edges[peer_id].connected_time = \
                     connection_event["ConnectedTimestamp"]
                 self._refresh_in_progress -= 1
@@ -109,7 +109,7 @@ class NetworkBuilder():
                 # the local topology did not request removal of the connection
                 self._top.top_log("CEStateDisconnected event recvd peer_id: {0}, link_id: {1}".
                                   format(peer_id, link_id))
-                self._current_adj_list.conn_edges[peer_id].state = "CEStateDisconnected"
+                self._current_adj_list.conn_edges[peer_id].edge_state = "CEStateDisconnected"
                 self._refresh_in_progress += 1
                 self._top.top_remove_edge(overlay_id, peer_id)
             elif connection_event["UpdateType"] == "RemoveEdgeFailed":
@@ -149,7 +149,7 @@ class NetworkBuilder():
             if not peer_id in self._current_adj_list.conn_edges:
                 self._current_adj_list.conn_edges[peer_id] = \
                     self._pending_adj_list.conn_edges[peer_id]
-                if self._current_adj_list.conn_edges[peer_id].state == "CEStateUnknown":
+                if self._current_adj_list.conn_edges[peer_id].edge_state == "CEStateUnknown":
                     self._refresh_in_progress += 1
                     self._top.top_add_edge(overlay_id, peer_id)
             else:
