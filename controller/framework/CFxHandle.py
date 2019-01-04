@@ -26,7 +26,7 @@ import queue as Queue
 import time
 from controller.framework.CBT import CBT
 
-class CFxHandle(object):
+class CFxHandle():
     def __init__(self, CFxObject):
         self._cm_queue = Queue.Queue()  # CBT queue
         self._cm_instance = None

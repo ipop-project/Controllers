@@ -227,8 +227,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                     msg_type, msg_data = entry[0], entry[1]
                     self.send_msg(match_jid, msg_type, json.dumps(msg_data))
                     self._sig.sig_log("Sent remote action: {0}".format(msg_payload))
-                return
-            elif msg_type == "invk" or msg_type == "cmpt":
+            elif msg_type in ("invk", "cmpt"):
                 rem_act = json.loads(msg_payload)
                 self._sig.handle_remote_action(self._overlay_id, rem_act, msg_type)
             else:

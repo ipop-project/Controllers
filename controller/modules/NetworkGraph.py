@@ -19,7 +19,7 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 import time
-class ConnectionEdge(object):
+class ConnectionEdge():
     """ A discriptor of the edge/link between two peers."""
     def __init__(self, peer_id=None, edge_type="CETypeUnknown"):
         self.peer_id = peer_id
@@ -57,16 +57,21 @@ class ConnectionEdge(object):
     def __repr__(self):
         msg = "<peer_id = %s, link_id = %s, marked_for_delete = %s, created_time = %s,"\
                "state = %s, edge_type = %s>" % (self.peer_id, self.link_id, self.marked_for_delete,
-                                            str(self.created_time), self.state, self.edge_type)
+                                                str(self.created_time), self.state, self.edge_type)
         #msg = "<peer_id = %s, edge_type = %s>" % (self.peer_id, self.edge_type)
         return msg
 
-class ConnEdgeAdjacenctList(object):
+class ConnEdgeAdjacenctList():
     """ A series of ConnectionEdges that are incident on the local node"""
-    def __init__(self, overlay_id=None, node_id=None):
+    def __init__(self, overlay_id=None, node_id=None, cfg=None):
         self.overlay_id = overlay_id
         self.node_id = node_id
         self.conn_edges = {}
+        self.max_successors = 1
+        self.max_ldl = 4
+        if cfg:
+            self.max_successors = cfg.get("MaxSuccessors", 1)
+            self.max_ldl = cfg.get("MaxLongDistLinks", 4)
 
     def __len__(self):
         return len(self.conn_edges)
@@ -93,7 +98,25 @@ class ConnEdgeAdjacenctList(object):
                 cnt = cnt + 1
         return cnt
 
-class NetworkGraph(object):
+    def filter(self, edge_type, edge_state):
+        conn_edges = {}
+        for peer_id in self.conn_edges:
+            if (self.conn_edges[peer_id].edge_type == edge_type and
+                    self.conn_edges[peer_id].state == edge_state):
+                conn_edges[peer_id] = self.conn_edges[peer_id]
+        return conn_edges
+
+    def validate(self):
+        edge_count = self.edge_type_count("CETypeSuccessor")
+        if edge_count > self.max_successors:
+            raise ValueError("Too many Successor edges in adj list, current:{0}, max:{1}".
+                             format(edge_count, self.max_successors))
+        edge_count = self.edge_type_count("CETypeLongDistance")
+        if self.edge_type_count("CETypeLongDistance") > self.max_ldl:
+            raise ValueError("Too many Long Distance edges in adj list, current:{0}, max:{1}".
+                             format(edge_count, self.max_ldl))
+
+class NetworkGraph():
     """Describes the structure of the Topology as a dict of node IDs to ConnEdgeAdjacenctList"""
     def __init__(self, graph=None):
         self._graph = graph

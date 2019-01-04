@@ -78,6 +78,7 @@ CONFIG = {
     "Topology": {
         "Enabled": True,
         "TimerInterval": 60,
+        "PeerDiscoveryCoalesce": 3,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "UsageReport": {

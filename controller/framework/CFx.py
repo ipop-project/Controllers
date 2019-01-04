@@ -33,7 +33,7 @@ from controller.framework.CFxHandle import CFxHandle
 from controller.framework.CFxSubscription import CFxSubscription
 
 # pylint: disable=protected-access
-class CFX(object):
+class CFX():
 
     def __init__(self):
         self._config = OrderedDict()

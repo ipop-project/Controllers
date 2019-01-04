@@ -41,7 +41,8 @@ class TincanInterface(ControllerModule):
             self._sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
             self._sock_svr = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
             # Controller UDP listening socket
-            self._sock_svr.bind((self._cm_config["RcvServiceAddress6"], self._cm_config["CtrlRecvPort"]))
+            self._sock_svr.bind((self._cm_config["RcvServiceAddress6"],
+                                 self._cm_config["CtrlRecvPort"]))
             # Controller UDP sending socket
             self._dest = (self._cm_config["SndServiceAddress6"], self._cm_config["CtrlSendPort"])
         else:

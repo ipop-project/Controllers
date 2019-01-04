@@ -65,3 +65,4 @@ error.log
 .vs/
 config.json
 nid
+/.mypy_cache/3.5

@@ -133,7 +133,8 @@ disable=print-statement,
         too-many-statements,
         too-many-arguments,
         too-many-locals,
-        too-many-instance-attributes
+        too-many-instance-attributes,
+        too-few-public-methods
 
 
 # Enable the message, report, category or checker with the given id(s). You can
@@ -351,7 +352,7 @@ ignore-docstrings=yes
 ignore-imports=no
 
 # Minimum lines number of a similarity.
-min-similarity-lines=4
+min-similarity-lines=10
 
 
 [SPELLING]

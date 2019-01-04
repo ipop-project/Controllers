@@ -39,7 +39,7 @@ class Topology(ControllerModule, CFX):
         nid = self._cm_config["NodeId"]
         for olid in self._cfx_handle.query_param("Overlays"):
             self._overlays[olid] = dict(NetBuilder=NetworkBuilder(self, olid, nid), KnownPeers=[],
-                                        Blacklist=dict())
+                                        NewPeerCount=0, Blacklist=dict())
         try:
             # Subscribe for data request notifications from OverlayVisualizer
             self._cfx_handle.start_subscription("OverlayVisualizer",
@@ -52,9 +52,6 @@ class Topology(ControllerModule, CFX):
         self.register_cbt("Logger", "LOG_INFO", "Module loaded")
 
     def terminate(self):
-        """
-        Send goodbye ICC to known peers.
-        """
         pass
 
     def resp_handler_create_tnl(self, cbt):
@@ -90,10 +87,14 @@ class Topology(ControllerModule, CFX):
         olid = peer["OverlayId"]
         with self._lock:
             if peer_id not in self._overlays[olid]["KnownPeers"]:
-                # self._overlays[olid]["NewPeer"] = True
                 self._overlays[olid]["KnownPeers"].append(peer_id)
+                self._overlays[olid]["NewPeerCount"] += 1
                 nb = self._overlays[olid]["NetBuilder"]
-                if nb.is_ready():
+                if (nb.is_ready() and self._overlays[olid]["NewPeerCount"]
+                        >= self._cm_config["PeerDiscoveryCoalesce"]):
+                    self.register_cbt("Logger", "LOG_DEBUG", "Coalesced {0} new peer discovery, "
+                                      "initiating network refresh"
+                                      .format(self._overlays[olid]["NewPeerCount"]))
                     enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
                     peer_list = [item for item in self._overlays[olid]["KnownPeers"] \
                         if item not in self._overlays[olid]["Blacklist"]]
@@ -105,6 +106,10 @@ class Topology(ControllerModule, CFX):
                     gb = GraphBuilder(params)
                     adjl = gb.build_adj_list(nb.get_adj_list())
                     nb.refresh(adjl)
+                    self._overlays[olid]["NewPeerCount"] = 0
+                else:
+                    self.register_cbt("Logger", "LOG_DEBUG", "{0} new peers discovered, delaying "
+                                      "refresh".format(self._overlays[olid]["NewPeerCount"]))
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
 
@@ -140,7 +145,7 @@ class Topology(ControllerModule, CFX):
                                    "State": ce.state, "Type": ce.edge_type}
                             edges[ce.link_id] = ced
                         topo_data[olid] = edges
-            cbt.set_response({"Topology": topo_data}, True if topo_data else False)
+            cbt.set_response({"Topology": topo_data}, bool(topo_data))
             self.complete_cbt(cbt)
         except KeyError:
             cbt.set_response(data=None, status=False)
@@ -205,7 +210,7 @@ class Topology(ControllerModule, CFX):
             for peer_id in tmp:
                 self._overlays[olid]["Blacklist"].pop(peer_id, None)
                 self.register_cbt("Logger", "LOG_INFO",
-                                  "Node {0} removed from blacklist".format(peer_id))
+                                  "Node {0} removed from blacklist".format(peer_id[:7]))
 
     def manage_topology(self):
         # Periodically refresh the topology, making sure desired links exist and exipred ones are
@@ -225,6 +230,7 @@ class Topology(ControllerModule, CFX):
                     gb = GraphBuilder(params)
                     adjl = gb.build_adj_list(nb.get_adj_list())
                     nb.refresh(adjl)
+                    self._overlays[olid]["NewPeerCount"] = 0
                 else:
                     self.register_cbt("Logger", "LOG_DEBUG", "Net builder busy, skipping...")
 

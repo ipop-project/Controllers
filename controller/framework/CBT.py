@@ -22,9 +22,9 @@
 import uuid
 
 
-class CBT(object):
+class CBT():
     tag_counter = int(uuid.uuid4().hex[:15], base=16)
-    class Request(object):
+    class Request():
         def __init__(self, initiator="", recipient="", action="", params=None):
             self.initiator = initiator
             self.recipient = recipient
@@ -36,7 +36,7 @@ class CBT(object):
                 self.initiator, self.recipient, self.action, str(self.params))
             return msg
 
-    class Response(object):
+    class Response():
         def __init__(self,):
             self.status = False
             self.initiator = None

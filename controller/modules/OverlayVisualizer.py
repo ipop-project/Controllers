@@ -105,8 +105,8 @@ class OverlayVisualizer(ControllerModule):
                 collector_msg["NodeName"] = self._cm_config["NodeName"]
 
             collector_msg["IpopVersion"] = self._ipop_version
-            data_log = "Submitting VizData {}".format(collector_msg)
-            self.register_cbt("Logger", "LOG_DEBUG", data_log)
+            # data_log = "Submitting VizData {}".format(collector_msg)
+            # self.register_cbt("Logger", "LOG_DEBUG", data_log)
 
             req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
 

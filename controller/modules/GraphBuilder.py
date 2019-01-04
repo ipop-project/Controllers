@@ -24,7 +24,7 @@ import random
 from controller.modules.NetworkGraph import ConnectionEdge
 from controller.modules.NetworkGraph import ConnEdgeAdjacenctList
 
-class GraphBuilder(object):
+class GraphBuilder():
     """
     Creates the adjacency list of connections edges from this node that are necessary to
     maintain the Topology
@@ -117,11 +117,14 @@ class GraphBuilder(object):
                 return
 
     def build_adj_list(self, transition_adj_list):
-        adj_list = ConnEdgeAdjacenctList(self.overlay_id, self._node_id)
+        adj_list = ConnEdgeAdjacenctList(self.overlay_id, self._node_id,
+                                         dict(MaxSuccessors=self._max_successors,
+                                              MaxLongDistLinks=self._max_ldl_cnt))
         self._build_enforced(adj_list)
         if not self._manual_topo:
             self._build_successors(adj_list)
             self._build_long_dist_links(adj_list, transition_adj_list)
+        adj_list.validate()
         return adj_list
 
     def build_adj_list_ata(self,):

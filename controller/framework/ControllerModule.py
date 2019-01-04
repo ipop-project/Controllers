@@ -25,7 +25,7 @@ from abc import ABCMeta, abstractmethod
 # abstract ControllerModule (CM) class
 # all CM implementations inherit the variables declared here
 # all CM implementations must override the abstract methods declared here
-class ControllerModule(object):
+class ControllerModule():
 
     __metaclass__ = ABCMeta
 

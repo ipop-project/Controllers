@@ -212,7 +212,7 @@ class LinkManager(ControllerModule):
             self.complete_cbt(parent_cbt)
         self.register_cbt("Logger", "LOG_INFO", "Tunnel {0} removed: {1}:{2}<->{3}"
                           .format(tnlid[:7], olid[:7], self._cm_config["NodeId"][:7], peer_id[:7]))
-        self.register_cbt("Logger", "LOG_DEBUG", "State:\n" + str(self))
+        #self.register_cbt("Logger", "LOG_DEBUG", "State:\n" + str(self))
 
     def req_handler_query_tunnels_info(self, cbt):
         results = {}
@@ -307,8 +307,8 @@ class LinkManager(ControllerModule):
             self.register_cbt("TincanInterface", "TCI_REMOVE_TUNNEL", params)
 
             self.register_cbt("Logger", "LOG_INFO", "Initiated removal of incomplete link: "
-                              "LinkId:{0}, State:{1}, Peer_id:{2}"
-                              .format(link_id, format(creation_state, "02X"), peer_id))
+                              "PeerId:{2}, LinkId:{0}, CreateState:{1}"
+                              .format(link_id[:7], format(creation_state, "02X"), peer_id[:7]))
 
     def req_handler_create_tunnel(self, cbt):
         """
@@ -394,13 +394,12 @@ class LinkManager(ControllerModule):
         lnkid = params["LinkId"]
         node_data = params["NodeData"]
         peer_id = node_data["UID"]
-        self.register_cbt("Logger", "LOG_DEBUG", "Create Link:{} Phase 1/4 Node B"
-                          .format(lnkid[:7]))
         if peer_id in self._peers[overlay_id]:
             cbt.set_response("A tunnel already exists with this peer", False)
             self.complete_cbt(cbt)
-            self.register_cbt("Logger", "LOG_INFO", "A create link endpoint request from a " \
-                              "paired peer was rejected {0}". format(cbt))
+            self.register_cbt("Logger", "LOG_INFO", "A create link endpoint request from a "
+                              "paired peer was rejected {0}:{1}:{2}"
+                              .format(overlay_id[:7], peer_id[:7], lnkid[:7]))
             return
         #if len(self._tunnels) > 10: # parameterize this
         #    cbt.set_response("No tunnels currently available", False)
@@ -410,6 +409,8 @@ class LinkManager(ControllerModule):
         #                      . format(cbt))
         #    return
         # add to index for peer->link lookup
+        self.register_cbt("Logger", "LOG_DEBUG", "Create Link:{} Phase 1/4 Node B"
+                          .format(lnkid[:7]))
         self._peers[overlay_id][peer_id] = lnkid
         self._tunnels[lnkid] = dict(OverlayId=overlay_id,
                                     PeerId=peer_id,
@@ -647,14 +648,11 @@ class LinkManager(ControllerModule):
         parent_cbt = cbt.parent
         resp_data = cbt.response.data
         if not cbt.response.status:
-            self.register_cbt("Logger", "LOG_INFO", "Remote Action failed :{}"
-                              .format(cbt))
             lnkid = cbt.request.params["Params"]["LinkId"]
             self._rollback_link_creation_changes(lnkid)
             self.free_cbt(cbt)
             parent_cbt.set_response(resp_data, False)
             self.complete_cbt(parent_cbt)
-            return
         else:
             rem_act = cbt.response.data
             self.free_cbt(cbt)
@@ -811,5 +809,5 @@ class LinkManager(ControllerModule):
                 tnls[overlay_id][node_id] = dict()
             tnls[overlay_id][node_id][tnlid] = tnl_data
 
-        cbt.set_response({"LinkManager": tnls}, True if tnls else False)
+        cbt.set_response({"LinkManager": tnls}, bool(tnls))
         self.complete_cbt(cbt)

@@ -23,7 +23,7 @@ from copy import deepcopy
 from controller.modules.NetworkGraph import ConnectionEdge
 from controller.modules.NetworkGraph import ConnEdgeAdjacenctList
 
-class NetworkBuilder(object):
+class NetworkBuilder():
     """description of class"""
     def __init__(self, top_man, overlay_id, node_id):
         self._current_adj_list = ConnEdgeAdjacenctList(overlay_id, node_id)
@@ -34,6 +34,9 @@ class NetworkBuilder(object):
 
     def is_ready(self):
         with self._lock:
+            if self._refresh_in_progress < 0:
+                raise ValueError("A precondition violation occurred. The refresh reference count"
+                                 " is negative {}".format(self._refresh_in_progress))
             return self._refresh_in_progress == 0
 
     def get_adj_list(self):
@@ -52,9 +55,6 @@ class NetworkBuilder(object):
             if self._pending_adj_list:
                 self._top.top_log("Pending adj list:{0}"
                                   .format(self._pending_adj_list))
-            if self._refresh_in_progress < 0:
-                raise ValueError("A precondition violation occurred. The refresh reference count"
-                                 " is negative {}".format(self._refresh_in_progress))
             """
             This conditon is expected to be met on the timer invocation when no net_graph is
             supplied but when there is _pending_edges waiting to be applied.
@@ -119,22 +119,32 @@ class NetworkBuilder(object):
                 self._top.top_log("Logger", "LOG_WARNING",
                                   "Invalid UpdateType specified for connection update")
 
-    def _update_net_connections(self):
-        """
-        Sync the network state by determining the difference between the active and pending net
-        graphs.
-        """
-        if self._current_adj_list.overlay_id != self._pending_adj_list.overlay_id:
-            raise ValueError("Overlay ID mismatch adj lists, active:{0}, pending:{1}".
-                             format(self._current_adj_list.overlay_id,
-                                    self._pending_adj_list.overlay_id))
-        # Anything in the set (Active - Pending) is marked for deletion
-        overlay_id = self._current_adj_list.overlay_id
+    def _mark_edges_for_removal(self):
+        """ Anything edge the set (Active - Pending) is marked for deletion """
         for peer_id in self._current_adj_list.conn_edges:
             if (peer_id not in self._pending_adj_list.conn_edges and
                     self._current_adj_list.conn_edges[peer_id].edge_type != "CETypePredecessor"):
                 self._current_adj_list.conn_edges[peer_id].marked_for_delete = True
-        # Any edge in set (Pending - Active) is created and added to Active
+
+    def _remove_edges(self):
+        """ Minimize churn by removing a single connection per refresh. Only initiate removal of a
+        successor edge if a replacement has been previously connected.
+        """
+        overlay_id = self._current_adj_list.overlay_id
+        conn_succ = self._current_adj_list.filter("CETypeSuccessor", "CEStateConnected")
+        num_conn_succ = len(conn_succ)
+        for peer_id in self._current_adj_list.conn_edges:
+            if self._current_adj_list.conn_edges[peer_id].marked_for_delete:
+                if (self._current_adj_list.conn_edges[peer_id].edge_type != "CETypeSuccessor" or
+                        (self._current_adj_list.conn_edges[peer_id].edge_type == "CETypeSuccessor"
+                         and num_conn_succ >= self._current_adj_list.max_successors)):
+                    self._refresh_in_progress += 1
+                    self._top.top_remove_edge(overlay_id, peer_id)
+                    return
+
+    def _create_new_edges(self):
+        """ Any edge in set (Pending - Active) is created and added to Active """
+        overlay_id = self._current_adj_list.overlay_id
         for peer_id in self._pending_adj_list.conn_edges:
             if not peer_id in self._current_adj_list.conn_edges:
                 self._current_adj_list.conn_edges[peer_id] = \
@@ -143,13 +153,24 @@ class NetworkBuilder(object):
                     self._refresh_in_progress += 1
                     self._top.top_add_edge(overlay_id, peer_id)
             else:
-                # Existing edges in both Active and Pending are updated in place
+                # Existing edges in both Active and Pending are updated in place. Only the marked
+                # for delete and edge type fields can be meaningfully changed in this case.
                 self._current_adj_list.conn_edges[peer_id].marked_for_delete = \
                    self._pending_adj_list.conn_edges[peer_id].marked_for_delete
+                self._current_adj_list.conn_edges[peer_id].edge_type = \
+                   self._pending_adj_list.conn_edges[peer_id].edge_type
+
+    def _update_net_connections(self):
+        """
+        Sync the network state by determining the difference between the active and pending net
+        graphs. Create new successors edges before removing existing ones.
+        """
+        if self._current_adj_list.overlay_id != self._pending_adj_list.overlay_id:
+            raise ValueError("Overlay ID mismatch adj lists, active:{0}, pending:{1}".
+                             format(self._current_adj_list.overlay_id,
+                                    self._pending_adj_list.overlay_id))
+
+        self._mark_edges_for_removal()
+        self._create_new_edges()
         self._pending_adj_list = None
-        # Minimize churn by removing a single connection per refresh
-        for peer_id in self._current_adj_list.conn_edges:
-            if self._current_adj_list.conn_edges[peer_id].marked_for_delete:
-                self._refresh_in_progress += 1
-                self._top.top_remove_edge(overlay_id, peer_id)
-                return
+        self._remove_edges()

@@ -47,7 +47,6 @@ class UsageReport(ControllerModule):
                     self.register_cbt("Logger", "LOG_WARNING",
                                       "CBT failed {0}".format(cbt.response.data))
                     self.free_cbt(cbt)
-                    return
                 else:
                     self.create_report(cbt)
             else:

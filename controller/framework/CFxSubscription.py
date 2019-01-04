@@ -20,7 +20,7 @@
 # THE SOFTWARE.
 
 
-class CFxSubscription(object):
+class CFxSubscription():
     def __init__(self, owner_name, subscription_name):
         self._owner_name = owner_name
         self._owner = None
