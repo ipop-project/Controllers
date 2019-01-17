@@ -153,15 +153,12 @@ class LinkManager(ControllerModule):
                     if data[tnl_id][lnkid]["Status"] == "OFFLINE":
                         # tincan indicates offline so recheck the link status
                         retry = self._tunnels[lnkid]["Link"].get("StatusRetry", 0)
-                        if retry < 3:
-                            retry = retry + 1
-                            self._tunnels[lnkid]["Link"]["StatusRetry"] = retry
-                        elif retry >= 2 and self._tunnels[lnkid]["TunnelState"] == "TNL_CREATING":
+                        if retry >= 2 and self._tunnels[lnkid]["TunnelState"] == "TNL_CREATING":
                             # link is stuck creating so destroy it
                             olid = self._tunnels[lnkid]["OverlayId"]
                             params = {"OverlayId": olid, "TunnelId": tnl_id, "LinkId": lnkid}
                             self.register_cbt("TincanInterface", "TCI_REMOVE_TUNNEL", params)
-                        elif retry >= 2 and self._tunnels[lnkid]["TunnelState"] == "TNL_QUERYING":
+                        elif retry >= 1 and self._tunnels[lnkid]["TunnelState"] == "TNL_QUERYING":
                             # link went offline so notify top
                             self._tunnels[lnkid]["TunnelState"] = "TNL_OFFLINE"
                             olid = self._tunnels[lnkid]["OverlayId"]
@@ -171,6 +168,8 @@ class LinkManager(ControllerModule):
                                 "TunnelId": lnkid, "LinkId": lnkid,
                                 "TapName": self._tunnels[lnkid]["Descriptor"]["TapName"]}
                             self._link_updates_publisher.post_update(param)
+                        else:
+                            self._tunnels[lnkid]["Link"]["StatusRetry"] = retry + 1
                     elif data[tnl_id][lnkid]["Status"] == "ONLINE":
                         self._tunnels[lnkid]["TunnelState"] = "TNL_ONLINE"
                         self._tunnels[lnkid]["Link"]["IceRole"] = data[tnl_id][lnkid]["IceRole"]
@@ -676,13 +675,13 @@ class LinkManager(ControllerModule):
                 lnk_status = self._tunnels[lnkid]["TunnelState"]
                 self._tunnels[lnkid]["TunnelState"] = "TNL_ONLINE"
                 if lnk_status != "TNL_QUERYING":
-                    # Do not post a notification if the the connection state was being queried
                     param = {
                         "UpdateType": "CONNECTED", "OverlayId": olid, "PeerId": peer_id,
                         "TunnelId": lnkid, "LinkId": lnkid, "ConnectedTimestamp": lts,
                         "TapName": self._tunnels[lnkid]["Descriptor"]["TapName"]}
                     self._link_updates_publisher.post_update(param)
                 elif lnk_status == "TNL_QUERYING":
+                    # Do not post a notification if the the connection state was being queried
                     self._tunnels[lnkid]["Link"]["StatusRetry"] = 0
                 # if the lnk_status is TNL_OFFLINE the recconect event came in too late and the
                 # tear down has already been issued. This scenario is unlikely as the recheck time

@@ -165,6 +165,7 @@ class Topology(ControllerModule, CFX):
                 i = self._overlays[olid]["KnownPeers"].index(peer_id)
                 self._overlays[olid]["KnownPeers"].pop(i)
             self._overlays[olid]["NetBuilder"].on_connection_update(params)
+            self._update_overlay(olid)
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
 
@@ -214,32 +215,35 @@ class Topology(ControllerModule, CFX):
                 self.register_cbt("Logger", "LOG_INFO",
                                   "Node {0} removed from banlist".format(peer_id[:7]))
 
+    def _update_overlay(self, olid):
+        nb = self._overlays[olid]["NetBuilder"]
+        if nb.is_ready():
+            self.register_cbt("Logger", "LOG_DEBUG", "Refreshing topology...")
+            enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
+            manual_topo = self._cm_config["Overlays"][olid].get("ManualTopology", False)
+            params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
+                        "Peers": self._overlays[olid]["KnownPeers"],
+                        "EnforcedEdges": enf_lnks,
+                        "MaxSuccessors": self._cm_config.get("MaxSuccessors", 1),
+                        "MaxLongDistEdges": self._cm_config.get("MaxLongDistEdges", 4),
+                        "ManualTopology": manual_topo}
+            gb = GraphBuilder(params)
+            adjl = gb.build_adj_list(nb.get_adj_list())
+            nb.refresh(adjl)
+            self._overlays[olid]["NewPeerCount"] = 0
+        else:
+            self.register_cbt("Logger", "LOG_DEBUG", "Net builder busy, skipping...")
+
     def manage_topology(self):
         # Periodically refresh the topology, making sure desired links exist and exipred ones are
         # removed.
-        with self._lock:
-            self._cleanup_blacklist()
-            for olid in self._overlays:
-                nb = self._overlays[olid]["NetBuilder"]
-                if nb.is_ready():
-                    self.register_cbt("Logger", "LOG_DEBUG", "Refreshing topology...")
-                    enf_lnks = self._cm_config["Overlays"][olid].get("EnforcedLinks", {})
-                    manual_topo = self._cm_config["Overlays"][olid].get("ManualTopology", False)
-                    params = {"OverlayId": olid, "NodeId": self._cm_config["NodeId"],
-                              "Peers": self._overlays[olid]["KnownPeers"],
-                              "EnforcedEdges": enf_lnks,
-                              "MaxSuccessors": self._cm_config.get("MaxSuccessors", 1),
-                              "MaxLongDistEdges": self._cm_config.get("MaxLongDistEdges", 4),
-                              "ManualTopology": manual_topo}
-                    gb = GraphBuilder(params)
-                    adjl = gb.build_adj_list(nb.get_adj_list())
-                    nb.refresh(adjl)
-                    self._overlays[olid]["NewPeerCount"] = 0
-                else:
-                    self.register_cbt("Logger", "LOG_DEBUG", "Net builder busy, skipping...")
+        self._cleanup_blacklist()
+        for olid in self._overlays:
+            self._update_overlay(olid)
 
     def timer_method(self):
-        self.manage_topology()
+        with self._lock:
+            self.manage_topology()
 
     def top_add_edge(self, overlay_id, peer_id):
         """
