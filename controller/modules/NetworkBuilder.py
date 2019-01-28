@@ -137,7 +137,7 @@ class NetworkBuilder():
             if self._current_adj_list.conn_edges[peer_id].marked_for_delete:
                 if (self._current_adj_list.conn_edges[peer_id].edge_type != "CETypeSuccessor" or
                         (self._current_adj_list.conn_edges[peer_id].edge_type == "CETypeSuccessor"
-                         and num_conn_succ >= self._current_adj_list.max_successors)):
+                         and num_conn_succ > self._current_adj_list.max_successors)):
                     self._refresh_in_progress += 1
                     self._top.top_remove_edge(overlay_id, peer_id)
                     return
