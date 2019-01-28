@@ -27,7 +27,6 @@ import threading
 import time
 import importlib
 import uuid
-from collections import OrderedDict
 import controller.framework.fxlib as fxlib
 from controller.framework.CFxHandle import CFxHandle
 from controller.framework.CFxSubscription import CFxSubscription
@@ -36,7 +35,7 @@ from controller.framework.CFxSubscription import CFxSubscription
 class CFX():
 
     def __init__(self):
-        self._config = OrderedDict()
+        self._config = dict()
         self.parse_config()
         """
         CFxHandleDict is a dict containing the references to CFxHandles of all
@@ -151,8 +150,7 @@ class CFX():
         print("Signal handler called with signal ", signum)
 
     def parse_config(self):
-        for k in fxlib.MODULE_ORDER:
-            self._config[k] = fxlib.CONFIG.get(k)
+        self._config = fxlib.CONFIG
         self._set_nid_file_name()
         parser = argparse.ArgumentParser(description="Starts the IPOP Controller")
         parser.add_argument("-c", help="load configuration from a file",
@@ -169,19 +167,19 @@ class CFX():
                 time.sleep(10)
             # load the configuration file
             with open(args.config_file) as f:
-                # load the configuration file into an OrderedDict with the
-                # modules in the order in which they appear
-                json_data = json.load(f, object_pairs_hook=OrderedDict)
-                for key in json_data:
+                cfg = json.load(f)
+                for key in cfg:
                     if self._config.get(key, False):
-                        self._config[key].update(json_data[key])
+                        self._config[key].update(cfg[key])
                     else:
-                        self._config[key] = json_data[key]
+                        self._config[key] = cfg[key]
         elif args.config_string:
-            loaded_config = json.loads(args.config_string)
-            for key in loaded_config:
+            cfg = json.loads(args.config_string)
+            for key in cfg:
                 if self._config.get(key, None):
-                    self._config[key].update(loaded_config[key])
+                    self._config[key].update(cfg[key])
+                else:
+                    self._config[key] = cfg[key]
 
     def _set_node_id(self,):
         config = self._config["CFx"]

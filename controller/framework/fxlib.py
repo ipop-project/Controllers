@@ -24,9 +24,6 @@ IPOP_VER_MNR = "02"
 IPOP_VER_REV = "01"
 IPOP_VER_REL = "{0}.{1}.{2}".format(IPOP_VER_MJR, IPOP_VER_MNR, IPOP_VER_REV)
 
-# set default config values
-MODULE_ORDER = ["CFx", "Logger", "OverlayVisualizer", "TincanInterface",
-                "Signal", "LinkManager", "Topology", "BridgeController", "UsageReport"]
 CONFIG = {
     "CFx": {
         "NodeId": "",  # Single unique node Id for all overlays
@@ -93,6 +90,12 @@ CONFIG = {
     "BridgeController": {
         "Enabled": True,
         "Dependencies": ["Logger", "LinkManager"]
+    },
+    "SDNInterface": {
+        "Enabled": True,
+        "SdnListenAddress": "",
+        "SdnListenPort": 5802,
+        "Dependencies": ["Logger"]
     }
 }
 

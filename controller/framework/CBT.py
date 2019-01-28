@@ -32,8 +32,9 @@ class CBT():
             self.params = params
 
         def __repr__(self):
-            msg = "{\n\t\tinitiator: %s,\n\t\trecipient: %s,\n\t\taction: %s,\n\t\tparams: %s\n\t}" % (
-                self.initiator, self.recipient, self.action, str(self.params))
+            msg = ("{\n\t\tinitiator: %s,\n\t\trecipient: %s,\n\t\taction: %s,\n\t\t"
+                   "params: %s\n\t}" % (self.initiator, self.recipient, self.action,
+                                        str(self.params)))
             return msg
 
     class Response():
@@ -44,8 +45,9 @@ class CBT():
             self.data = None
 
         def __repr__(self):
-            msg = "{\n\t\tstatus: %s,\n\t\tinitiator: %s,\n\t\trecipient: %s,\n\t\tdata: %s\n\t}" % (
-                self.status, self.initiator, self.recipient, str(self.data))
+            msg = ("{\n\t\tstatus: %s,\n\t\tinitiator: %s,\n\t\trecipient: %s,\n\t\t"
+                   "data: %s\n\t}" % (self.status, self.initiator, self.recipient,
+                                      str(self.data)))
             return msg
 
     def __init__(self, initiator="", recipient="", action="", params=""):
