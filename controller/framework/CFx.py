@@ -173,7 +173,7 @@ class CFX():
                         self._config[key].update(cfg[key])
                     else:
                         self._config[key] = cfg[key]
-        elif args.config_string:
+        if args.config_string:
             cfg = json.loads(args.config_string)
             for key in cfg:
                 if self._config.get(key, None):
