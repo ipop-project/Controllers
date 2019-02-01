@@ -216,9 +216,12 @@ class LinkManager(ControllerModule):
     def req_handler_query_tunnels_info(self, cbt):
         results = {}
         for tnlid in self._tunnels:
-            results[tnlid] = {"OverlayId": self._tunnels[tnlid]["OverlayId"],
-                              "TunnelId": tnlid, "PeerId": self._tunnels[tnlid]["PeerId"],
-                              "Stats": self._tunnels[tnlid]["Link"]["Stats"]}
+            if self._tunnels[tnlid]["TunnelState"] == "TNL_ONLINE":
+                results[tnlid] = {"OverlayId": self._tunnels[tnlid]["OverlayId"],
+                                  "TunnelId": tnlid, "PeerId": self._tunnels[tnlid]["PeerId"],
+                                  "Stats": self._tunnels[tnlid]["Link"]["Stats"],
+                                  "MAC": self._tunnels[tnlid]["Descriptor"]["MAC"],
+                                  "PeerMac": self._tunnels[tnlid]["Descriptor"]["PeerMac"]}
         cbt.set_response(results, status=True)
         self.complete_cbt(cbt)
 
@@ -470,6 +473,9 @@ class LinkManager(ControllerModule):
                           .format(lnkid[:7]))
         # store the overlay data
         self._update_tunnel_descriptor(resp_data, lnkid)
+        # add the peer MAC to the tunnel descr
+        node_data = cbt.request.params["NodeData"]
+        self._tunnels[lnkid]["Descriptor"]["PeerMac"] = node_data["MAC"]
         self._tunnels[lnkid]["Link"]["CreationState"] = 0xB2
         # respond with this nodes connection parameters
         node_data = {
@@ -535,6 +541,8 @@ class LinkManager(ControllerModule):
                           .format(lnkid[:7]))
         node_data = rem_act["Data"]["NodeData"]
         olid = rem_act["OverlayId"]
+        # add the peer MAC to the tunnel descr
+        self._tunnels[lnkid]["Descriptor"]["PeerMac"] = node_data["MAC"]
         cbt_params = {"OverlayId": olid, "TunnelId": lnkid, "LinkId": lnkid, "Type": "TUNNEL",
                       "NodeData": {
                           "UID": node_data["UID"],
@@ -678,7 +686,9 @@ class LinkManager(ControllerModule):
                     param = {
                         "UpdateType": "CONNECTED", "OverlayId": olid, "PeerId": peer_id,
                         "TunnelId": lnkid, "LinkId": lnkid, "ConnectedTimestamp": lts,
-                        "TapName": self._tunnels[lnkid]["Descriptor"]["TapName"]}
+                        "TapName": self._tunnels[lnkid]["Descriptor"]["TapName"],
+                        "MAC": self._tunnels[lnkid]["Descriptor"]["MAC"],
+                        "PeerMac": self._tunnels[lnkid]["Descriptor"]["PeerMac"]}
                     self._link_updates_publisher.post_update(param)
                 elif lnk_status == "TNL_QUERYING":
                     # Do not post a notification if the the connection state was being queried
@@ -712,7 +722,7 @@ class LinkManager(ControllerModule):
                 elif cbt.request.action == "LNK_REMOVE_TUNNEL":
                     self.req_handler_remove_tnl(cbt)
 
-                elif cbt.request.action == "LNK_QUERY_LINK_INFO":
+                elif cbt.request.action == "LNK_QUERY_TUNNEL_INFO":
                     self.req_handler_query_tunnels_info(cbt)
 
                 elif cbt.request.action == "VIS_DATA_REQ":
