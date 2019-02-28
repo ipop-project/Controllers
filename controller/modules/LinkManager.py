@@ -460,15 +460,17 @@ class LinkManager(ControllerModule):
         # Create Link: Phase 4 Node B
         parent_cbt = cbt.parent
         resp_data = cbt.response.data
+        lnkid = cbt.request.params["LinkId"]
         if not cbt.response.status:
             self.free_cbt(cbt)
             parent_cbt.set_response(resp_data, False)
             if parent_cbt.child_count == 1:
                 self.complete_cbt(parent_cbt)
             self.register_cbt("Logger", "LOG_WARNING", "Create link endpoint failed :{}"
-                              .format(cbt.response.data))
+                                .format(cbt.response.data))
+            self._rollback_link_creation_changes(lnkid)
+
             return
-        lnkid = cbt.request.params["LinkId"]
         self.register_cbt("Logger", "LOG_DEBUG", "Create Link:{} Phase 2/4 Node B"
                           .format(lnkid[:7]))
         # store the overlay data
