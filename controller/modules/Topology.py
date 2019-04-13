@@ -390,9 +390,8 @@ class Topology(ControllerModule, CFX):
 
             max_succ = int(ovl_cfg.get("MaxSuccessors", 1))
             max_ond = int(ovl_cfg.get("MaxOnDemandEdges", 2))
-            max_ldl = int(ovl_cfg.get("MaxLongDistEdges", math.floor(math.log(len(peer_list), 2))))
-            if max_ldl < 1:
-                max_ldl = 1
+            num_peers = len(peer_list) if len(peer_list) > 1 else 2
+            max_ldl = int(ovl_cfg.get("MaxLongDistEdges", math.floor(math.log(num_peers, 2))))
             params = {"OverlayId": olid, "NodeId": self.node_id, "Peers": peer_list,
                       "EnforcedEdges": enf_lnks, "MaxSuccessors": max_succ,
                       "MaxLongDistEdges": max_ldl, "MaxOnDemandEdges": max_ond,

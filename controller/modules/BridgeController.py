@@ -243,9 +243,9 @@ class BridgeController(ControllerModule):
                                                  br_cfg["PrefixLen"],
                                                  br_cfg.get("MTU", 1410),
                                                  br_cfg.get("STP", True),
-                                                 sdn_ctrl_cfg=br_cfg.get("SDNController",
-                                                                         dict()))
-                ign_br_names[olid] = br_cfg["BridgeName"]
+                                                 sdn_ctrl_cfg=br_cfg.get("SDNController", {}))
+                ign_br_names[olid] = set()
+                ign_br_names[olid].add(self._overlays[olid].name)
 
             self.register_cbt("LinkManager",
                               "LNK_ADD_IGN_INF", ign_br_names)
