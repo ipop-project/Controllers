@@ -29,7 +29,7 @@ CONFIG = {
         "NodeId": "",  # Single unique node Id for all overlays
         "IpopVersion": IPOP_VER_REL,
         "Model": "Default",
-        "RequestTimeout": 29
+        "RequestTimeout": 120,
     },
     "Logger": {
         "Enabled": True,
@@ -63,21 +63,22 @@ CONFIG = {
     },
     "Signal": {
         "Enabled": True,
-        "TimerInterval": 60,
+        "TimerInterval": 30,
         "CacheExpiry": 30,         # Min duration an entry remains in the JID cache in seconds
-        "Dependencies": ["Logger"]
+        "Dependencies": ["Logger"],
+        "PresenceInterval": 30     # seconds between presence broadcast
     },
     "LinkManager": {
         "Enabled": True,
-        "TimerInterval": 60,        # Timer thread interval in sec
-        "Dependencies": ["Logger", "TincanInterface", "Signal"]
+        "Dependencies": ["Logger", "TincanInterface", "Signal"],
+        "TimerInterval": 30,        # Timer thread interval in sec
+        "LinkSetupTimeout": 120
     },
     "Topology": {
         "Enabled": True,
-        "TimerInterval": 60,
+        "TimerInterval": 30,
         "PeerDiscoveryCoalesce": 3,
-        "MaxSuccessor": 1,
-        "MaxLongDistEdges": 4,
+        "ExclusionBaseInterval": 240,
         "Dependencies": ["Logger", "TincanInterface", "LinkManager"]
     },
     "UsageReport": {

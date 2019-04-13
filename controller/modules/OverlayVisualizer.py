@@ -36,7 +36,6 @@ class OverlayVisualizer(ControllerModule):
         # Visualizer webservice URL
         self.vis_address = "http://" + self._cm_config["WebServiceAddress"]
         self._vis_req_publisher = None
-        self.node_id = str(self._cm_config["NodeId"])
         self._ipop_version = self._cfx_handle.query_param("IpopVersion")
 
         # The visualizer dataset which is forwarded to the collector service

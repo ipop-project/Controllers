@@ -32,10 +32,15 @@ class CBT():
             self.params = params
 
         def __repr__(self):
-            msg = ("{\n\t\tinitiator: %s,\n\t\trecipient: %s,\n\t\taction: %s,\n\t\t"
-                   "params: %s\n\t}" % (self.initiator, self.recipient, self.action,
-                                        str(self.params)))
+            msg = "Request<initiator=%s, recipient=%s, action=%s, params=%s>" % (
+                self.initiator, self.recipient, self.action, str(self.params))
             return msg
+
+        def __itr__(self):
+            yield("initiator", self.initiator)
+            yield("recipient", self.recipient)
+            yield("action", self.action)
+            yield("params", self.params)
 
     class Response():
         def __init__(self,):
@@ -45,10 +50,15 @@ class CBT():
             self.data = None
 
         def __repr__(self):
-            msg = ("{\n\t\tstatus: %s,\n\t\tinitiator: %s,\n\t\trecipient: %s,\n\t\t"
-                   "data: %s\n\t}" % (self.status, self.initiator, self.recipient,
-                                      str(self.data)))
+            msg = "Response<status=%s, initiator=%s, recipient=%s, data=%s>" % (
+                self.status, self.initiator, self.recipient, str(self.data))
             return msg
+
+        def __itr__(self):
+            yield("status", self.status)
+            yield("initiator", self.initiator)
+            yield("recipient", self.recipient)
+            yield("data", self.data)
 
     def __init__(self, initiator="", recipient="", action="", params=""):
         self.tag = CBT.tag_counter
@@ -65,12 +75,23 @@ class CBT():
         self.time_free = None
 
     def __repr__(self):
-        msg = ("{\n\ttag: %d,\n\tparent: %s,\n\tchild_count: %d, \
-                \n\tcompleted: %r,\n\top_type: %s,\n\trequest: %r, \
-                \n\tresponse: %r\n}"
-               % (self.tag, str(self.parent), self.child_count, self.completed,
-                  self.op_type, self.request, self.response))
+        msg = ("CBT<tag=%d, parent=%s, child_count=%d, completed=%r, op_type=%s, request=%r,"
+               " response=%r>" % (self.tag, str(self.parent), self.child_count, self.completed,
+                                  self.op_type, self.request, self.response))
         return msg
+
+    def __itr__(self):
+        yield("tag", self.tag)
+        yield("parent", self.parent)
+        yield("child_count", self.child_count)
+        yield("completed", self.completed)
+        yield("op_type", self.op_type)
+        yield("request", self.request)
+        yield("response", self.response)
+        yield("time_create", self.time_create)
+        yield("time_submit", self.time_submit)
+        yield("time_complete", self.time_complete)
+        yield("time_free", self.time_free)
 
     def set_request(self, initiator="", recipient="", action="", params=""):
         self.request.initiator = initiator

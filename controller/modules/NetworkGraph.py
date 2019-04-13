@@ -19,21 +19,53 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 import time
+try:
+    import simplejson as json
+except ImportError:
+    import json
+import struct
+import uuid
 
-EdgeTypes = ["CETypeUnknown", "CETypeEnforced", "CETypeSuccessor", "CETypeLongDistance",
-             "CETypePredecessor", "CETypeIncoming"]
-EdgeStates = ["CEStateUnknown", "CEStateCreated", "CEStateConnected", "CEStateDisconnected"]
+EdgeTypes1 = ["CETypeUnknown", "CETypeEnforced", "CETypeSuccessor", "CETypeLongDistance",
+              "CETypeOnDemand"]
+EdgeTypes2 = ["CETypeUnknown", "CETypeIEnforced", "CETypePredecessor", "CETypeILongDistance",
+              "CETypeIOnDemand"]
+EdgeStates = ["CEStateUnknown", "CEStateCreated", "CEStateConnected", "CEStateDisconnected",
+              "CEStateDeleting"]
+
+def transpose_edge_type(edge_type):
+    et = EdgeTypes1[0]
+    if edge_type == "CETypeEnforced":
+        et = EdgeTypes2[1]
+    elif edge_type == "CETypeSuccessor":
+        et = EdgeTypes2[2]
+    elif edge_type == "CETypeLongDistance":
+        et = EdgeTypes2[3]
+    elif edge_type == "CETypeOnDemand":
+        et = EdgeTypes2[4]
+    elif edge_type == "CETypeIEnforced":
+        et = EdgeTypes1[1]
+    elif edge_type == "CETypePredecessor":
+        et = EdgeTypes1[2]
+    elif edge_type == "CETypeILongDistance":
+        et = EdgeTypes1[3]
+    elif edge_type == "CETypeIOnDemand":
+        et = EdgeTypes1[4]
+    return et
 
 class ConnectionEdge():
     """ A discriptor of the edge/link between two peers."""
-    def __init__(self, peer_id=None, edge_type="CETypeUnknown"):
+    _PACK_STR = '!16s16sff18s19s?'
+    def __init__(self, peer_id=None, edge_id=None, edge_type="CETypeUnknown"):
         self.peer_id = peer_id
-        self.link_id = None
-        self.marked_for_delete = False
+        self.edge_id = edge_id
+        if not self.edge_id:
+            self.edge_id = uuid.uuid4().hex
         self.created_time = time.time()
         self.connected_time = None
         self.edge_state = "CEStateUnknown"
         self.edge_type = edge_type
+        self.marked_for_delete = False
 
     def __key__(self):
         return int(self.peer_id, 16)
@@ -60,189 +92,161 @@ class ConnectionEdge():
         return hash(self.__key__())
 
     def __repr__(self):
-        msg = "<peer_id = %s, link_id = %s, marked_for_delete = %s, created_time = %s,"\
-               "state = %s, edge_type = %s>" % (self.peer_id, self.link_id, self.marked_for_delete,
-                                                str(self.created_time), self.edge_state,
-                                                self.edge_type)
-        #msg = "<peer_id = %s, edge_type = %s>" % (self.peer_id, self.edge_type)
+        msg = ("ConnectionEdge<peer_id = %s, edge_id = %s, created_time = %s, connected_time = %s,"
+               " state = %s, edge_type = %s, marked_for_delete = %s>" %
+               (self.peer_id[:7], self.edge_id[:7], str(self.created_time), str(self.connected_time),
+                self.edge_state, self.edge_type, self.marked_for_delete))
+        #msg = ("ConnectionEdge<peer_id = %s, edge_id = %s, state = %s, edge_type = %s>" %
+        #       (self.peer_id, self.edge_id, self.edge_state, self.edge_type))
         return msg
+
+    def __iter__(self):
+        yield("peer_id", self.peer_id)
+        yield("edge_id", self.edge_id)
+        yield("created_time", self.created_time)
+        yield("connected_time", self.connected_time)
+        yield("edge_state", self.edge_state)
+        yield("edge_type", self.edge_type)
+        yield("marked_for_delete", self.marked_for_delete)
+
+    def serialize(self):
+        return struct.pack(ConnectionEdge._PACK_STR, self.peer_id, self.edge_id, self.created_time,
+                           self.connected_time, self.edge_state, self.edge_type,
+                           self.marked_for_delete)
+
+    @classmethod
+    def from_bytes(cls, data):
+        ce = cls()
+        (ce.peer_id, ce.edge_id, ce.created_time, ce.connected_time, ce.edge_state,
+         ce.edge_type, ce.marked_for_delete) = struct.unpack_from(cls._PACK_STR, data)
+        return ce
+
+    def to_json(self):
+        return json.dumps(dict(self))
+
+    #def to_json(self):
+    #    return json.dumps(dict(peer_id=self.peer_id, edge_id=self.edge_id,
+    #                           created_time=self.created_time, connected_time=self.connected_time,
+    #                           state=self.edge_state, edge_type=self.edge_type,
+    #                           marked_for_delete=self.marked_for_delete))
+    @classmethod
+    def from_json_str(cls, json_str):
+        ce = cls()
+        jce = json.loads(json_str)
+        ce.peer_id = jce["peer_id"]
+        ce.edge_id = jce["edge_id"]
+        ce.created_time = jce["created_time"]
+        ce.connected_time = jce["connected_time"]
+        ce.edge_state = jce["edge_state"]
+        ce.edge_type = jce["edge_type"]
+        ce.marked_for_delete = jce["marked_for_delete"]
+        return ce
 
 class ConnEdgeAdjacenctList():
     """ A series of ConnectionEdges that are incident on the local node"""
-    def __init__(self, overlay_id=None, node_id=None, cfg=None):
+    #def __init__(self, overlay_id, node_id, cfg):
+    def __init__(self, overlay_id, node_id, max_succ=1, max_ldl=1, max_ond=1):
         self.overlay_id = overlay_id
         self.node_id = node_id
         self.conn_edges = {}
-        self.max_successors = 1
-        self.max_ldl = 4
-        if cfg:
-            self.max_successors = int(cfg["MaxSuccessors"])
-            self.max_ldl = int(cfg["MaxLongDistEdges"])
+        self._successor_nid = node_id
+        self._predecessor_nid = node_id
+        self.degree_threshold = (2 * (max_succ + max_ldl)) + max_ond
+        self.max_successors = max_succ
+        self.max_ldl = max_ldl
+        self.max_ondemand = max_ond
 
     def __len__(self):
         return len(self.conn_edges)
 
     def __repr__(self):
-        msg = "<overlay_id = %s, node_id = %s, conn_edges = %s>"%(self.overlay_id,
-                                                                  self.node_id, self.conn_edges)
+        msg = "ConnEdgeAdjacenctList<overlay_id = %s, node_id = %s, predecessor_nid=%s, "\
+              "successor_nid=%s, num_edges=%d, max_successors=%d, max_ldl=%d, max_ondemand=%d, " \
+              "degree_threshold=%d, conn_edges = %s>" % \
+              (self.overlay_id[:7], self.node_id[:7], self._predecessor_nid[:7],
+               self._successor_nid[:7], len(self.conn_edges), self.max_successors, self.max_ldl,
+               self.max_ondemand, self.degree_threshold, self.conn_edges)
         return msg
+
+    def __bool__(self):
+        return bool(self.conn_edges)
+
+    def __contains__(self, peer_id):
+        if peer_id in self.conn_edges:
+            return True
+        return False
+
+    def __setitem__(self, peer_id, ce):
+        #self.conn_edges[peer_id] = ce
+        self.add_connection_edge(ce)
+
+    def __getitem__(self, peer_id):
+        return self.conn_edges[peer_id]
+
+    def __delitem__(self, peer_id):
+        #del self.conn_edges[peer_id]
+        self.remove_connection_edge(peer_id)
+
+    def __iter__(self):
+        return self.conn_edges.__iter__()
+
+    def is_successor(self, peer_id):
+        return bool(peer_id == self._successor_nid)
+
+    def is_predecessor(self, peer_id):
+        return bool(peer_id == self._predecessor_nid)
+
+    def at_threshold(self):
+        return bool(len(self.conn_edges) >= self.degree_threshold)
 
     def add_connection_edge(self, ce):
         self.conn_edges[ce.peer_id] = ce
+        self.update_closest()
 
-    def get_edges(self, edge_type):
+    def remove_connection_edge(self, peer_id):
+        ce = self.conn_edges.pop(peer_id, None)
+        if peer_id in (self._successor_nid, self._predecessor_nid):
+            self.update_closest()
+        return ce
+
+    def edges_bytype(self, edge_type):
         conn_edges = {}
         for peer_id in self.conn_edges:
-            if self.conn_edges[peer_id].edge_type == edge_type:
+            if self.conn_edges[peer_id].edge_type in edge_type:
                 conn_edges[peer_id] = self.conn_edges[peer_id]
         return conn_edges
 
-    def edge_type_count(self, edge_type):
-        cnt = 0
-        for peer_id in self.conn_edges:
-            if self.conn_edges[peer_id].edge_type == edge_type:
-                cnt = cnt + 1
-        return cnt
-
-    def filter(self, edge_type, edge_state):
+    def edge_bystate(self, edge_state):
         conn_edges = {}
         for peer_id in self.conn_edges:
-            if (self.conn_edges[peer_id].edge_type == edge_type and
-                    self.conn_edges[peer_id].edge_state == edge_state):
+            if self.conn_edges[peer_id].edge_state in edge_state:
                 conn_edges[peer_id] = self.conn_edges[peer_id]
         return conn_edges
 
-    def validate(self):
-        edge_count = self.edge_type_count("CETypeSuccessor")
-        if edge_count > self.max_successors:
-            raise ValueError("Too many Successor edges in adj list, current:{0}, max:{1}".
-                             format(edge_count, self.max_successors))
-        edge_count = self.edge_type_count("CETypeLongDistance")
-        if self.edge_type_count("CETypeLongDistance") > self.max_ldl:
-            raise ValueError("Too many Long Distance edges in adj list, current:{0}, max:{1}".
-                             format(edge_count, self.max_ldl))
+    def filter(self, edges):
+        """ Input is a list of edge state/type tuples """
+        conn_edges = {}
+        for peer_id in self.conn_edges:
+            for etup in edges:
+                if (self.conn_edges[peer_id].edge_type == etup[0] and
+                        self.conn_edges[peer_id].edge_state == etup[1]):
+                    conn_edges[peer_id] = self.conn_edges[peer_id]
+        return conn_edges
 
-class NetworkGraph():
-    """Describes the structure of the Topology as a dict of node IDs to ConnEdgeAdjacenctList"""
-    def __init__(self, graph=None):
-        self._graph = graph
-        if self._graph is None:
-            self._graph = {}
+    def update_closest(self):
+        """ track the closest successor and predecessor """
+        if not self.conn_edges:
+            self._successor_nid = self.node_id
+            self._predecessor_nid = self.node_id
+            return
+        nl = [*self.conn_edges.keys()]
+        nl.append(self.node_id)
+        nl = sorted(nl)
+        idx = nl.index(self.node_id)
+        nlen = len(nl)
 
-    def vertices(self):
-        """ returns the vertices of a graph """
-        return list(self._graph.keys())
+        succ_i = (idx+1) % nlen
+        self._successor_nid = nl[succ_i]
 
-    def edges(self):
-        """ returns the edges of a graph """
-        return self._generate_edges()
-
-    def find_isolated_nodes(self):
-        """ returns a list of isolated nodes. """
-        isolated = []
-        for node in self._graph:
-            if not self._graph[node]:
-                isolated += node
-        return isolated
-
-    def add_adj_list(self, adj_list):
-        self._graph[adj_list.node_id] = adj_list
-
-    def add_vertex(self, vertex):
-        """ Adds vertex "vertex" as a key with an empty ConnEdgeAdjacenctList to self._graph. """
-        if vertex not in self._graph:
-            self._graph[vertex] = ConnEdgeAdjacenctList()
-
-    def add_edge(self, edge):
-        pass
-
-    def _generate_edges(self):
-        """
-        Generating the edges of the graph "graph". Edges are represented as sets
-        with one (a loop back to the vertex) or two vertices
-        """
-        edges = set()
-        for vertex in self._graph:
-            for neighbour in self._graph[vertex].get_edges():
-                edge = (vertex, neighbour)
-                edges.add(edge)
-        return sorted(edges)
-
-    def __str__(self):
-        res = "vertices: "
-        for k in self._graph:
-            res += str(k) + " "
-        res += "\nedges:\n"
-        for edge in self._generate_edges():
-            res += str(edge) + "\n"
-        return res
-
-    # todo: fix methods below
-    def find_path(self, start_vertex, end_vertex, path=None):
-        """
-        Find a path from start_vertex to end_vertex in graph
-        """
-        if path is None:
-            path = []
-        graph = self._graph
-        path = path + [start_vertex]
-        if start_vertex == end_vertex:
-            return path
-        if start_vertex not in graph:
-            return None
-        for vertex in graph[start_vertex]:
-            if vertex not in path:
-                extended_path = self.find_path(vertex,
-                                               end_vertex,
-                                               path)
-                if extended_path:
-                    return extended_path
-        return None
-
-    def find_all_paths(self, start_vertex, end_vertex, path=None):
-        """ find all paths from start_vertex to
-            end_vertex in graph """
-        if not path:
-            path = []
-        graph = self._graph
-        path = path + [start_vertex]
-        if start_vertex == end_vertex:
-            return [path]
-        if start_vertex not in graph:
-            return []
-        paths = []
-        for vertex in graph[start_vertex]:
-            if vertex not in path:
-                extended_paths = self.find_all_paths(vertex,
-                                                     end_vertex,
-                                                     path)
-                for p in extended_paths:
-                    paths.append(p)
-        return paths
-
-    def vertex_degree(self, vertex):
-        """ The degree of a vertex is the number of edges connecting
-            it, i.e. the number of adjacent vertices. Loops are counted
-            double, i.e. every occurence of vertex in the list
-            of adjacent vertices. """
-        adj_vertices = self._graph[vertex]
-        degree = len(adj_vertices) + adj_vertices.count(vertex)
-        return degree
-
-    def delta(self):
-        """ the minimum degree of the graph """
-        minv = 100000000
-        for vertex in self._graph:
-            vertex_degree = self.vertex_degree(vertex)
-            if vertex_degree < minv:
-                minv = vertex_degree
-        return minv
-
-    def Delta(self):
-        """ the maximum degree of the graph """
-        maxv = 0
-        for vertex in self._graph:
-            vertex_degree = self.vertex_degree(vertex)
-            if vertex_degree > maxv:
-                maxv = vertex_degree
-        return maxv
+        pred_i = (idx + nlen - 1) % nlen
+        self._predecessor_nid = nl[pred_i]

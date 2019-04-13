@@ -19,7 +19,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-import copy
 import threading
 import traceback
 import queue as Queue
@@ -178,28 +177,3 @@ class CFxHandle():
                                           params="_owned_cbts length={0}".format(olen))
                 self.submit_cbt(log_cbt)
         self._timer_loop_cnt = self._timer_loop_cnt + 1
-        if not self.query_param("DebugCBTs"):
-            return
-
-        olen = len(self._owned_cbts)
-        plen = len(self._pending_cbts)
-        ownd = copy.deepcopy(self._owned_cbts)
-        pend = copy.deepcopy(self._pending_cbts)
-        log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
-                                  recipient="Logger", action="LOG_DEBUG",
-                                  params="_pending_cbts length={0}".format(plen))
-        self.submit_cbt(log_cbt)
-        log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
-                                  recipient="Logger", action="LOG_DEBUG",
-                                  params="_owned_cbts length={0}".format(olen))
-        self.submit_cbt(log_cbt)
-        for cbt in ownd.values():
-            log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
-                                      recipient="Logger", action="LOG_DEBUG",
-                                      params="Owned CBT={0}".format(cbt))
-            self.submit_cbt(log_cbt)
-        for cbt in pend.values():
-            log_cbt = self.create_cbt(initiator=self._cm_instance.__class__.__name__,
-                                      recipient="Logger", action="LOG_DEBUG",
-                                      params="Pending CBT={0}".format(cbt))
-            self.submit_cbt(log_cbt)

@@ -1,0 +1,64 @@
+{
+  "CFx": {
+    "Model": "Default",
+    "Overlays": [ "A0FB389" ]
+  },
+  "Logger": {
+    "LogLevel": "INFO",
+    "Device": "File",
+    "Directory": "/var/log/ipop-vpn/",
+    "CtrlLogFileName": "ctrl.log",
+    "TincanLogFileName": "tincan_log",
+    "MaxFileSize": 10000000,
+    "MaxArchives": 2
+  },
+  "Signal": {
+    "Enabled": true,
+    "Overlays": {
+      "A0FB389": {
+        "HostAddress": "***.***.***.***",
+        "Port": "5222",
+        "Username": "***@***",
+        "Password": "***",
+        "AuthenticationMethod": "PASSWORD"
+      }
+    }
+  },
+  "Topology": {
+    "Overlays": {
+      "A0FB389": {
+        "Name": "ApplicationOverlay",
+        "Description": "Scalable Structured Ring Overlay",
+        "MaxSuccessors": 1,
+        "MaxLongDistEdges": 1,
+        "MaxOnDemandEdges": 1,
+        "MaxConcurrentEdgeSetup": 3,
+        "Role": "Switch"
+      }
+    }
+  },
+  "LinkManager": {
+    "Dependencies": [ "Logger", "TincanInterface", "Signal", "OverlayVisualizer" ],
+    "Stun": [ "stun.l.google.com:19302", "stun1.l.google.com:19302" ],
+    "Overlays": {
+      "A0FB389": {
+        "Type": "TUNNEL",
+        "TapName": "tnl-"
+      }
+    }
+  },
+  "BridgeController": {
+    "Dependencies": [ "Logger", "LinkManager" ],
+    "Overlays": {
+      "A0FB389": {
+        "Type": "LXBR",
+        "BridgeName": "ipopbr",
+        "IP4": "10.10.100.**",
+        "PrefixLen": 24,
+        "MTU": 1410,
+        "STP": true,
+        "AutoDelete": true
+      }
+    }
+  }
+}

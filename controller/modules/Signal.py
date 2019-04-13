@@ -27,6 +27,7 @@ try:
     import simplejson as json
 except ImportError:
     import json
+import random
 import sleekxmpp
 from sleekxmpp.xmlstream.stanzabase import ElementBase, JID
 from sleekxmpp.xmlstream import register_stanza_plugin
@@ -185,7 +186,7 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                 if (status != "" and "#" in status):
                     pstatus, peer_id = status.split("#")
                     if pstatus == "ident":
-                        if peer_id == self._sig._cm_config["NodeId"]:
+                        if peer_id == self._sig.config["NodeId"]:
                             return
                         # a notification of a peers node id to jid mapping
                         pts = self._jid_cache.add_entry(node_id=peer_id, jid=presence_sender)
@@ -271,8 +272,8 @@ class Signal(ControllerModule):
         self._circles = {}
         self._remote_acts = {}
         self._lock = threading.Lock()
-        self.request_timeout = self._cm_config["TimerInterval"] - 1
-        self._timer_loop_cnt = 1
+        self.request_timeout = self._cfx_handle.query_param("RequestTimeout")
+        self._scavenge_timer = time.time()
 
     def _create_transport_instance(self, overlay_id, overlay_descr, jid_cache, outgoing_rem_acts):
         xport = XmppTransport.factory(overlay_id, overlay_descr, self, self._presence_publisher,
@@ -282,10 +283,13 @@ class Signal(ControllerModule):
 
     def initialize(self):
         self._presence_publisher = self._cfx_handle.publish_subscription("SIG_PEER_PRESENCE_NOTIFY")
-        for overlay_id in self._cm_config["Overlays"]:
-            overlay_descr = self._cm_config["Overlays"][overlay_id]
+        for overlay_id in self.overlays:
+            overlay_descr = self.overlays[overlay_id]
             self._circles[overlay_id] = {}
-            self._circles[overlay_id]["JidCache"] = JidCache(self, self._cm_config["CacheExpiry"])
+            self._circles[overlay_id]["Announce"] = time.time() + \
+                (int(self.config["PresenceInterval"]) * random.randint(1, 3))
+            self._circles[overlay_id]["JidCache"] = \
+                JidCache(self, self._cm_config["CacheExpiry"])
             self._circles[overlay_id]["OutgoingRemoteActs"] = {}
             self._circles[overlay_id]["Transport"] = \
                 self._create_transport_instance(overlay_id, overlay_descr,
@@ -295,7 +299,7 @@ class Signal(ControllerModule):
 
     def req_handler_query_reporting_data(self, cbt):
         rpt = {}
-        for overlay_id in self._cm_config["Overlays"]:
+        for overlay_id in self.overlays:
             rpt[overlay_id] = {
                 "xmpp_host": self._circles[overlay_id]["Transport"].host(),
                 "xmpp_username": self._circles[overlay_id]["Transport"].boundjid.full
@@ -317,7 +321,7 @@ class Signal(ControllerModule):
         """ Convert the received remote action into a CBT and invoke it locally """
         # if the intended recipient is offline the XMPP server broadcasts the msg to all
         # matching ejabber ids. Verify recipient using Node ID and discard if mismatch
-        if rem_act["RecipientId"] != self._cm_config["NodeId"]:
+        if rem_act["RecipientId"] != self.node_id:
             self.sig_log("A mis-delivered remote action was discarded: {0}"
                          .format(rem_act), "LOG_WARNING")
             return
@@ -332,7 +336,7 @@ class Signal(ControllerModule):
         """ Convert the received remote action into a CBT and complete it locally """
         # if the intended recipient is offline the XMPP server broadcasts the msg to all
         # matching ejabber ids. Verify recipient using Node ID and discard if mismatch
-        if rem_act["InitiatorId"] != self._cm_config["NodeId"]:
+        if rem_act["InitiatorId"] != self.node_id:
             self.sig_log("A mis-delivered remote action was discarded: {0}"
                          .format(rem_act), "LOG_WARNING")
             return
@@ -365,7 +369,7 @@ class Signal(ControllerModule):
             cbt.set_response("Overlay ID not found", False)
             self.complete_cbt(cbt)
             return
-        rem_act["InitiatorId"] = self._cm_config["NodeId"]
+        rem_act["InitiatorId"] = self.node_id
         rem_act["InitiatorCM"] = cbt.request.initiator
         rem_act["ActionTag"] = cbt.tag
         self.transmit_remote_act(rem_act, peer_id, "invk")
@@ -423,12 +427,15 @@ class Signal(ControllerModule):
     def timer_method(self):
         with self._lock:
             for overlay_id in self._circles:
-                self._circles[overlay_id]["Transport"].send_presence(pstatus="ident#" +
-                                                                     self._cm_config["NodeId"])
-                if self._timer_loop_cnt % 10 == 0:
-                    self._circles[overlay_id]["JidCache"].scavenge()
-                    self.scavenge_jid_resolution_queue(self._circles[overlay_id]
-                                                       ["OutgoingRemoteActs"])
+                anc = self._circles[overlay_id]["Announce"]
+                if time.time() >= anc:
+                    self._circles[overlay_id]["Transport"].send_presence(pstatus="ident#" +
+                                                                         self.node_id)
+                    self._circles[overlay_id]["Announce"] = time.time() + \
+                        (int(self.config["PresenceInterval"]) * random.randint(2, 20))
+                self._circles[overlay_id]["JidCache"].scavenge()
+                self.scavenge_expired_outgoing_rem_acts(self._circles[overlay_id]
+                                                        ["OutgoingRemoteActs"])
             self.scavenge_pending_cbts()
 
     def terminate(self):
@@ -449,11 +456,13 @@ class Signal(ControllerModule):
                 pending_cbt.set_response("The request has expired", False)
                 self.complete_cbt(pending_cbt)
 
-    def scavenge_jid_resolution_queue(self, outgoing_rem_acts):
+    def scavenge_expired_outgoing_rem_acts(self, outgoing_rem_acts):
         # clear out the JID Refresh queue for a peer if the oldest entry age exceeds the limit
         peer_ids = []
         for peer_id in outgoing_rem_acts:
             peer_qlen = outgoing_rem_acts[peer_id].qsize()
+            if not outgoing_rem_acts[peer_id].queue:
+                break
             remact_descr = outgoing_rem_acts[peer_id].queue[0] # peek at the first/oldest entry
             if time.time() - remact_descr[2] < self.request_timeout:
                 peer_ids.append(peer_id)

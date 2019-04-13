@@ -83,7 +83,7 @@ class UsageReport(ControllerModule):
         self.register_cbt("Signal", "SIG_QUERY_REPORTING_DATA")
 
     def create_report(self, cbt):
-        nid = self._cm_config["NodeId"]
+        nid = self.node_id
         report_data = cbt.response.data
         for overlay_id in report_data:
             report_data[overlay_id] = {

@@ -51,6 +51,22 @@ class ControllerModule():
     def terminate(self):
         pass
 
+    @property
+    def node_id(self):
+        return self._cm_config["NodeId"]
+
+    @property
+    def overlays(self):
+        return self._cm_config["Overlays"]
+
+    @property
+    def config(self):
+        return self._cm_config
+
+    @property
+    def module_name(self):
+        return self._module_name
+
     def req_handler_default(self, cbt):
         log = "Unsupported CBT action {0}".format(cbt)
         self.register_cbt("Logger", "LOG_WARNING", log)

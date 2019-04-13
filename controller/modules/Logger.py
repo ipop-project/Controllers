@@ -33,10 +33,9 @@ class Logger(ControllerModule):
     def initialize(self):
         # Extracts the controller Log Level from the ipop-config file,
         # If nothing is provided the default is INFO
+        level = logging.INFO
         if "LogLevel" in self._cm_config:
             level = getattr(logging, self._cm_config["LogLevel"])
-        else:
-            level = getattr(logging, "info")
 
         # If the Logging is set to Console by the User
         if self._cm_config["Device"] == "Console":

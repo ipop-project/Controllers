@@ -19,11 +19,10 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-from distutils import spawn
 import subprocess
 import sys
 
-py_ver = sys.version_info[0]
+
 
 CTL_CREATE_CTRL_LINK = {
     "IPOP": {
@@ -103,19 +102,7 @@ CTL_CREATE_LINK = {
         }
     }
 }
-CTL_SEND_ICC = {
-    "IPOP": {
-        "ProtocolVersion": 5,
-        "Tag": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-            "Command": "SendIcc",
-            "LinkId": "",
-            "OverlayId": "",
-            "Data": "encoded string"
-        }
-    }
-}
+
 INSERT_TAP_PACKET = {
     "IPOP": {
         "ProtocolVersion": 5,
@@ -162,30 +149,6 @@ RESP = {
         "Response": {
             "Success": True,
             "Message": "description"
-        }
-    }
-}
-ADD_FORWARDING_RULE = {
-    "IPOP": {
-        "ProtocolVersion": 5,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-            "Command": "UpdateMap",
-            "OverlayId": "",
-            "Routes": []
-        }
-    }
-}
-DELETE_FORWARDING_RULE = {
-    "IPOP": {
-        "ProtocolVersion": 5,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-            "Command": "RemoveRoutes",
-            "OverlayId": "",
-            "Routes": []
         }
     }
 }
@@ -309,18 +272,69 @@ def getchecksum(hexstr):
     return hex(65535 ^ int(result, 16))
 
 def runshell(cmd):
-    """ Run a shell command. if fails, raise an exception. """
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if p.returncode != 0:
-        err = "Subprocess: \"{0}\" failed, std err = {1}".format(str(cmd), str(p.stderr))
-        raise RuntimeError(err)
-    return p
+    """ Run a shell command """
+    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+class RemoteAction():
+    def __init__(self, overlay_id, recipient_id, recipient_cm, action, params,
+                 parent_cbt=None, frm_cbt=None, status=None, data=None):
+        self.overlay_id = overlay_id
+        self.recipient_id = recipient_id
+        self.recipient_cm = recipient_cm
+        self.action = action
+        self.params = params
+        self._parent_cbt = parent_cbt
+        self.cbt = frm_cbt
+        self.initiator_id = None
+        self.initiator_cm = None
+        self.action_tag = None
+        self.status = status
+        self.data = data
 
-def runshell_su(cmd):
-    sudoexe = spawn.find_executable("sudo")
-    cmd = [sudoexe]+cmd
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    if p.returncode != 0:
-        err = "Subprocess: \"{0}\" failed, std err = {1}".format(str(cmd), str(p.stderr))
-        raise RuntimeError(err)
-    return p
+    def __iter__(self):
+        yield("OverlayId", self.overlay_id)
+        yield("RecipientId", self.recipient_id)
+        yield("RecipientCM", self.recipient_cm)
+        yield("Action", self.action)
+        yield("Params", self.params)
+        if self.initiator_id:
+            yield("InitiatorId", self.initiator_id)
+        if self.initiator_cm:
+            yield("InitiatorCM", self.initiator_cm)
+        if self.action_tag:
+            yield("ActionTag", self.action_tag)
+        if self.status:
+            yield("Status", self.status)
+        if self.data:
+            yield("Data", self.data)
+    def submit_remote_act(self, cm):
+        self.initiator_id = cm.node_id
+        self.initiator_cm = cm.module_name
+        ra_desc = dict(self)
+        if self._parent_cbt is not None:
+            cbt = cm.create_linked_cbt(self._parent_cbt)
+            cbt.set_request(cm.module_name, "Signal", "SIG_REMOTE_ACTION", ra_desc)
+        else:
+            cbt = cm.create_cbt(cm.module_name, "Signal", "SIG_REMOTE_ACTION", ra_desc)
+        self.action_tag = cbt.tag
+        cm.submit_cbt(cbt)
+    @classmethod
+    def from_cbt(cls, cbt):
+        reqp = cbt.request.params
+        rem_act = cls(reqp["OverlayId"], reqp["RecipientId"], reqp["RecipientCM"],
+                      reqp["Action"], reqp["Params"], frm_cbt=cbt)
+        rem_act.initiator_id = reqp["InitiatorId"]
+        rem_act.initiator_cm = reqp["InitiatorCM"]
+        rem_act.action_tag = cbt.tag
+        if cbt.op_type == "Response":
+            rem_act.status = cbt.response.status
+            rem_act.data = cbt.response.data
+            if isinstance(rem_act.data, dict):
+                rem_act.data = rem_act.data["Data"]
+        return rem_act
+    def tx_remote_act(self, sig):
+        if self.overlay_id not in sig.overlays:
+            self.cbt.set_response("Overlay ID not found", False)
+            sig.complete_cbt(self.cbt)
+            return
+        rem_act = dict(self)
+        sig.transmit_remote_act(rem_act, self.recipient_id, "invk")
