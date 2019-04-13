@@ -38,7 +38,7 @@
     }
   },
   "LinkManager": {
-    "Dependencies": [ "Logger", "TincanInterface", "Signal", "OverlayVisualizer" ],
+    "Dependencies": [ "Logger", "TincanInterface", "Signal" ],
     "Stun": [ "stun.l.google.com:19302", "stun1.l.google.com:19302" ],
     "Overlays": {
       "A0FB389": {
