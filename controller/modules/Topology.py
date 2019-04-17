@@ -22,6 +22,7 @@ import math
 import random
 import threading
 import time
+from datetime import datetime
 from controller.framework.CFx import CFX
 from controller.framework.ControllerModule import ControllerModule
 from controller.modules.NetworkBuilder import NetworkBuilder
@@ -48,7 +49,7 @@ class DiscoveredPeer():
 
     def exclude(self):
         self.successive_fails += 1
-        self.removal_time = (random.randint(0, 5) * DiscoveredPeer.ExclusionBaseInterval *
+        self.removal_time = (random.randint(1, 5) * DiscoveredPeer.ExclusionBaseInterval *
                              self.successive_fails) + time.time()
         self._is_excluded = True
 
@@ -189,7 +190,8 @@ class Topology(ControllerModule, CFX):
         if params["UpdateType"] == "DISCONNECTED" or params["UpdateType"] == "DEAUTHORIZED":
             self._net_ovls[olid]["KnownPeers"][peer_id].exclude()
             self.top_log("Excluding peer {0} until {1}".
-                         format(peer_id, self._net_ovls[olid]["KnownPeers"][peer_id].removal_time))
+                         format(peer_id, datetime.fromtimestamp(
+                             self._net_ovls[olid]["KnownPeers"][peer_id].removal_time)))
         if params["UpdateType"] == "REMOVED":
             self._do_topo_change_post(olid)
         elif params["UpdateType"] == "CONNECTED":
@@ -210,7 +212,8 @@ class Topology(ControllerModule, CFX):
         if (olid in self._net_ovls and peer_id in self._net_ovls[olid]["KnownPeers"] and
                 not self._net_ovls[olid]["KnownPeers"][peer_id].is_excluded):
             self._net_ovls[olid]["OndPeers"].append(op)
-            self.register_cbt("Logger", "LOG_INFO", "Added on demand request to queue {0}".format(op))
+            self.register_cbt("Logger", "LOG_INFO", "Added on demand request to queue {0}".
+                              format(op))
         else:
             self.register_cbt("Logger", "LOG_WARNING", "Invalid on demand tunnel request "
                               "parameter, OverlayId={0}, PeerId={1}".format(olid, peer_id))
@@ -271,6 +274,9 @@ class Topology(ControllerModule, CFX):
                               "local config, the rem act response is discarded")
             self.free_cbt(cbt)
             return
+        if not cbt.response.status:
+            peer_id = rem_act.recipient_id
+            self._net_ovls[olid]["KnownPeers"][peer_id].exclude()
         if rem_act.action == "TOP_NEGOTIATE_EDGE":
             edge_nego = rem_act.params
             edge_nego["is_accepted"] = rem_act.status
@@ -326,7 +332,7 @@ class Topology(ControllerModule, CFX):
     def timer_method(self):
         with self._lock:
             self._manage_topology()
-            self.register_cbt("Logger", "LOG_DEBUG", "Timer TOP State=" + str(self))
+            self.log("LOG_DEBUG", "Timer TOP State=%s", str(self))
 
     def top_add_edge(self, overlay_id, peer_id, edge_id):
         """
@@ -343,11 +349,12 @@ class Topology(ControllerModule, CFX):
         params = {"OverlayId": overlay_id, "PeerId": peer_id}
         self.register_cbt("LinkManager", "LNK_REMOVE_TUNNEL", params)
 
-    def top_log(self, msg, level="LOG_DEBUG"):
-        self.register_cbt("Logger", level, msg)
+    def top_log(self, *msg, level="LOG_DEBUG"):
+        self.log(level, *msg)
 
     def top_send_negotiate_edge_req(self, edge_req):
         """Role Node A, Send a request to create an edge to the peer """
+        self.log("LOG_DEBUG", "Requesting edge auth edge_req=%s", edge_req)
         edge_params = edge_req._asdict()
         rem_act = RemoteAction(edge_req.overlay_id, recipient_id=edge_req.recipient_id,
                                recipient_cm="Topology", action="TOP_NEGOTIATE_EDGE",
@@ -392,12 +399,11 @@ class Topology(ControllerModule, CFX):
             max_ond = int(ovl_cfg.get("MaxOnDemandEdges", 2))
             num_peers = len(peer_list) if len(peer_list) > 1 else 2
             max_ldl = int(ovl_cfg.get("MaxLongDistEdges", math.floor(math.log(num_peers, 2))))
-            params = {"OverlayId": olid, "NodeId": self.node_id, "Peers": peer_list,
+            params = {"OverlayId": olid, "NodeId": self.node_id, "ManualTopology": manual_topo,
                       "EnforcedEdges": enf_lnks, "MaxSuccessors": max_succ,
-                      "MaxLongDistEdges": max_ldl, "MaxOnDemandEdges": max_ond,
-                      "ManualTopology": manual_topo}
+                      "MaxLongDistEdges": max_ldl, "MaxOnDemandEdges": max_ond}
             gb = GraphBuilder(params, top=self)
-            adjl = gb.build_adj_list(nb.get_adj_list(), net_ovl["OndPeers"])
+            adjl = gb.build_adj_list(peer_list, nb.get_adj_list(), net_ovl["OndPeers"])
             nb.refresh(adjl)
         else:
             self.register_cbt("Logger", "LOG_DEBUG", "TOP resuming Netbuilder refresh...")

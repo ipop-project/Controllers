@@ -94,8 +94,8 @@ class ConnectionEdge():
     def __repr__(self):
         msg = ("ConnectionEdge<peer_id = %s, edge_id = %s, created_time = %s, connected_time = %s,"
                " state = %s, edge_type = %s, marked_for_delete = %s>" %
-               (self.peer_id[:7], self.edge_id[:7], str(self.created_time), str(self.connected_time),
-                self.edge_state, self.edge_type, self.marked_for_delete))
+               (self.peer_id[:7], self.edge_id[:7], str(self.created_time),
+                str(self.connected_time), self.edge_state, self.edge_type, self.marked_for_delete))
         #msg = ("ConnectionEdge<peer_id = %s, edge_id = %s, state = %s, edge_type = %s>" %
         #       (self.peer_id, self.edge_id, self.edge_state, self.edge_type))
         return msg
@@ -224,7 +224,7 @@ class ConnEdgeAdjacenctList():
         return conn_edges
 
     def filter(self, edges):
-        """ Input is a list of edge state/type tuples """
+        """ Input is a list of edge type/state tuples """
         conn_edges = {}
         for peer_id in self.conn_edges:
             for etup in edges:

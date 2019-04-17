@@ -91,7 +91,6 @@ class NetworkBuilder():
             self._current_adj_list.update_closest()
             self._mark_edges_for_removal()
         self._process_pending_adj_list()
-        return
 
     def update_edge_state(self, connection_event):
         """
@@ -255,7 +254,8 @@ class NetworkBuilder():
             ce.edge_id = edge_req.edge_id
             edge_resp = EdgeResponse(is_accepted=True, data=msg)
             self._top.top_log(msg)
-            self._top.top_log("Existing CE={0} moved to negotiated_edges={1}".format(ce, self._negotiated_edges))
+            self._top.top_log("Existing CE={0} moved to negotiated_edges={1}".format(ce,
+                              self._negotiated_edges))
         else:
             edge_resp = EdgeResponse(False, "E6 - Request colides with an edge being destroyed."\
                                             "Try later")
@@ -284,7 +284,8 @@ class NetworkBuilder():
             et = ng.transpose_edge_type(edge_req.edge_type)
             ce = ConnectionEdge(peer_id=peer_id, edge_id=edge_req.edge_id, edge_type=et)
             self._negotiated_edges[peer_id] = ce
-            self._top.top_log("New CE={0} added to negotiated_edges={1}".format(ce, self._negotiated_edges))
+            self._top.top_log("New CE={0} added to negotiated_edges={1}".
+                              format(ce, self._negotiated_edges))
         return edge_resp
 
     def add_incoming_auth_conn_edge(self, peer_id):

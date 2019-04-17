@@ -20,8 +20,6 @@
 # THE SOFTWARE.
 
 import subprocess
-import sys
-
 
 
 CTL_CREATE_CTRL_LINK = {

@@ -462,9 +462,9 @@ class Signal(ControllerModule):
         for peer_id in outgoing_rem_acts:
             peer_qlen = outgoing_rem_acts[peer_id].qsize()
             if not outgoing_rem_acts[peer_id].queue:
-                break
+                continue
             remact_descr = outgoing_rem_acts[peer_id].queue[0] # peek at the first/oldest entry
-            if time.time() - remact_descr[2] < self.request_timeout:
+            if time.time() - remact_descr[2] >= self.request_timeout:
                 peer_ids.append(peer_id)
                 self.sig_log("Remote acts scavenged for removal peer id {0} qlength {1}"
                              .format(peer_id, peer_qlen))

@@ -101,25 +101,34 @@ class Logger(ControllerModule):
 
     def process_cbt(self, cbt):
         if cbt.op_type == "Request":
-            # Extracting the logging level information from the CBT action tag
-            if cbt.request.action == "LOG_DEBUG" or cbt.request.action == "debug":
-                self._logger.debug("%s: %s", cbt.request.initiator, cbt.request.params)
+            lvl = cbt.request.action
+            mod = cbt.request.initiator
+            if isinstance(cbt.request.params, tuple):
+                fmt = "%s: "+ cbt.request.params[0]
+                vals = cbt.request.params[1]
+            else:
+                fmt = "%s: %s"
+                vals = [cbt.request.params]
+
+            if lvl == "LOG_DEBUG":
+                self._logger.debug(fmt, mod, *vals)
                 cbt.set_response(None, True)
-            elif cbt.request.action == "LOG_INFO" or cbt.request.action == "info":
-                self._logger.info("%s: %s", cbt.request.initiator, cbt.request.params)
+            elif lvl == "LOG_INFO":
+                self._logger.info(fmt, mod, *vals)
                 cbt.set_response(None, True)
-            elif cbt.request.action == "LOG_WARNING" or cbt.request.action == "warning":
-                self._logger.warning("%s: %s", cbt.request.initiator, cbt.request.params)
+            elif lvl == "LOG_WARNING":
+                self._logger.warning(fmt, mod, *vals)
                 cbt.set_response(None, True)
-            elif cbt.request.action == "LOG_ERROR" or cbt.request.action == "error":
-                self._logger.error("%s: %s", cbt.request.initiator, cbt.request.params)
+            elif lvl == "LOG_ERROR":
+                self._logger.error(fmt, mod, *vals)
                 cbt.set_response(None, True)
-            elif cbt.request.action == "LOG_QUERY_CONFIG":
+            elif lvl == "LOG_QUERY_CONFIG":
                 cbt.set_response(self._cm_config, True)
             else:
                 self._logger.warning("%s: Unsupported CBT action %s", self._module_name, str(cbt))
                 cbt.set_response("Unsupported CBT action", False)
             self.complete_cbt(cbt)
+
         elif cbt.op_type == "Response":
             self.free_cbt(cbt)
 

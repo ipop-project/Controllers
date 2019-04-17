@@ -29,10 +29,10 @@ class GraphBuilder():
     Creates the adjacency list of connections edges from this node that are necessary to
     maintain the Topology
     """
-    def __init__(self, cfg, current_adj_list=None, top=None):
+    def __init__(self, cfg, top=None):
         self.overlay_id = cfg["OverlayId"]
         self._node_id = cfg["NodeId"]
-        self._peers = sorted(cfg.get("Peers", []))
+        self._peers = None
         # enforced is a list of peer ids that should always have a direct edge
         self._enforced = cfg.get("EnforcedEdges", {})
         # only create edges from the enforced list
@@ -42,7 +42,8 @@ class GraphBuilder():
         self._max_ldl_cnt = int(cfg["MaxLongDistEdges"])
         self._max_ond = int(cfg["MaxOnDemandEdges"])
         # Currently active adjacency list, needed to minimize changes in chord selection
-        self._curr_adj_lst = current_adj_list
+        self._nodes = []
+        self._my_idx = 0
         self._top = top
 
     def _build_enforced(self, adj_list):
@@ -52,49 +53,61 @@ class GraphBuilder():
 
     def _get_successors(self):
         """ Generate a list of successor UIDs from the list of peers """
+        #todo: fix for max succ > 1
         successors = []
         num_peers = len(self._peers)
         if not self._peers or (num_peers == 1 and self._node_id > self._peers[0]):
             return successors
-        node_list = list(self._peers)
-        node_list.append(self._node_id)
-        node_list.sort()
-        num_nodes = len(node_list)
-        successor_index = node_list.index(self._node_id) + 1
+
+        num_nodes = len(self._nodes)
+        successor_index = self._my_idx + 1
         num_succ = self._max_successors if (num_peers >= self._max_successors) else num_peers
         for _ in range(num_succ):
             successor_index %= num_nodes
-            successors.append(node_list[successor_index])
+            successors.append(self._nodes[successor_index])
             successor_index += 1
         return successors
 
-    def _build_successors(self, adj_list):
+    def _build_successors(self, adj_list, transition_adj_list):
+        num_ideal_conn_succ = 0
         successors = self._get_successors()
+        suc_ces = transition_adj_list.filter([("CETypeSuccessor", "CEStateConnected")])
+        # add the ideal successors to the new adj list
         for peer_id in successors:
             if peer_id not in adj_list:
-                ce = ConnectionEdge(peer_id, edge_type="CETypeSuccessor")
-                adj_list.add_connection_edge(ce)
+                adj_list[peer_id] = ConnectionEdge(peer_id, edge_type="CETypeSuccessor")
+                if peer_id in suc_ces:
+                    # this is an ideal succ that was previously connected
+                    num_ideal_conn_succ += 1
+                    del suc_ces[peer_id]
+        # do not remove the existing successor until the new one is connected
+        for peer_id in suc_ces:
+            # these are to be replaced when the ideal ones are in connected state
+            if num_ideal_conn_succ < self._max_successors:
+                # not an ideal successor but keep until better succ is connected
+                adj_list[peer_id] = ConnectionEdge(peer_id, edge_type="CETypeSuccessor")
+                num_ideal_conn_succ += 1
+            else:
+                break # consider selecting the best of these
 
     @staticmethod
     def symphony_prob_distribution(network_sz, samples):
         """exp (log(n) * (rand() - 1.0))"""
         results = [None]*(samples)
         for i in range(0, samples):
-            rnd_val = random.uniform(0, 1)
+            rnd_val = random.random()
             results[i] = math.exp(math.log10(network_sz) * (rnd_val - 1.0))
         return results
 
     def _get_long_dist_links(self, num_ldl):
         # Calculates long distance link candidates.
         long_dist_links = []
-        all_nodes = sorted(self._peers + [self._node_id])
-        network_sz = len(all_nodes)
-        my_index = all_nodes.index(self._node_id)
-        node_off = GraphBuilder.symphony_prob_distribution(network_sz, num_ldl)
+        net_sz = len(self._nodes)
+        node_off = GraphBuilder.symphony_prob_distribution(net_sz, num_ldl)
         for i in node_off:
-            idx = math.floor(network_sz*i)
-            ldl_idx = (my_index + idx)%network_sz
-            long_dist_links.append(all_nodes[ldl_idx])
+            idx = math.floor(net_sz*i)
+            ldl_idx = (self._my_idx + idx) % net_sz
+            long_dist_links.append(self._nodes[ldl_idx])
         return long_dist_links
 
     def _build_long_dist_links(self, adj_list, transition_adj_list):
@@ -109,7 +122,7 @@ class GraphBuilder():
         num_existing_ldl = 0
         for peer_id, ce in ldlnks.items():
             if ce.edge_state in ("CEStateUnknown", "CEStateCreated", "CEStateConnected") and \
-                peer_id not in adj_list:
+                peer_id not in adj_list and not self.is_too_close(ce.peer_id):
                 adj_list[peer_id] = ConnectionEdge(peer_id, ce.edge_id, ce.edge_type)
                 num_existing_ldl += 1
         num_ldl = self._max_ldl_cnt - num_existing_ldl
@@ -129,9 +142,7 @@ class GraphBuilder():
             if ce.edge_state in ("CEStateUnknown", "CEStateCreated", "CEStateConnected") and \
                 peer_id not in adj_list:
                 ond[peer_id] = ConnectionEdge(peer_id, ce.edge_id, ce.edge_type)
-
         for task in request_list:
-            self._top.top_log("GB req list {}".format(request_list))
             peer_id = task["PeerId"]
             op = task["Operation"]
             if op == "ADD":
@@ -139,21 +150,20 @@ class GraphBuilder():
                                                peer_id not in transition_adj_list):
                     ce = ConnectionEdge(peer_id, edge_type="CETypeOnDemand")
                     ond[peer_id] = ce
-                    self._top.top_log("GB created CE {}".format(ce))
             elif op == "REMOVE":
                 ond.pop(peer_id, None)
         for peer_id in ond:
             if peer_id not in adj_list:
                 adj_list[peer_id] = ond[peer_id]
-                self._top.top_log("GB added CE {}".format(ce))
         request_list.clear()
 
-    def build_adj_list(self, transition_adj_list, request_list=None):
+    def build_adj_list(self, peers, transition_adj_list, request_list=None):
+        self._prep(peers)
         adj_list = ConnEdgeAdjacenctList(self.overlay_id, self._node_id,
                                          self._max_successors, self._max_ldl_cnt, self._max_ond)
         self._build_enforced(adj_list)
         if not self._manual_topo:
-            self._build_successors(adj_list)
+            self._build_successors(adj_list, transition_adj_list)
             self._build_long_dist_links(adj_list, transition_adj_list)
             self._build_ondemand_links(adj_list, transition_adj_list, request_list)
         for _, ce in adj_list.conn_edges.items():
@@ -176,3 +186,23 @@ class GraphBuilder():
                 ce.edge_type = "CETypeSuccessor"
                 adj_list.add_connection_edge(ce)
         return adj_list
+
+    def _distance(self, peer_id):
+        nsz = len(self._nodes)
+        pr_i = self._nodes.index(peer_id)
+        return (pr_i + nsz - self._my_idx) % nsz
+
+    def _ideal_closest_distance(self):
+        nsz = len(self._nodes)
+        off = math.exp(-1 * math.log10(nsz))
+        return math.floor(nsz * off)
+
+    def is_too_close(self, peer_id):
+        return self._distance(peer_id) < self._ideal_closest_distance()
+
+    def _prep(self, peers):
+        self._peers = peers
+        self._nodes = list(self._peers)
+        self._nodes.append(self._node_id)
+        self._nodes.sort()
+        self._my_idx = self._nodes.index(self._node_id)

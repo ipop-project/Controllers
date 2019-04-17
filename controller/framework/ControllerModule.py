@@ -101,3 +101,5 @@ class ControllerModule():
 
     def submit_cbt(self, cbt):
         self._cfx_handle.submit_cbt(cbt)
+    def log(self, level, msg, *args):
+        self.register_cbt("Logger", level, _params=(msg, args))
