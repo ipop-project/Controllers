@@ -20,8 +20,13 @@
 # THE SOFTWARE.
 
 
-from abc import ABCMeta, abstractmethod
+try:
+    import simplejson as json
+except ImportError:
+    import json
 import threading
+#import socketserver
+from abc import ABCMeta, abstractmethod
 from distutils import spawn
 import controller.framework.ipoplib as ipoplib
 from controller.framework.ControllerModule import ControllerModule
@@ -34,12 +39,13 @@ class BridgeABC():
     bridge_type = NotImplemented
     iptool = spawn.find_executable("ip")
 
-    def __init__(self, name, ip_addr, prefix_len, mtu):
+    def __init__(self, name, ip_addr, prefix_len, mtu, cm):
         self.name = name
         self.ip_addr = ip_addr
         self.prefix_len = prefix_len
         self.mtu = mtu
         self.ports = set()
+        self.cm = cm
 
     @abstractmethod
     def add_port(self, port_name):
@@ -65,15 +71,15 @@ class BridgeABC():
     def __str__(self):
         """ Return a string of the bridge name. """
         return self.__repr__()
-
+###################################################################################################
 
 class OvsBridge(BridgeABC):
     brctl = spawn.find_executable("ovs-vsctl")
     bridge_type = "OVS"
 
-    def __init__(self, name, ip_addr, prefix_len, mtu, stp_enable, sdn_ctrl_cfg=None):
+    def __init__(self, name, ip_addr, prefix_len, mtu, cm, stp_enable, sdn_ctrl_cfg=None):
         """ Initialize an OpenvSwitch bridge object. """
-        super(OvsBridge, self).__init__(name, ip_addr, prefix_len, mtu)
+        super(OvsBridge, self).__init__(name, ip_addr, prefix_len, mtu, cm)
         if OvsBridge.brctl is None or OvsBridge.iptool is None:
             raise RuntimeError("openvswitch-switch was not found" if not OvsBridge.brctl else
                                "iproute2 was not found")
@@ -92,12 +98,17 @@ class OvsBridge(BridgeABC):
         # + ". Proceeding with OVS-specified default"
         # " value for the bridge...")
 
-        net = "{0}/{1}".format(ip_addr, prefix_len)
-
-        p = ipoplib.runshell([OvsBridge.iptool, "addr", "show", self.name])
-        ip_addr_info = p.stdout.decode()
-        if net not in ip_addr_info:
+        if ip_addr and prefix_len:
+            net = "{0}/{1}".format(ip_addr, prefix_len)
+            ipoplib.runshell([OvsBridge.iptool, "addr", "flush", "dev", self.name])
             ipoplib.runshell([OvsBridge.iptool, "addr", "add", net, "dev", self.name])
+
+        try:
+            ipoplib.runshell([OvsBridge.brctl, "set", "int", self.name,
+                              "mtu_request=" + str(self.mtu)])
+        except RuntimeError as e:
+            self.cm.register_cbt("Logger", "LOG_WARN", "The following error occurred while setting"
+                                 " MTU for OVS bridge: {0}".format(e))
 
         self.stp(stp_enable)
         ipoplib.runshell([OvsBridge.iptool, "link", "set", "dev", self.name, "up"])
@@ -148,14 +159,13 @@ class OvsBridge(BridgeABC):
                               "set", "bridge", self.name,
                               "stp_enable=false"])
 
-
 class LinuxBridge(BridgeABC):
     brctl = spawn.find_executable("brctl")
     bridge_type = "LXBR"
 
-    def __init__(self, name, ip_addr, prefix_len, mtu, stp_enable):
+    def __init__(self, name, ip_addr, prefix_len, mtu, cm, stp_enable):
         """ Initialize a Linux bridge object. """
-        super(LinuxBridge, self).__init__(name, ip_addr, prefix_len, mtu)
+        super(LinuxBridge, self).__init__(name, ip_addr, prefix_len, mtu, cm)
         if LinuxBridge.brctl is None or LinuxBridge.iptool is None:
             raise RuntimeError("bridge-utils was not found" if not LinuxBridge.brctl else
                                "iproute2 was not found")
@@ -217,35 +227,61 @@ class LinuxBridge(BridgeABC):
         ipoplib.runshell([LinuxBridge.brctl,
                           "setportprio", self.name, port, str(prio)])
 
+class VNIC(BridgeABC):
+    brctl = None
+    bridge_type = "VNIC"
+
+    def __init__(self, ip_addr, prefix_len, mtu, cm):
+        super(VNIC, self).__init__("VirtNic", ip_addr, prefix_len, mtu, cm)
+
+    def del_br(self):
+        pass
+
+    def add_port(self, port_name):
+        self.name = port_name
+        net = "{0}/{1}".format(self.ip_addr, self.prefix_len)
+        ipoplib.runshell([VNIC.iptool, "addr", "add", net, "dev", self.name])
+        ipoplib.runshell([VNIC.iptool, "link", "set", self.name, "mtu", str(self.mtu)])
+        ipoplib.runshell([VNIC.iptool, "link", "set", "dev", self.name, "up"])
+
+
+    def del_port(self, port_name):
+        pass
 
 class BridgeController(ControllerModule):
     def __init__(self, cfx_handle, module_config, module_name):
         super(BridgeController, self).__init__(cfx_handle, module_config, module_name)
-        self._overlays = dict()
+        self._ovl_net = dict()
         self._lock = threading.Lock()
+        self._tunnels = dict()
 
     def initialize(self):
         ign_br_names = dict()
+        for olid in self.overlays:
+            self._tunnels[olid] = dict()
+            br_cfg = self.overlays[olid]
 
-        for olid in self._cm_config["Overlays"]:
-            br_cfg = self._cm_config["Overlays"][olid]
+            device_role = self.overlays[olid].get("Role", "Switch").casefold()
+            if device_role == "leaf".casefold():
+                self._ovl_net[olid] = VNIC(br_cfg["IP4"], br_cfg["PrefixLen"],
+                                           br_cfg.get("MTU", 1410), self)
+            elif device_role == "switch".casefold() and \
+                self.overlays[olid]["Type"] == LinuxBridge.bridge_type:
+                self._ovl_net[olid] = LinuxBridge(br_cfg["BridgeName"][:8] + olid[:7],
+                                                  br_cfg["IP4"],
+                                                  br_cfg["PrefixLen"],
+                                                  br_cfg.get("MTU", 1410), self,
+                                                  br_cfg.get("STP", True))
 
-            if self._cm_config["Overlays"][olid]["Type"] == LinuxBridge.bridge_type:
-                self._overlays[olid] = LinuxBridge(br_cfg["BridgeName"][:8] + olid[:7],
-                                                   br_cfg["IP4"],
-                                                   br_cfg["PrefixLen"],
-                                                   br_cfg.get("MTU", 1410),
-                                                   br_cfg.get("STP", True))
-
-            elif self._cm_config["Overlays"][olid]["Type"] == OvsBridge.bridge_type:
-                self._overlays[olid] = OvsBridge(br_cfg["BridgeName"][:8] + olid[:7],
-                                                 br_cfg["IP4"],
-                                                 br_cfg["PrefixLen"],
-                                                 br_cfg.get("MTU", 1410),
-                                                 br_cfg.get("STP", True),
-                                                 sdn_ctrl_cfg=br_cfg.get("SDNController", {}))
-                ign_br_names[olid] = set()
-                ign_br_names[olid].add(self._overlays[olid].name)
+            elif self.overlays[olid]["Type"] == OvsBridge.bridge_type:
+                self._ovl_net[olid] = OvsBridge(br_cfg["BridgeName"][:8] + olid[:7],
+                                                None,
+                                                None,
+                                                br_cfg.get("MTU", 1410), self,
+                                                br_cfg.get("STP", True),
+                                                sdn_ctrl_cfg=br_cfg.get("SDNController", {}))
+            ign_br_names[olid] = set()
+            ign_br_names[olid].add(self._ovl_net[olid].name)
 
             self.register_cbt("LinkManager",
                               "LNK_ADD_IGN_INF", ign_br_names)
@@ -270,27 +306,33 @@ class BridgeController(ControllerModule):
     def req_handler_manage_bridge(self, cbt):
         try:
             olid = cbt.request.params["OverlayId"]
-            br = self._overlays[olid]
-            if cbt.request.params["UpdateType"] == "CONNECTED":
+            br = self._ovl_net[olid]
+            tnlid = cbt.request.params["TunnelId"]
+            if cbt.request.params["UpdateType"] == "LnkEvConnected":
                 port_name = cbt.request.params["TapName"]
+                self._tunnels[olid][tnlid] = {
+                    "PeerId": cbt.request.params["PeerId"],
+                    "TunnelId": tnlid,
+                    "ConnectedTimestamp": cbt.request.params["ConnectedTimestamp"],
+                    "TapName": port_name,
+                    "MAC": ipoplib.delim_mac_str(cbt.request.params["MAC"]),
+                    "PeerMac": ipoplib.delim_mac_str(cbt.request.params["PeerMac"])
+                    }
                 br.add_port(port_name)
-                self.register_cbt(
-                    "Logger", "LOG_INFO", "Port {0} added to bridge {1}"
-                    .format(port_name, str(br)))
-            elif cbt.request.params["UpdateType"] == "REMOVED":
+                self.log("LOG_INFO", "Port %s added to bridge %s", port_name, str(br))
+            elif cbt.request.params["UpdateType"] == "LnkEvRemoved":
+                self._tunnels[olid].pop(tnlid, None)
                 if br.bridge_type == OvsBridge.bridge_type:
                     port_name = cbt.request.params.get("TapName")
                     if port_name:
                         br.del_port(port_name)
-                        self.register_cbt(
-                            "Logger", "LOG_INFO", "Port {0} removed from bridge {1}"
-                            .format(port_name, str(br)))
+                        self.log("LOG_INFO", "Port %s removed from bridge %s", port_name, str(br))
         except RuntimeError as err:
             self.register_cbt("Logger", "LOG_WARNING", str(err))
         cbt.set_response(None, True)
         self.complete_cbt(cbt)
 
-    def resp_handler_(self, cbt):
+    def timer_method(self):
         pass
 
     def process_cbt(self, cbt):
@@ -314,15 +356,11 @@ class BridgeController(ControllerModule):
                 parent_cbt.set_response(cbt_data, cbt_status)
                 self.complete_cbt(parent_cbt)
 
-    def timer_method(self):
-        pass
-
     def terminate(self):
         try:
-            for olid in self._overlays:
-                br = self._overlays[olid]
-
-                if self._cm_config["Overlays"][olid].get("AutoDelete", False):
+            for olid in self._ovl_net:
+                br = self._ovl_net[olid]
+                if self.overlays[olid].get("AutoDelete", False):
                     br.del_br()
                 else:
                     if br.bridge_type == OvsBridge.bridge_type:
@@ -334,18 +372,17 @@ class BridgeController(ControllerModule):
     def req_handler_vis_data(self, cbt):
         br_data = dict()
         is_data_available = False
-        for olid in self._cm_config["Overlays"]:
+        for olid in self.overlays:
             is_data_available = True
             br_data[olid] = {}
-            br_data[olid]["Type"] = self._cm_config["Overlays"][olid]["Type"]
-            br_data[olid]["BridgeName"] = self._cm_config["Overlays"][olid]["BridgeName"]
-            if "IP4" in self._cm_config["Overlays"][olid]:
-                br_data[olid]["IP4"] = self._cm_config["Overlays"][olid]["IP4"]
-            if "PrefixLen" in self._cm_config["Overlays"][olid]:
-                br_data[olid]["PrefixLen"] = self._cm_config["Overlays"][olid]["PrefixLen"]
-            if "MTU" in self._cm_config["Overlays"][olid]:
-                br_data[olid]["MTU"] = self._cm_config["Overlays"][olid]["MTU"]
-            br_data[olid]["AutoDelete"] = self._cm_config["Overlays"][olid].get("AutoDelete",
-                                                                                False)
+            br_data[olid]["Type"] = self.overlays[olid]["Type"]
+            br_data[olid]["BridgeName"] = self.overlays[olid]["BridgeName"]
+            if "IP4" in self.overlays[olid]:
+                br_data[olid]["IP4"] = self.overlays[olid]["IP4"]
+            if "PrefixLen" in self.overlays[olid]:
+                br_data[olid]["PrefixLen"] = self.overlays[olid]["PrefixLen"]
+            if "MTU" in self.overlays[olid]:
+                br_data[olid]["MTU"] = self.overlays[olid]["MTU"]
+            br_data[olid]["AutoDelete"] = self.overlays[olid].get("AutoDelete", False)
         cbt.set_response({"BridgeController": br_data}, is_data_available)
         self.complete_cbt(cbt)

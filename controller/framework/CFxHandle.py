@@ -58,9 +58,6 @@ class CFxHandle():
         cbt.time_create = time.time()
         return cbt
 
-    #def get_parent_cbt(self, cbt):
-    #    return cbt.parent
-
     def free_cbt(self, cbt):
         cbt.time_free = time.time()
         if not cbt.child_count == 0:

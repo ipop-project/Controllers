@@ -100,19 +100,6 @@ CTL_CREATE_LINK = {
         }
     }
 }
-
-INSERT_TAP_PACKET = {
-    "IPOP": {
-        "ProtocolVersion": 5,
-        "TransactionId": 0,
-        "ControlType": "TincanRequest",
-        "Request": {
-            "Command": "InjectFrame",
-            "OverlayId": "",
-            "Data": "encoded_string"
-        }
-    }
-}
 CTL_REMOVE_TUNNEL = {
     "IPOP": {
         "ProtocolVersion": 5,
@@ -272,6 +259,7 @@ def getchecksum(hexstr):
 def runshell(cmd):
     """ Run a shell command """
     return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
 class RemoteAction():
     def __init__(self, overlay_id, recipient_id, recipient_cm, action, params,
                  parent_cbt=None, frm_cbt=None, status=None, data=None):
@@ -304,6 +292,7 @@ class RemoteAction():
             yield("Status", self.status)
         if self.data:
             yield("Data", self.data)
+
     def submit_remote_act(self, cm):
         self.initiator_id = cm.node_id
         self.initiator_cm = cm.module_name
@@ -315,6 +304,7 @@ class RemoteAction():
             cbt = cm.create_cbt(cm.module_name, "Signal", "SIG_REMOTE_ACTION", ra_desc)
         self.action_tag = cbt.tag
         cm.submit_cbt(cbt)
+
     @classmethod
     def from_cbt(cls, cbt):
         reqp = cbt.request.params
@@ -329,6 +319,7 @@ class RemoteAction():
             if isinstance(rem_act.data, dict):
                 rem_act.data = rem_act.data["Data"]
         return rem_act
+
     def tx_remote_act(self, sig):
         if self.overlay_id not in sig.overlays:
             self.cbt.set_response("Overlay ID not found", False)

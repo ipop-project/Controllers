@@ -27,8 +27,9 @@ except ImportError:
     import json
 from threading import Thread
 import traceback
-from controller.framework.ControllerModule import ControllerModule
+from distutils import spawn
 import controller.framework.ipoplib as ipoplib
+from controller.framework.ControllerModule import ControllerModule
 
 
 class TincanInterface(ControllerModule):
@@ -46,6 +47,7 @@ class TincanInterface(ControllerModule):
         self._dest = (self._cm_config["SndServiceAddress"], self._cm_config["CtrlSendPort"])
         self._sock.bind(("", 0))
         self._sock_list = [self._sock_svr]
+        self.iptool = spawn.find_executable("ip")
 
     def initialize(self):
         self._tincan_listener_thread = Thread(target=self.__tincan_listener)
@@ -54,7 +56,7 @@ class TincanInterface(ControllerModule):
         self.create_control_link()
         self._tci_publisher = self._cfx_handle.publish_subscription("TCI_TINCAN_MSG_NOTIFY")
         self.register_cbt("Logger", "LOG_QUERY_CONFIG")
-        self.register_cbt("Logger", "LOG_INFO", "Module loaded")
+        self.log("LOG_INFO", "Module loaded")
 
     def __tincan_listener(self):
         try:
@@ -155,15 +157,6 @@ class TincanInterface(ControllerModule):
         req["IgnoredNetInterfaces"] = msg.get("IgnoredNetInterfaces")
         self.send_control(json.dumps(ctl))
 
-    def req_handler_inject_frame(self, cbt):
-        msg = cbt.request.params
-        ctl = ipoplib.INSERT_TAP_PACKET
-        ctl["IPOP"]["TransactionId"] = cbt.tag
-        req = ctl["IPOP"]["Request"]
-        req["OverlayId"] = msg["OverlayId"]
-        req["Data"] = msg["Data"]
-        self.send_control(json.dumps(ctl))
-
     def req_handler_query_candidate_address_set(self, cbt):
         msg = cbt.request.params
         ctl = ipoplib.CTL_QUERY_CAS
@@ -197,6 +190,8 @@ class TincanInterface(ControllerModule):
         req["OverlayId"] = msg["OverlayId"]
         req["TunnelId"] = msg["TunnelId"]
         self.send_control(json.dumps(ctl))
+        if "TapName" in msg and msg["TapName"]:
+            ipoplib.runshell([self.iptool, "link", "del", "dev", msg["TapName"]])
 
     def req_handler_remove_link(self, cbt):
         msg = cbt.request.params
@@ -206,16 +201,6 @@ class TincanInterface(ControllerModule):
         req["OverlayId"] = msg["OverlayId"]
         req["TunnelId"] = msg["TunnelId"]
         req["LinkId"] = msg["LinkId"]
-        self.send_control(json.dumps(ctl))
-
-    def req_handler_send_icc(self, cbt):
-        msg = cbt.request.params
-        ctl = ipoplib.CTL_SEND_ICC
-        ctl["IPOP"]["TransactionId"] = cbt.tag
-        req = ctl["IPOP"]["Request"]
-        req["OverlayId"] = msg["OverlayId"]
-        req["LinkId"] = msg["LinkId"]
-        req["Data"] = msg["Data"]
         self.send_control(json.dumps(ctl))
 
     def process_cbt(self, cbt):
@@ -228,12 +213,6 @@ class TincanInterface(ControllerModule):
 
             elif cbt.request.action == "TCI_CREATE_TUNNEL":
                 self.req_handler_create_tunnel(cbt)
-
-            elif cbt.request.action == "TCI_ICC":
-                self.req_handler_send_icc(cbt)
-
-            elif cbt.request.action == "TCI_INJECT_FRAME":
-                self.req_handler_inject_frame(cbt)
 
             elif cbt.request.action == "TCI_QUERY_CAS":
                 self.req_handler_query_candidate_address_set(cbt)

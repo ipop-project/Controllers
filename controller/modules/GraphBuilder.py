@@ -34,7 +34,7 @@ class GraphBuilder():
         self._node_id = cfg["NodeId"]
         self._peers = None
         # enforced is a list of peer ids that should always have a direct edge
-        self._enforced = cfg.get("EnforcedEdges", {})
+        self._enforced_edges = cfg.get("EnforcedEdges", [])
         # only create edges from the enforced list
         self._manual_topo = cfg.get("ManualTopology", False)
         self._max_successors = int(cfg["MaxSuccessors"])
@@ -45,20 +45,21 @@ class GraphBuilder():
         self._nodes = []
         self._my_idx = 0
         self._top = top
+        self._relink = False
+        if self._manual_topo and not self._enforced_edges:
+            self._top.log("LOG_WARNING", "Ad hoc topology specified but no peers are"
+                          "provided, config=%s", cfg)
 
     def _build_enforced(self, adj_list):
-        for peer_id in self._enforced:
+        for peer_id in self._enforced_edges:
             ce = ConnectionEdge(peer_id, edge_type="CETypeEnforced")
-            adj_list.add_connection_edge(ce)
+            adj_list.add_conn_edge(ce)
+        self._top.log("LOG_INFO", "graph builder enforced edges=%s", str(adj_list))
 
     def _get_successors(self):
         """ Generate a list of successor UIDs from the list of peers """
-        #todo: fix for max succ > 1
         successors = []
         num_peers = len(self._peers)
-        if not self._peers or (num_peers == 1 and self._node_id > self._peers[0]):
-            return successors
-
         num_nodes = len(self._nodes)
         successor_index = self._my_idx + 1
         num_succ = self._max_successors if (num_peers >= self._max_successors) else num_peers
@@ -103,43 +104,48 @@ class GraphBuilder():
         # Calculates long distance link candidates.
         long_dist_links = []
         net_sz = len(self._nodes)
-        node_off = GraphBuilder.symphony_prob_distribution(net_sz, num_ldl)
-        for i in node_off:
-            idx = math.floor(net_sz*i)
-            ldl_idx = (self._my_idx + idx) % net_sz
-            long_dist_links.append(self._nodes[ldl_idx])
+        if net_sz > 1:
+            num_ldl = min(num_ldl, net_sz)
+            node_off = GraphBuilder.symphony_prob_distribution(net_sz, num_ldl)
+            for i in node_off:
+                idx = math.floor(net_sz*i)
+                ldl_idx = (self._my_idx + idx) % net_sz
+                long_dist_links.append(self._nodes[ldl_idx])
         return long_dist_links
 
     def _build_long_dist_links(self, adj_list, transition_adj_list):
-        # Preserve existing long distance
-        ldlnks = transition_adj_list.edges_bytype(["CETypeILongDistance"])
-        for peer_id, ce in ldlnks.items():
-            if ce.edge_state in ("CEStateUnknown", "CEStateCreated", "CEStateConnected") and \
-                peer_id not in adj_list:
-                adj_list[peer_id] = ConnectionEdge(peer_id, ce.edge_id, ce.edge_type)
-
-        ldlnks = transition_adj_list.edges_bytype(["CETypeLongDistance"])
+        # Preserve existing incoming ldl
+        # handled in net builder
+        #ldlnks = transition_adj_list.edges_bytype(["CETypeILongDistance"])
+        #for peer_id, ce in ldlnks.items():
+        #    if ce.edge_state in ("CEStateInitialized", "CEStateCreated", "CEStateConnected") and \
+        #        peer_id not in adj_list:
+        #        adj_list[peer_id] = ConnectionEdge(peer_id, ce.edge_id, ce.edge_type)
+        # evaluate existing ldl
+        ldlnks = {}
+        if not self._relink:
+            ldlnks = transition_adj_list.edges_bytype(["CETypeLongDistance"])
         num_existing_ldl = 0
         for peer_id, ce in ldlnks.items():
-            if ce.edge_state in ("CEStateUnknown", "CEStateCreated", "CEStateConnected") and \
+            if ce.edge_state in ["CEStateConnected"] and \
                 peer_id not in adj_list and not self.is_too_close(ce.peer_id):
                 adj_list[peer_id] = ConnectionEdge(peer_id, ce.edge_id, ce.edge_type)
                 num_existing_ldl += 1
+                if num_existing_ldl >= self._max_ldl_cnt:
+                    return
         num_ldl = self._max_ldl_cnt - num_existing_ldl
-        if num_ldl < 0:
-            return
         ldl = self._get_long_dist_links(num_ldl)
         for peer_id in ldl:
             if peer_id not in adj_list:
                 ce = ConnectionEdge(peer_id, edge_type="CETypeLongDistance")
-                adj_list.add_connection_edge(ce)
+                adj_list.add_conn_edge(ce)
 
     def _build_ondemand_links(self, adj_list, transition_adj_list, request_list):
         ond = {}
         # add existing on demand links
         existing = transition_adj_list.edges_bytype(["CETypeOnDemand", "CETypeIOnDemand"])
         for peer_id, ce in existing.items():
-            if ce.edge_state in ("CEStateUnknown", "CEStateCreated", "CEStateConnected") and \
+            if ce.edge_state in ("CEStateInitialized", "CEStateCreated", "CEStateConnected") and \
                 peer_id not in adj_list:
                 ond[peer_id] = ConnectionEdge(peer_id, ce.edge_id, ce.edge_type)
         for task in request_list:
@@ -157,8 +163,11 @@ class GraphBuilder():
                 adj_list[peer_id] = ond[peer_id]
         request_list.clear()
 
-    def build_adj_list(self, peers, transition_adj_list, request_list=None):
+    def build_adj_list(self, peers, transition_adj_list, request_list=None, relink=False):
+        self._relink = relink
         self._prep(peers)
+        if request_list is None:
+            request_list = []
         adj_list = ConnEdgeAdjacenctList(self.overlay_id, self._node_id,
                                          self._max_successors, self._max_ldl_cnt, self._max_ond)
         self._build_enforced(adj_list)
@@ -167,7 +176,7 @@ class GraphBuilder():
             self._build_long_dist_links(adj_list, transition_adj_list)
             self._build_ondemand_links(adj_list, transition_adj_list, request_list)
         for _, ce in adj_list.conn_edges.items():
-            assert ce.edge_state == "CEStateUnknown", "Invalid CE edge state, CE={}".format(ce)
+            assert ce.edge_state == "CEStateInitialized", "Invalid CE edge state, CE={}".format(ce)
         return adj_list
 
     def build_adj_list_ata(self,):
@@ -177,23 +186,28 @@ class GraphBuilder():
         adj_list = ConnEdgeAdjacenctList(self.overlay_id, self._node_id,
                                          self._max_successors, self._max_ldl_cnt, self._max_ond)
         for peer_id in self._peers:
-            if self._enforced and peer_id in self._enforced:
+            if self._enforced_edges and peer_id in self._enforced_edges:
                 ce = ConnectionEdge(peer_id)
                 ce.edge_type = "CETypeEnforced"
-                adj_list.add_connection_edge(ce)
+                adj_list.add_conn_edge(ce)
             elif not self._manual_topo and self._node_id < peer_id:
                 ce = ConnectionEdge(peer_id)
                 ce.edge_type = "CETypeSuccessor"
-                adj_list.add_connection_edge(ce)
+                adj_list.add_conn_edge(ce)
         return adj_list
 
     def _distance(self, peer_id):
-        nsz = len(self._nodes)
-        pr_i = self._nodes.index(peer_id)
-        return (pr_i + nsz - self._my_idx) % nsz
+        dst = 0
+        nsz = max(1, len(self._nodes))
+        try:
+            pr_i = self._nodes.index(peer_id)
+            dst = (pr_i + nsz - self._my_idx) % nsz
+        except ValueError as er:
+            self._top.log("LOG_WARNING", "%s, continuing ...", str(er))
+        return dst
 
     def _ideal_closest_distance(self):
-        nsz = len(self._nodes)
+        nsz = max(1, len(self._nodes))
         off = math.exp(-1 * math.log10(nsz))
         return math.floor(nsz * off)
 

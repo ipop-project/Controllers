@@ -195,6 +195,8 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                                  PresenceTimestamp=pts))
                         self._sig.sig_log("Resolved {0}@{1}->{2}"
                                           .format(peer_id[:7], self._overlay_id, presence_sender))
+                        payload = self.boundjid.full + "#" + self._node_id
+                        self.send_msg(presence_sender, "announce", payload)
                     elif pstatus == "uid?":
                         # a request for our node id
                         if self._node_id == peer_id:
@@ -231,6 +233,15 @@ class XmppTransport(sleekxmpp.ClientXMPP):
                     msg_type, msg_data = entry[0], entry[1]
                     self.send_msg(match_jid, msg_type, json.dumps(msg_data))
                     self._sig.sig_log("Sent remote action: {0}".format(msg_payload))
+            elif msg_type == "announce":
+                peer_jid, peer_id = msg_payload.split("#")
+                if peer_id == self._sig.node_id:
+                    self._sig.log("UID Announce msg returned to self msg=%s", msg)
+                    return
+                # a notification of a peers node id to jid mapping
+                pts = self._jid_cache.add_entry(node_id=peer_id, jid=peer_jid)
+                self._presence_publisher.post_update(
+                    dict(PeerId=peer_id, OverlayId=self._overlay_id, PresenceTimestamp=pts))
             elif msg_type in ("invk", "cmpt"):
                 rem_act = json.loads(msg_payload)
                 self._sig.handle_remote_action(self._overlay_id, rem_act, msg_type)
