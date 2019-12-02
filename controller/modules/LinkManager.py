@@ -611,14 +611,14 @@ class LinkManager(ControllerModule):
             msg = str("The requested lnk endpt was not authorized it will not be created. "
                       "TunnelId={0}, PeerId={1}".format(tnlid, peer_id))
             self.register_cbt("Logger", "LOG_WARNING", msg)
-            lnk_endpt_cbt.set_response("msg", False)
+            lnk_endpt_cbt.set_response(msg, False)
             self.complete_cbt(lnk_endpt_cbt)
             return
         if self._tunnels[tnlid].link:
             msg = str("A link already exist for this tunnel, it will not be created. "
                       "TunnelId={0}, PeerId={1}".format(tnlid, peer_id))
             self.register_cbt("Logger", "LOG_WARNING", msg)
-            lnk_endpt_cbt.set_response("msg", False)
+            lnk_endpt_cbt.set_response(msg, False)
             self.complete_cbt(lnk_endpt_cbt)
             return
         lnkid = tnlid

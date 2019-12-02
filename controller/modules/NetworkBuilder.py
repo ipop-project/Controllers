@@ -81,8 +81,6 @@ class NetworkBuilder():
         adjacency list.
         """
         #with self._lock:
-        if self._is_ready() and not bool(net_graph):
-            return
         self._top.log("LOG_DEBUG", "New net graph: %s", str(net_graph))
         assert ((self._is_ready() and bool(net_graph)) or
                 (not self._is_ready() and not bool(net_graph))),\
@@ -128,8 +126,8 @@ class NetworkBuilder():
             self._refresh_in_progress -= 1
         elif event["UpdateType"] == "LnkEvDisconnected":
             # the local topology did not request removal of the connection
-            self._top.top_log("CEStateDisconnected event recvd peer_id: {0}, edge_id: {1}".
-                              format(peer_id, edge_id))
+            self._top.log("LOG_DEBUG", "CEStateDisconnected event recvd peer_id: %s, edge_id: %s",
+                          peer_id, edge_id)
             self._current_adj_list[peer_id].edge_state = "CEStateDisconnected"
             self._refresh_in_progress += 1
             self._top.top_remove_edge(overlay_id, peer_id)
@@ -145,8 +143,7 @@ class NetworkBuilder():
             self._current_adj_list[peer_id].created_time = \
                 time.time() + NetworkBuilder._DEL_RETRY_INTERVAL
         else:
-            self._top.top_log("Invalid UpdateType specified for event",
-                              level="LOG_WARNING")
+            self._top.log("LOG_WARNING", "Invalid UpdateType specified for event")
         assert self._refresh_in_progress >= 0, "refresh in progress is negative {}"\
             .format(self._refresh_in_progress)
 
@@ -167,6 +164,8 @@ class NetworkBuilder():
             if time.time() - self._current_adj_list[peer_id].connected_time < 30:
                 continue # events get supressed
             self._current_adj_list[peer_id].marked_for_delete = True
+            self._top.log("LOG_DEBUG", "Marked connedge for delete: %s",
+                          str(self._current_adj_list[peer_id]))
 
     def _remove_edges(self):
         """
@@ -239,7 +238,7 @@ class NetworkBuilder():
             msg = "E1 - A valid edge already exists. TunnelId={0}"\
                 .format(self._current_adj_list[peer_id].edge_id[:7])
             edge_resp = EdgeResponse(is_accepted=False, data=msg)
-            self._top.top_log(msg)
+            self._top.log("LOG_DEBUG", msg)
         elif edge_state == "CEStateInitialized":
             edge_resp = EdgeResponse(is_accepted=True, data="Precollision edge permitted")
             del self._current_adj_list[peer_id]
@@ -249,7 +248,7 @@ class NetworkBuilder():
             msg = "E2 - Node {0} superceeds edge request due to collision, "\
                         "edge={1}".format(nid, self._current_adj_list[peer_id].edge_id[:7])
             edge_resp = EdgeResponse(is_accepted=False, data=msg)
-            self._top.top_log(msg)
+            self._top.log("LOG_DEBUG", msg)
         elif edge_state == "CEStatePreAuth" and nid > edge_req.initiator_id:
             ce.edge_type = ng.transpose_edge_type(edge_req.edge_type)
             ce.edge_id = edge_req.edge_id
@@ -265,7 +264,7 @@ class NetworkBuilder():
 
     def negotiate_incoming_edge(self, edge_req):
         """ Role B1 """
-        self._top.top_log("Rcvd EdgeRequest={0}".format(edge_req))
+        self._top.log("LOG_DEBUG", "Rcvd EdgeRequest=%s", str(edge_req))
         edge_resp = None
         peer_id = edge_req.initiator_id
         if peer_id in self._current_adj_list:
@@ -287,8 +286,8 @@ class NetworkBuilder():
             ce = ConnectionEdge(peer_id=peer_id, edge_id=edge_req.edge_id, edge_type=et)
             ce.edge_state = "CEStatePreAuth"
             self._negotiated_edges[peer_id] = ce
-            self._top.top_log("New CE={0} added to negotiated_edges={1}".
-                              format(ce, self._negotiated_edges))
+            self._top.log("LOG_DEBUG", "New CE=%s added to negotiated_edges=%s", str(ce),
+                          str(self._negotiated_edges))
         return edge_resp
 
     def _add_incoming_auth_conn_edge(self, peer_id):
@@ -300,13 +299,12 @@ class NetworkBuilder():
 
     def complete_edge_negotiation(self, edge_nego):
         """ Role A2 """
-        self._top.top_log("EdgeNegotiate={0}".format(edge_nego))
+        self._top.log("LOG_DEBUG", "EdgeNegotiate=%s", str(edge_nego))
         #with self._lock:
         if edge_nego.recipient_id not in self._current_adj_list and \
             edge_nego.recipient_id not in self._negotiated_edges:
-            self._top.top_log("Peer Id from edge negotiation not in current adjacency list or "
-                              " _negotiated_edges. The transaction has been discarded.",
-                              "LOG_ERROR")
+            self._top.log("LOG_ERROR", "Peer Id from edge negotiation not in current adjacency " \
+                " list or _negotiated_edges. The transaction has been discarded.")
             return
         peer_id = edge_nego.recipient_id
         edge_id = edge_nego.edge_id
@@ -326,8 +324,8 @@ class NetworkBuilder():
                 del self._current_adj_list[ce.peer_id]
         else:
             if ce.edge_id != edge_nego.edge_id:
-                self._top.top_log("EdgeNego parameters does not match current adjacency list, "
-                                  "The transaction has been discarded.", "LOG_ERROR")
+                self._top.log("LOG_ERROR", "EdgeNego parameters does not match current " \
+                    "adjacency list, The transaction has been discarded.")
                 ce.edge_state = "CEStateDeleting"
                 self._negotiated_edges.pop(ce.peer_id)
                 del self._pending_adj_list[peer_id]

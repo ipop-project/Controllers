@@ -204,14 +204,12 @@ class Topology(ControllerModule, CFX):
         elif params["UpdateType"] == "LnkEvConnected":
             self._net_ovls[olid]["KnownPeers"][peer_id].restore()
             self._do_topo_change_post(olid)
-        #elif params["UpdateType"] == "LnkEvDisconnected" or \
-        #    params["UpdateType"] == "LnkEvDeauthorized":
         elif params["UpdateType"] == "LnkEvDisconnected":
             pass
         elif params["UpdateType"] == "LnkEvDeauthorized":
             self._net_ovls[olid]["KnownPeers"][peer_id].exclude()
-            self.top_log("Excluding peer {0} until {1}".
-                         format(peer_id, datetime.fromtimestamp(
+            self.log("LOG_DEBUG", "Excluding peer %s until %s", peer_id,
+                     str(datetime.fromtimestamp(
                              self._net_ovls[olid]["KnownPeers"][peer_id].available_time)))
         elif params["UpdateType"] == "LnkEvRemoved":
             self._do_topo_change_post(olid)
@@ -279,7 +277,8 @@ class Topology(ControllerModule, CFX):
             _, edge_resp = self._net_ovls[olid]["NegoConnEdges"].pop(peer_id)
             # self._net_ovls[olid]["NetBuilder"].add_incoming_auth_conn_edge(peer_id)
         else:
-            self._net_ovls[olid]["NegoConnEdges"].pop(peer_id)
+            self._net_ovls[olid]["NegoConnEdges"].pop(peer_id, None) #pop fails as no matching
+            #peer_id, posssible duplication of create edge request
             edge_resp = EdgeResponse("E4 - Tunnel nego failed {0}"
                                      .format(cbt.response.data), False)
         nego_cbt = cbt.parent
@@ -369,9 +368,6 @@ class Topology(ControllerModule, CFX):
                           .format(overlay_id, self.node_id[:7], peer_id[:7]))
         params = {"OverlayId": overlay_id, "PeerId": peer_id}
         self.register_cbt("LinkManager", "LNK_REMOVE_TUNNEL", params)
-
-    def top_log(self, *msg, level="LOG_DEBUG"):
-        self.log(level, *msg)
 
     def top_send_negotiate_edge_req(self, edge_req):
         """Role Node A, Send a request to create an edge to the peer """

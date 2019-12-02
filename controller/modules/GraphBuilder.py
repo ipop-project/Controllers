@@ -48,13 +48,12 @@ class GraphBuilder():
         self._relink = False
         if self._manual_topo and not self._enforced_edges:
             self._top.log("LOG_WARNING", "Ad hoc topology specified but no peers are"
-                          "provided, config=%s", cfg)
+                          "provided, config=%s", str(cfg))
 
     def _build_enforced(self, adj_list):
         for peer_id in self._enforced_edges:
             ce = ConnectionEdge(peer_id, edge_type="CETypeEnforced")
             adj_list.add_conn_edge(ce)
-        self._top.log("LOG_INFO", "graph builder enforced edges=%s", str(adj_list))
 
     def _get_successors(self):
         """ Generate a list of successor UIDs from the list of peers """
@@ -143,25 +142,31 @@ class GraphBuilder():
     def _build_ondemand_links(self, adj_list, transition_adj_list, request_list):
         ond = {}
         # add existing on demand links
-        existing = transition_adj_list.edges_bytype(["CETypeOnDemand", "CETypeIOnDemand"])
+        existing = transition_adj_list.edges_bytype(["CETypeOnDemand"])
         for peer_id, ce in existing.items():
-            if ce.edge_state in ("CEStateInitialized", "CEStateCreated", "CEStateConnected") and \
-                peer_id not in adj_list:
+            if ce.edge_state in ("CEStateInitialized", "CEStatePreAuth", "CEStateAuthorized", \
+                "CEStateCreated", "CEStateConnected") and peer_id not in adj_list:
                 ond[peer_id] = ConnectionEdge(peer_id, ce.edge_id, ce.edge_type)
+        task_rmv = []
         for task in request_list:
             peer_id = task["PeerId"]
             op = task["Operation"]
             if op == "ADD":
+                task_rmv.append(task)
                 if peer_id in self._peers and (peer_id not in adj_list or
                                                peer_id not in transition_adj_list):
                     ce = ConnectionEdge(peer_id, edge_type="CETypeOnDemand")
                     ond[peer_id] = ce
             elif op == "REMOVE":
                 ond.pop(peer_id, None)
+                if peer_id not in adj_list:
+                    # only clear the task after the tunnel has been removed by NetworkBuilder
+                    task_rmv.append(task)
         for peer_id in ond:
             if peer_id not in adj_list:
                 adj_list[peer_id] = ond[peer_id]
-        request_list.clear()
+        for task in task_rmv:
+            request_list.remove(task)
 
     def build_adj_list(self, peers, transition_adj_list, request_list=None, relink=False):
         self._relink = relink

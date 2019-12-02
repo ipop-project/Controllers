@@ -37,6 +37,7 @@
     <Compile Include="controller\modules\GraphBuilder.py" />
     <Compile Include="controller\modules\NetworkBuilder.py" />
     <Compile Include="controller\modules\NetworkGraph.py" />
+    <Compile Include="controller\modules\NetworkOperations.py" />
     <Compile Include="controller\modules\Topology.py" />
     <Compile Include="controller\modules\LinkManager.py" />
     <Compile Include="controller\modules\Logger.py" />
