@@ -275,8 +275,8 @@ class BridgeController(ControllerModule):
             elif device_role == "switch".casefold() and \
                 self.overlays[olid]["Type"] == OvsBridge.bridge_type:
                 self._ovl_net[olid] = OvsBridge(br_cfg["BridgeName"][:8] + olid[:7],
-                                                None,
-                                                None,
+                                                br_cfg["IP4"],
+                                                br_cfg["PrefixLen"],
                                                 br_cfg.get("MTU", 1410), self,
                                                 br_cfg.get("STP", True),
                                                 sdn_ctrl_cfg=br_cfg.get("SDNController", {}))
