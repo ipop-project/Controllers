@@ -25,13 +25,13 @@
     }
   },
   "Topology": {
+    "PeerDiscoveryCoalesce": 8,
     "Overlays": {
       "A0FB389": {
         "Name": "ApplicationOverlay",
         "Description": "Scalable Structured Ring Overlay",
-        "MaxSuccessors": 1,
-        "MaxLongDistEdges": 1,
-        "MaxOnDemandEdges": 1,
+        "MaxSuccessors": 2,
+        "MaxOnDemandEdges": 3,
         "MaxConcurrentEdgeSetup": 3,
         "Role": "Switch"
       }
@@ -53,7 +53,7 @@
       "A0FB389": {
         "Type": "LXBR",
         "BridgeName": "ipopbr",
-        "IP4": "10.10.100.**",
+        "IP4": "10.10.10.**",
         "PrefixLen": 24,
         "MTU": 1410,
         "STP": true,
