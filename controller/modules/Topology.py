@@ -175,12 +175,15 @@ class Topology(ControllerModule, CFX):
                     for k in adjl.conn_edges:
                         ce = adjl.conn_edges[k]
                         ced = {"PeerId": ce.peer_id, "EdgeId": ce.edge_id,
-                               "MarkedForDeleted": ce.marked_for_delete,
                                "CreatedTime": ce.created_time,
                                "ConnectedTime": ce.connected_time,
                                "State": ce.edge_state, "Type": ce.edge_type}
                         edges[ce.edge_id] = ced
-                    topo_data[olid] = edges
+                    topo_data[olid] = { "ConnectionEdges": edges, "NumEdges": len(edges),
+                                       "NumSuccessors": adjl.num_succ, "NumPredecessors": adjl.num_succi,
+                                       "NumOutLDL": adjl.num_ldl, "NumInLDL": adjl.num_ldli,
+                                       "NumOnD": adjl.num_ond, "NumInOnD": adjl.num_ondi,
+                                      }
             cbt.set_response({"Topology": topo_data}, bool(topo_data))
             self.complete_cbt(cbt)
         except KeyError:

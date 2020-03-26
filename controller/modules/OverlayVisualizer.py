@@ -89,44 +89,26 @@ class OverlayVisualizer(ControllerModule):
                                 VizData=defaultdict(dict))
 
         collector_msg = dict(VizData=dict())
-
-        # Filter out overlays for which we do not have LinkManager data
-        for overlay_id in vis_ds["VizData"]:
-            overlay_data = vis_ds["VizData"][overlay_id]
-            if "LinkManager" in overlay_data and overlay_data["LinkManager"]:
-                collector_msg["VizData"][overlay_id] = overlay_data
-
-        if collector_msg["VizData"]:
-
-            # Read the optional human-readable node name specified in the
-            # configuration and pass it along to the collector
-            if "NodeName" in self._cm_config:
-                collector_msg["NodeName"] = self._cm_config["NodeName"]
-
-            collector_msg["IpopVersion"] = self._ipop_version
-            # data_log = "Submitting VizData {}".format(collector_msg)
-            # self.register_cbt("Logger", "LOG_DEBUG", data_log)
-
-            req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
-
-            try:
-                resp = requests.put(req_url,
-                                    data=json.dumps(collector_msg),
-                                    headers={"Content-Type":
-                                             "application/json"},
-                                    timeout=3)
-                resp.raise_for_status()
-
-            except requests.exceptions.RequestException as err:
-                err_msg = "Failed to send data to the IPOP Visualizer" \
-                    " webservice({0}). Exception: {1}" \
-                    .format(self.vis_address, str(err))
-                self.register_cbt("Logger", "LOG_WARNING", err_msg)
-        else:
-            warn_msg = "Don't have enough data to send. Not forwarding" \
-                    " anything to the collector service. Data:" \
-                    " {}".format(collector_msg)
-            self.register_cbt("Logger", "LOG_WARNING", warn_msg)
+        # Read the optional human-readable node name specified in the
+        # configuration and pass it along to the collector
+        if "NodeName" in self._cm_config:
+            vis_ds["NodeName"] = self._cm_config["NodeName"]
+        vis_ds["IpopVersion"] = self._ipop_version
+        # data_log = "Submitting VizData {}".format(collector_msg)
+        # self.register_cbt("Logger", "LOG_DEBUG", data_log)
+        req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
+        try:
+            resp = requests.put(req_url,
+                                data=json.dumps(vis_ds),
+                                headers={"Content-Type":
+                                          "application/json"},
+                                timeout=3)
+            resp.raise_for_status()
+        except requests.exceptions.RequestException as err:
+            err_msg = "Failed to send data to the IPOP Visualizer" \
+                " webservice({0}). Exception: {1}" \
+                .format(self.vis_address, str(err))
+            self.register_cbt("Logger", "LOG_WARNING", err_msg)
 
         # Now that all the accumulated data has been dealt with, we request
         # more data
