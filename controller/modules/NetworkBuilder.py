@@ -26,6 +26,8 @@ from collections import namedtuple
 from controller.modules.NetworkGraph import ConnectionEdge
 from controller.modules.NetworkGraph import ConnEdgeAdjacenctList
 import controller.modules.NetworkGraph as ng
+from controller.modules.NetworkOperations import NetworkOperations
+from controller.modules.NetworkOperations import OpType
 
 EdgeRequest = namedtuple("EdgeRequest",
                          ["overlay_id", "edge_id", "edge_type", "initiator_id", "recipient_id"])
@@ -47,7 +49,8 @@ class NetworkBuilder():
         self._max_concurrent_wrkload = max_wrkld
         #self._lock = threading.Lock()
         self._top = top_man
-        self._ops = {}
+        self._net_ops = None
+        self.dbg_netop_max_pri = 0
 
     def __repr__(self):
         state = "current_adj_list=%s, pending_adj_list=%s, negotiated_edges=%s, "\
@@ -62,17 +65,15 @@ class NetworkBuilder():
         Is the NetworkBuilder ready for a new NetGraph? This means all the entries in the
         pending adj list has been cleared.
         """
-        #with self._lock:
         return self._is_ready()
 
     def _is_ready(self):
-        return not bool(self._pending_adj_list)
+        return not bool(self._net_ops)
 
     def _is_max_concurrent_workload(self):
         return self._refresh_in_progress >= self._max_concurrent_wrkload
 
     def get_adj_list(self):
-        #with self._lock:
         return deepcopy(self._current_adj_list)
 
     def refresh(self, net_graph=None):
@@ -80,21 +81,21 @@ class NetworkBuilder():
         Transitions the overlay network overlay to the desired state specified by pending
         adjacency list.
         """
-        #with self._lock:
         self._top.log("LOG_DEBUG", "New net graph: %s", str(net_graph))
-        assert ((self._is_ready() and bool(net_graph)) or
-                (not self._is_ready() and not bool(net_graph))),\
-                    "Netbuilder is not ready for a new net graph"
-
+        #assert ((self._is_ready() and bool(net_graph)) or
+        #        (not self._is_ready() and not bool(net_graph))),\
+        #            "Netbuilder is not ready for a new net graph"
+        self.dbg_netop_max_pri = 0
         if net_graph and self._is_ready():
             self._pending_adj_list = net_graph
             self._current_adj_list.max_successors = net_graph.max_successors
             self._current_adj_list.max_ldl = net_graph.max_ldl
             self._current_adj_list.max_ondemand = net_graph.max_ondemand
             self._current_adj_list.update_closest()
-            self._process_pending_adj_list()
-        self._create_new_edges()
-        self._remove_edges()
+            self._net_ops = NetworkOperations(self._current_adj_list, self._pending_adj_list)
+            self._net_ops.diff()
+            self._top.log("LOG_DEBUG", "net_op=%s", str(self._net_ops))
+        self.process_net_ops()
 
     def update_edge_state(self, event):
         """
@@ -105,7 +106,6 @@ class NetworkBuilder():
         peer_id = event["PeerId"]
         edge_id = event["TunnelId"]
         overlay_id = event["OverlayId"]
-        #with self._lock:
         if event["UpdateType"] == "LnkEvAuthorized":
             self._add_incoming_auth_conn_edge(peer_id)
         elif event["UpdateType"] == "LnkEvDeauthorized":
@@ -147,81 +147,42 @@ class NetworkBuilder():
         assert self._refresh_in_progress >= 0, "refresh in progress is negative {}"\
             .format(self._refresh_in_progress)
 
-    def _mark_edges_for_removal(self):
-        """
-        Anything edge the set (Active - Pending) is marked for deletion but do not remove
-        negotiated edges.
-        """
-        for peer_id in self._current_adj_list:
-            if self._current_adj_list[peer_id].edge_type in ng.EdgeTypesIn:
-                continue # do not remove incoming edges
-            if peer_id in self._pending_adj_list:
-                continue # the edge should be maintained
-            if self._current_adj_list[peer_id].edge_state != "CEStateConnected":
-                # don't delete an edge before it completes the create process. if it fails LNK will
-                # initiate the removal.
-                continue
-            if time.time() - self._current_adj_list[peer_id].connected_time < 30:
-                continue # events get supressed
-            self._current_adj_list[peer_id].marked_for_delete = True
-            self._top.log("LOG_DEBUG", "Marked connedge for delete: %s",
-                          str(self._current_adj_list[peer_id]))
+    def _update_conn_edge(self, conn_edge):
+        peer_id = conn_edge.peer_id
+        self._current_adj_list[peer_id].edge_type = conn_edge.edge_type
 
-    def _remove_edges(self):
-        """
-        Removes a connected edge that was previousls marked for deletion. Minimize churn by
-        removing a single edge per invokation.
-        """
+    def _remove_conn_edge(self, conn_edge):
         overlay_id = self._current_adj_list.overlay_id
-        for peer_id in self._current_adj_list:
+        if conn_edge.edge_state == "CEStateConnected":
+            self._refresh_in_progress += 1
+            conn_edge.edge_state = "CEStateDeleting"
+            self._top.top_remove_edge(overlay_id, conn_edge.peer_id)
+
+    def _create_conn_edge(self, conn_edge):
+        conn_edge.edge_state = "CEStatePreAuth"
+        self._current_adj_list[conn_edge.peer_id] = conn_edge
+        self._negotiate_new_edge(conn_edge.edge_id, conn_edge.edge_type,
+                                 conn_edge.peer_id, conn_edge)
+
+    def process_net_ops(self):
+        for nop in self._net_ops:
+            assert self.dbg_netop_max_pri <= nop.op_priority, \
+            "Invalid Netop priority ordering max:{0} pri:{1}".format(self.dbg_netop_max_pri,
+                                                                     nop.op_priority)
+            self.dbg_netop_max_pri = nop.op_priority
             if self._is_max_concurrent_workload():
                 return
-            ce = self._current_adj_list[peer_id]
-            if (ce.marked_for_delete and ce.edge_state == "CEStateConnected"):
-                self._refresh_in_progress += 1
-                ce.edge_state = "CEStateDeleting"
-                self._top.top_remove_edge(overlay_id, peer_id)
-                return
+            if nop.op_type == OpType[2]:
+                self._update_conn_edge(nop.conn_edge)
+            elif nop.op_type == OpType[1]:
+                self._remove_conn_edge(nop.conn_edge)
+            elif nop.op_type == OpType[0]:
+                self._create_conn_edge(nop.conn_edge)
 
-    def _create_new_edges(self):
-        for peer_id, ce in self._negotiated_edges.items():
-            if self._is_max_concurrent_workload():
-                return
-            if ce.edge_state == "CEStateInitialized":
-                # avoid repeat auth request by only acting on CEStateInitialized
-                ce.edge_state = "CEStatePreAuth"
-                self._negotiate_new_edge(ce.edge_id, ce.edge_type, peer_id)
-
-    def _process_pending_adj_list(self):
-        """
-        Sync the network state by determining the difference between the active and pending net
-        graphs. Create new successors edges before removing existing ones.
-        """
-        rmv_list = []
-        if self._current_adj_list.overlay_id != self._pending_adj_list.overlay_id:
-            raise ValueError("Overlay ID mismatch adj lists, active:{0}, pending:{1}".
-                             format(self._current_adj_list.overlay_id,
-                                    self._pending_adj_list.overlay_id))
-        self._mark_edges_for_removal()
-
-        # Any edge in set (Pending - Active) is added for nego
-        for peer_id in self._pending_adj_list:
-            ce = self._pending_adj_list[peer_id]
-            #if ce.edge_type == "CETypeLongDistance" and \
-            #    self._current_adj_list.num_ldl >= self._current_adj_list.max_ldl:
-            #    continue
-            if peer_id not in self._negotiated_edges and peer_id not in self._current_adj_list:
-                self._current_adj_list[peer_id] = ce
-                self._negotiated_edges[peer_id] = ce
-            else:
-                rmv_list.append(peer_id)
-
-        for peer_id in rmv_list:
-            del self._pending_adj_list[peer_id]
-
-    def _negotiate_new_edge(self, edge_id, edge_type, peer_id):
+    def _negotiate_new_edge(self, edge_id, edge_type, peer_id, conn_edge):
         """ Role A1 """
         self._refresh_in_progress += 1
+        self._negotiated_edges[peer_id] = conn_edge
         olid = self._current_adj_list.overlay_id
         nid = self._current_adj_list.node_id
         er = EdgeRequest(overlay_id=olid, edge_id=edge_id, edge_type=edge_type,
@@ -300,7 +261,6 @@ class NetworkBuilder():
     def complete_edge_negotiation(self, edge_nego):
         """ Role A2 """
         self._top.log("LOG_DEBUG", "EdgeNegotiate=%s", str(edge_nego))
-        #with self._lock:
         if edge_nego.recipient_id not in self._current_adj_list and \
             edge_nego.recipient_id not in self._negotiated_edges:
             self._top.log("LOG_ERROR", "Peer Id from edge negotiation not in current adjacency " \
