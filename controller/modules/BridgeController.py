@@ -284,14 +284,14 @@ class BridgeController(ControllerModule):
             self.log("LOG_DEBUG", "ignored bridges=%s", ign_br_names)
 
         self.register_cbt("LinkManager", "LNK_ADD_IGN_INF", ign_br_names)
-        #try:
-        #    # Subscribe for data request notifications from OverlayVisualizer
-        #    self._cfx_handle.start_subscription("OverlayVisualizer", "VIS_DATA_REQ")
-        #except NameError as err:
-        #    if "OverlayVisualizer" in str(err):
-        #        self.register_cbt("Logger", "LOG_WARNING",
-        #                          "OverlayVisualizer module not loaded."
-        #                          " Visualization data will not be sent.")
+        try:
+            # Subscribe for data request notifications from OverlayVisualizer
+            self._cfx_handle.start_subscription("OverlayVisualizer", "VIS_DATA_REQ")
+        except NameError as err:
+            if "OverlayVisualizer" in str(err):
+                self.register_cbt("Logger", "LOG_WARNING",
+                                  "OverlayVisualizer module not loaded."
+                                  " Visualization data will not be sent.")
 
         self._cfx_handle.start_subscription("LinkManager", "LNK_TUNNEL_EVENTS")
         self.register_cbt("Logger", "LOG_INFO", "Module Loaded")

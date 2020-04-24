@@ -184,6 +184,10 @@ class Topology(ControllerModule, CFX):
                                        "NumOutLDL": adjl.num_ldl, "NumInLDL": adjl.num_ldli,
                                        "NumOnD": adjl.num_ond, "NumInOnD": adjl.num_ondi,
                                       }
+                    if self.config["Overlays"][olid]["Name"]:
+                      topo_data[olid]["Name"] = self.config["Overlays"][olid]["Name"]
+                    if self.config["Overlays"][olid]["Description"]:
+                      topo_data[olid]["Description"] = self.config["Overlays"][olid]["Description"]
             cbt.set_response({"Topology": topo_data}, bool(topo_data))
             self.complete_cbt(cbt)
         except KeyError:

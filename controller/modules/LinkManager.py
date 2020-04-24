@@ -34,6 +34,7 @@ class Link():
         self._creation_state = state
         self.status_retry = 0
         self.stats = {}
+        self.ice_role = None
 
     def __repr__(self):
         state = "Link<lnkid=%s, creation_state=0x%02x, status_retry=%s, stats=%s>" % \
@@ -281,7 +282,7 @@ class LinkManager(ControllerModule):
                             tnl.link.status_retry = retry + 1
                     elif data[tnlid][lnkid]["Status"] == "ONLINE":
                         tnl.tunnel_state = Tunnel.STATES.TNL_ONLINE
-                        #tnl.link.ice_role = data[tnlid][lnkid]["IceRole"]
+                        tnl.link.ice_role = data[tnlid][lnkid]["IceRole"]
                         tnl.link.stats = data[tnlid][lnkid]["Stats"]
                         tnl.link.status_retry = 0
                     else:
@@ -1045,8 +1046,8 @@ class LinkManager(ControllerModule):
                 tnl_data["TapName"] = self._tunnels[tnlid].tap_name
             if self._tunnels[tnlid].mac:
                 tnl_data["MAC"] = self._tunnels[tnlid].mac
-            #if "IceRole" in self._tunnels[tnlid]["Link"]:
-            #    tnl_data["IceRole"] = self._tunnels[tnlid]["Link"]["IceRole"]
+            if self._tunnels[tnlid].link.ice_role:
+                tnl_data["IceRole"] = self._tunnels[tnlid].link.ice_role
             if self._tunnels[tnlid].link.stats:
                 tnl_data["Stats"] = self._tunnels[tnlid].link.stats
             overlay_id = self._tunnels[tnlid].overlay_id

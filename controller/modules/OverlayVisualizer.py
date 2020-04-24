@@ -87,21 +87,17 @@ class OverlayVisualizer(ControllerModule):
             # flush old data, next itr provides new data
             self._vis_ds = dict(NodeId=self.node_id,
                                 VizData=defaultdict(dict))
-
-        collector_msg = dict(VizData=dict())
-        # Read the optional human-readable node name specified in the
-        # configuration and pass it along to the collector
         if "NodeName" in self._cm_config:
             vis_ds["NodeName"] = self._cm_config["NodeName"]
+        if "GeoCoordinate" in self._cm_config:
+            vis_ds["GeoCoordinate"] = self._cm_config["GeoCoordinate"]
         vis_ds["IpopVersion"] = self._ipop_version
-        # data_log = "Submitting VizData {}".format(collector_msg)
-        # self.register_cbt("Logger", "LOG_DEBUG", data_log)
+        self.log("LOG_DEBUG", "Submitted VizData=%s", vis_ds)
         req_url = "{}/IPOP/nodes/{}".format(self.vis_address, self.node_id)
         try:
             resp = requests.put(req_url,
                                 data=json.dumps(vis_ds),
-                                headers={"Content-Type":
-                                          "application/json"},
+                                headers={"Content-Type": "application/json"},
                                 timeout=3)
             resp.raise_for_status()
         except requests.exceptions.RequestException as err:
